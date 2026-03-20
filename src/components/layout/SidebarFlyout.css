@@ -1,0 +1,51 @@
+.sidebar-flyout {
+  --flyout-width: 200px;
+  position: absolute;
+  top: 0;
+  left: 44px;
+  width: var(--flyout-width);
+  height: 100%;
+  background: var(--flyout-bg, #16213e);
+  border-right: 1px solid var(--border-color, #0f3460);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-flyout__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color, #0f3460);
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--text-muted, #888);
+}
+
+.sidebar-flyout__close {
+  background: none;
+  border: none;
+  color: var(--text-muted, #888);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.sidebar-flyout__close:hover {
+  background: var(--rail-hover, #0f3460);
+  color: var(--text-primary, #ccc);
+}
+
+.sidebar-flyout__content {
+  flex: 1;
+  padding: 8px 12px;
+  overflow-y: auto;
+}
+
+.sidebar-flyout__placeholder {
+  color: var(--text-muted, #666);
+  font-size: 12px;
+}

@@ -1,0 +1,36 @@
+.icon-rail {
+  width: 44px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+  gap: 4px;
+  background: var(--rail-bg, #16213e);
+  border-right: 1px solid var(--border-color, #0f3460);
+}
+
+.icon-rail__button {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted, #888);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.icon-rail__button:hover {
+  background: var(--rail-hover, #0f3460);
+  color: var(--text-primary, #ccc);
+}
+
+.icon-rail__button--active {
+  background: var(--rail-active, #0f3460);
+  color: var(--text-primary, #ccc);
+}

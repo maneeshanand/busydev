@@ -29,6 +29,18 @@ Build:
 cargo tauri build
 ```
 
+## Local AI Config
+
+This repo supports shared and local Claude configuration:
+
+- Tracked shared defaults: `.claude/settings.shared.json` (no secrets).
+- Ignored local override: `.claude/settings.local.json` (machine/user-specific).
+
+Recommended setup for multiple worktrees:
+
+- Keep one machine-level local file, for example: `~/.config/claude/busydev.local.json`
+- Symlink each worktree's `.claude/settings.local.json` to that file
+
 ## Branch Naming
 
 busydev uses [Conventional Branch](https://conventional-branch.github.io/) naming.
