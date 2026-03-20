@@ -28,6 +28,8 @@ Thumbs.db
 # IDE/editor
 .idea/
 .vscode/
+.claude/
+.worktrees/
 
 # Build/install artifacts
 *.dmg

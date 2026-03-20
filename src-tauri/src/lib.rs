@@ -9,6 +9,7 @@ mod terminal;
 use agents::claude::ClaudeAdapter;
 use agents::codex::CodexAdapter;
 use agents::AgentRegistry;
+use commands::project::{create_project, delete_project, list_projects, update_project};
 use tauri::Manager;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -32,7 +33,13 @@ pub fn run() {
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            create_project,
+            list_projects,
+            update_project,
+            delete_project
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
