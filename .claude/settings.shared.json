@@ -1,0 +1,8 @@
+{
+  "project": "busydev",
+  "notes": "Shared non-secret defaults for Claude workflows in this repo.",
+  "paths": {
+    "workspaceRoot": ".",
+    "worktreesRoot": ".worktrees"
+  }
+}
