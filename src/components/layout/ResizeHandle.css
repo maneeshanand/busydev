@@ -1,0 +1,44 @@
+.resize-handle {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+.resize-handle--horizontal {
+  width: 4px;
+  cursor: col-resize;
+}
+
+.resize-handle--vertical {
+  height: 4px;
+  cursor: row-resize;
+}
+
+.resize-handle:hover,
+.resize-handle[data-separator]:not([data-separator="disabled"]):active {
+  background: var(--handle-active, #3b82f6);
+}
+
+.resize-handle__indicator {
+  border-radius: 2px;
+  background: var(--handle-color, #444);
+  transition: background 0.15s;
+}
+
+.resize-handle--horizontal .resize-handle__indicator {
+  width: 2px;
+  height: 24px;
+}
+
+.resize-handle--vertical .resize-handle__indicator {
+  height: 2px;
+  width: 24px;
+}
+
+.resize-handle:hover .resize-handle__indicator,
+.resize-handle[data-separator]:not([data-separator="disabled"]):active .resize-handle__indicator {
+  background: var(--handle-active, #3b82f6);
+}
