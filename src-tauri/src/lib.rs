@@ -8,7 +8,12 @@ mod terminal;
 
 use agents::claude::ClaudeAdapter;
 use agents::codex::CodexAdapter;
+use agents::manager::AgentManager;
 use agents::AgentRegistry;
+use commands::agent::{
+    list_agent_sessions, send_agent_input, start_agent_session, stop_agent_session,
+    stream_agent_events,
+};
 use commands::git::{create_worktree, delete_worktree};
 use commands::project::{create_project, delete_project, list_projects, update_project};
 use commands::terminal::{
@@ -36,6 +41,7 @@ pub fn run() {
             registry.register(ClaudeAdapter);
             registry.register(CodexAdapter);
             app.manage(registry);
+            app.manage(AgentManager::new());
             app.manage(TerminalManager::new());
 
             Ok(())
@@ -56,7 +62,12 @@ pub fn run() {
             create_terminal_session,
             list_terminal_sessions,
             resize_terminal_session,
-            close_terminal_session
+            close_terminal_session,
+            start_agent_session,
+            stop_agent_session,
+            send_agent_input,
+            list_agent_sessions,
+            stream_agent_events
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
