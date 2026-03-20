@@ -6,6 +6,9 @@ mod notifications;
 mod state;
 mod terminal;
 
+use agents::claude::ClaudeAdapter;
+use agents::codex::CodexAdapter;
+use agents::AgentRegistry;
 use tauri::Manager;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -20,6 +23,12 @@ pub fn run() {
         .setup(|app| {
             let db = db::initialize_for_app(app.handle()).map_err(|err| err.to_string())?;
             app.manage(db);
+
+            let mut registry = AgentRegistry::new();
+            registry.register(ClaudeAdapter);
+            registry.register(CodexAdapter);
+            app.manage(registry);
+
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
