@@ -11,8 +11,13 @@ use agents::codex::CodexAdapter;
 use agents::AgentRegistry;
 use commands::git::{create_worktree, delete_worktree};
 use commands::project::{create_project, delete_project, list_projects, update_project};
+use commands::terminal::{
+    close_terminal_session, create_terminal_session, list_terminal_sessions,
+    resize_terminal_session,
+};
 use commands::workspace::{create_workspace, delete_workspace, list_workspaces, update_workspace};
 use tauri::Manager;
+use terminal::TerminalManager;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -31,6 +36,7 @@ pub fn run() {
             registry.register(ClaudeAdapter);
             registry.register(CodexAdapter);
             app.manage(registry);
+            app.manage(TerminalManager::new());
 
             Ok(())
         })
@@ -46,7 +52,11 @@ pub fn run() {
             create_workspace,
             list_workspaces,
             update_workspace,
-            delete_workspace
+            delete_workspace,
+            create_terminal_session,
+            list_terminal_sessions,
+            resize_terminal_session,
+            close_terminal_session
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
