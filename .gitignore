@@ -29,7 +29,6 @@ Thumbs.db
 .idea/
 .vscode/
 .claude/
-.worktrees/
 
 # Git worktrees
 .worktrees/
