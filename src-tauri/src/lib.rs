@@ -9,6 +9,7 @@ mod terminal;
 use agents::claude::ClaudeAdapter;
 use agents::codex::CodexAdapter;
 use agents::AgentRegistry;
+use commands::git::{create_worktree, delete_worktree};
 use commands::project::{create_project, delete_project, list_projects, update_project};
 use tauri::Manager;
 
@@ -38,7 +39,9 @@ pub fn run() {
             create_project,
             list_projects,
             update_project,
-            delete_project
+            delete_project,
+            create_worktree,
+            delete_worktree
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
