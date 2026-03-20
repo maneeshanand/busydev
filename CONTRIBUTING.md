@@ -1,4 +1,4 @@
-# Contributing to BusyDev
+# Contributing to busydev
 
 Thanks for contributing. This project is being built in public, and small, focused changes are preferred.
 
@@ -31,7 +31,7 @@ cargo tauri build
 
 ## Branch Naming
 
-BusyDev uses [Conventional Branch](https://conventional-branch.github.io/) naming.
+busydev uses [Conventional Branch](https://conventional-branch.github.io/) naming.
 
 Rules:
 
@@ -69,7 +69,7 @@ Suggested scopes: `agent`, `git`, `terminal`, `ui`, `db`, `notifications`, `sett
 
 ## CI/CD and Versioning
 
-BusyDev will use automated versioning and release pipelines.
+busydev will use automated versioning and release pipelines.
 
 Current policy direction:
 

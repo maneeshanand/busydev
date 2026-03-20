@@ -1,8 +1,8 @@
-# BusyDev Contributor Context
+# busydev Contributor Context
 
 ## Project Summary
 
-BusyDev is an open-source desktop app for managing multiple AI coding agent sessions across repos and branches in parallel.
+busydev is an open-source desktop app for managing multiple AI coding agent sessions across repos and branches in parallel.
 
 ## Stack
 
