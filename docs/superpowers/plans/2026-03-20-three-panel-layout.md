@@ -29,11 +29,11 @@ src/
       SidebarFlyout.tsx            — CREATE: overlay sidebar panel
       SidebarFlyout.css            — CREATE: flyout styles
       ChatPanel.tsx                — CREATE: placeholder chat panel
-      ContextPanel.tsx             — CREATE: vertical PanelGroup with diff + terminal
+      ContextPanel.tsx             — CREATE: vertical Group with diff + terminal
       ContextPanel.css             — CREATE: context panel styles
       DiffPanel.tsx                — CREATE: placeholder diff viewer
       TerminalPanel.tsx            — CREATE: placeholder terminal
-      ResizeHandle.tsx             — CREATE: custom styled PanelResizeHandle
+      ResizeHandle.tsx             — CREATE: custom styled Separator
       ResizeHandle.css             — CREATE: resize handle styles
       PlaceholderPanel.tsx         — CREATE: reusable placeholder component for empty panels
       PlaceholderPanel.css         — CREATE: placeholder styles
@@ -105,26 +105,26 @@ git commit -m "feat(ui): add PlaceholderPanel component for empty panel states"
 - Create: `src/components/layout/ResizeHandle.tsx`
 - Create: `src/components/layout/ResizeHandle.css`
 
-Custom styled resize handle for `react-resizable-panels`.
+Custom styled separator for `react-resizable-panels` v4.7.3. Note: v4.7.3 exports `Separator` (not `PanelResizeHandle`), and uses `data-separator` attribute for active styling.
 
 - [ ] **Step 1: Create the component**
 
 ```tsx
 // src/components/layout/ResizeHandle.tsx
-import { PanelResizeHandle } from "react-resizable-panels";
+import { Separator } from "react-resizable-panels";
 import "./ResizeHandle.css";
 
 interface ResizeHandleProps {
-  direction?: "horizontal" | "vertical";
+  orientation?: "horizontal" | "vertical";
 }
 
-export function ResizeHandle({ direction = "horizontal" }: ResizeHandleProps) {
+export function ResizeHandle({ orientation = "horizontal" }: ResizeHandleProps) {
   return (
-    <PanelResizeHandle
-      className={`resize-handle resize-handle--${direction}`}
+    <Separator
+      className={`resize-handle resize-handle--${orientation}`}
     >
       <div className="resize-handle__indicator" />
-    </PanelResizeHandle>
+    </Separator>
   );
 }
 ```
@@ -153,7 +153,7 @@ export function ResizeHandle({ direction = "horizontal" }: ResizeHandleProps) {
 }
 
 .resize-handle:hover,
-.resize-handle[data-resize-handle-active] {
+.resize-handle[data-separator]:not([data-separator="disabled"]):active {
   background: var(--handle-active, #3b82f6);
 }
 
@@ -174,7 +174,7 @@ export function ResizeHandle({ direction = "horizontal" }: ResizeHandleProps) {
 }
 
 .resize-handle:hover .resize-handle__indicator,
-.resize-handle[data-resize-handle-active] .resize-handle__indicator {
+.resize-handle[data-separator]:not([data-separator="disabled"]):active .resize-handle__indicator {
   background: var(--handle-active, #3b82f6);
 }
 ```
@@ -241,30 +241,38 @@ git commit -m "feat(ui): add placeholder ChatPanel, DiffPanel, TerminalPanel"
 - Create: `src/components/layout/ContextPanel.tsx`
 - Create: `src/components/layout/ContextPanel.css`
 
-Nests a vertical `PanelGroup` containing DiffPanel (60%) and TerminalPanel (40%).
+Nests a vertical `Group` containing DiffPanel (60%) and TerminalPanel (40%). Uses `useDefaultLayout` hook for localStorage persistence.
 
 - [ ] **Step 1: Create the component**
 
 ```tsx
 // src/components/layout/ContextPanel.tsx
-import { Panel, PanelGroup } from "react-resizable-panels";
+import { Group, Panel, useDefaultLayout } from "react-resizable-panels";
 import { DiffPanel } from "./DiffPanel";
 import { TerminalPanel } from "./TerminalPanel";
 import { ResizeHandle } from "./ResizeHandle";
 import "./ContextPanel.css";
 
 export function ContextPanel() {
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: "busydev-context",
+  });
+
   return (
     <div className="context-panel">
-      <PanelGroup direction="vertical" autoSaveId="busydev-context">
-        <Panel defaultSize={60} minSize={20}>
+      <Group
+        orientation="vertical"
+        defaultLayout={defaultLayout}
+        onLayoutChanged={onLayoutChanged}
+      >
+        <Panel id="diff" defaultSize="60%" minSize="20%">
           <DiffPanel />
         </Panel>
-        <ResizeHandle direction="vertical" />
-        <Panel defaultSize={40} minSize={20}>
+        <ResizeHandle orientation="vertical" />
+        <Panel id="terminal" defaultSize="40%" minSize="20%">
           <TerminalPanel />
         </Panel>
-      </PanelGroup>
+      </Group>
     </div>
   );
 }
@@ -534,7 +542,7 @@ Top-level layout: flex container with icon rail (fixed) + panel group (flex) + f
 ```tsx
 // src/components/layout/AppLayout.tsx
 import { useCallback, useState } from "react";
-import { Panel, PanelGroup } from "react-resizable-panels";
+import { Group, Panel, useDefaultLayout } from "react-resizable-panels";
 import { IconRail } from "./IconRail";
 import { SidebarFlyout } from "./SidebarFlyout";
 import { ChatPanel } from "./ChatPanel";
@@ -544,6 +552,10 @@ import "./AppLayout.css";
 
 export function AppLayout() {
   const [activePanel, setActivePanel] = useState<string | null>(null);
+
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: "busydev-main",
+  });
 
   const handleTogglePanel = useCallback((panel: string) => {
     setActivePanel((prev) => (prev === panel ? null : panel));
@@ -558,15 +570,19 @@ export function AppLayout() {
       <IconRail activePanel={activePanel} onTogglePanel={handleTogglePanel} />
       <div className="app-layout__panels">
         <SidebarFlyout activePanel={activePanel} onClose={handleCloseFlyout} />
-        <PanelGroup direction="horizontal" autoSaveId="busydev-main">
-          <Panel defaultSize={55} minSize={20} collapsible collapsedSize={0}>
+        <Group
+          orientation="horizontal"
+          defaultLayout={defaultLayout}
+          onLayoutChanged={onLayoutChanged}
+        >
+          <Panel id="chat" defaultSize="55%" minSize="20%" collapsible collapsedSize="0%">
             <ChatPanel />
           </Panel>
-          <ResizeHandle direction="horizontal" />
-          <Panel defaultSize={45} minSize={20} collapsible collapsedSize={0}>
+          <ResizeHandle orientation="horizontal" />
+          <Panel id="context" defaultSize="45%" minSize="20%" collapsible collapsedSize="0%">
             <ContextPanel />
           </Panel>
-        </PanelGroup>
+        </Group>
       </div>
     </div>
   );
@@ -615,6 +631,7 @@ Replace the Tauri boilerplate with AppLayout mount. Strip scaffold styles, keep 
 ```tsx
 // src/App.tsx
 import { AppLayout } from "./components/layout/AppLayout";
+import "./App.css";
 
 function App() {
   return <AppLayout />;
