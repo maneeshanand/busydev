@@ -1,0 +1,38 @@
+# Rust
+target/
+**/target/
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+
+# Tauri generated/build output
+src-tauri/target/
+src-tauri/gen/
+
+# Env files
+.env
+.env.local
+.env.*
+!.env.example
+
+# Databases
+*.db
+*.db-journal
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE/editor
+.idea/
+.vscode/
+
+# Build/install artifacts
+*.dmg
+*.app
+*.AppImage
+*.msi
+*.deb
+*.exe
