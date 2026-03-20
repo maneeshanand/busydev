@@ -36,6 +36,9 @@ Thumbs.db
 # Git worktrees
 .worktrees/
 
+# Superpowers brainstorm artifacts
+.superpowers/
+
 # Build/install artifacts
 *.dmg
 *.app
