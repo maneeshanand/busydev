@@ -31,6 +31,9 @@ Thumbs.db
 .claude/
 .worktrees/
 
+# Git worktrees
+.worktrees/
+
 # Build/install artifacts
 *.dmg
 *.app
