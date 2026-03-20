@@ -29,6 +29,9 @@ Thumbs.db
 .idea/
 .vscode/
 .claude/
+!.claude/
+.claude/*
+!.claude/settings.shared.json
 
 # Git worktrees
 .worktrees/
