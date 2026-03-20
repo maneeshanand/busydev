@@ -1,10 +1,10 @@
-# BusyDev
+# busydev
 
-BusyDev is an open-source desktop app for running multiple AI coding agent sessions across repos and branches at the same time.
+busydev is an open-source desktop app for running multiple AI coding agent sessions across repos and branches at the same time.
 
-## Why BusyDev
+## Why busydev
 
-If you use CLI agents (Codex, Claude Code, Aider, etc.) across several repos, you end up juggling terminal tabs, losing context, and missing when an agent needs attention. BusyDev gives you one place to coordinate all of that.
+If you use CLI agents (Codex, Claude Code, Aider, etc.) across several repos, you end up juggling terminal tabs, losing context, and missing when an agent needs attention. busydev gives you one place to coordinate all of that.
 
 ## What It Does
 
@@ -18,7 +18,7 @@ If you use CLI agents (Codex, Claude Code, Aider, etc.) across several repos, yo
 
 ## Current Status
 
-BusyDev is in active development. The architecture and backlog are defined, and foundational implementation is underway.
+busydev is in active development. The architecture and backlog are defined, and foundational implementation is underway.
 
 ## Tech Stack
 
@@ -70,7 +70,7 @@ cargo tauri build
 
 Contributions are welcome. We are building this in public and keeping the architecture modular so new contributors can pick up focused tickets quickly.
 
-Please open an issue or pick from the BusyDev backlog in Linear, then submit a PR with a clear scope.
+Please open an issue or pick from the busydev backlog in Linear, then submit a PR with a clear scope.
 For workflow and branch conventions, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## License
