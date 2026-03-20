@@ -1,3 +1,11 @@
+mod agents;
+mod commands;
+mod db;
+mod git;
+mod notifications;
+mod state;
+mod terminal;
+
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
 fn greet(name: &str) -> String {
