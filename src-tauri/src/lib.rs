@@ -11,6 +11,7 @@ use agents::codex::CodexAdapter;
 use agents::AgentRegistry;
 use commands::git::{create_worktree, delete_worktree};
 use commands::project::{create_project, delete_project, list_projects, update_project};
+use commands::workspace::{create_workspace, delete_workspace, list_workspaces, update_workspace};
 use tauri::Manager;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -41,7 +42,11 @@ pub fn run() {
             update_project,
             delete_project,
             create_worktree,
-            delete_worktree
+            delete_worktree,
+            create_workspace,
+            list_workspaces,
+            update_workspace,
+            delete_workspace
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
