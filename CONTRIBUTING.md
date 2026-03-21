@@ -106,6 +106,13 @@ Use conventional commits:
 
 Suggested scopes: `agent`, `git`, `terminal`, `ui`, `db`, `notifications`, `settings`, `build`, `docs`.
 
+Commit message linting:
+
+- Config file: `commitlint.config.cjs`
+- Local range check:
+  `npm run commitlint`
+- PRs are validated in CI by `.github/workflows/commitlint.yml`
+
 ## Pull Requests
 
 - Keep PRs scoped to one coherent change set
@@ -153,6 +160,10 @@ Release management commands:
   `npm run release:tag`
 - One-shot release cut from a clean tree (prepare + commit + tag):
   `npm run release:cut -- patch`
+- Regenerate changelog from conventional commits:
+  `npm run changelog:generate`
+- Preview recent changelog entries:
+  `npm run changelog:preview`
 
 Tagged release pipeline:
 

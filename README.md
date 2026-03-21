@@ -108,6 +108,8 @@ Release/version helpers:
 - `npm run version:sync`
 - `npm run release:prepare -- patch`
 - `npm run release:cut -- patch`
+- `npm run commitlint`
+- `npm run changelog:generate`
 
 ## License
 
