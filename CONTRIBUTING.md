@@ -113,6 +113,14 @@ Suggested scopes: `agent`, `git`, `terminal`, `ui`, `db`, `notifications`, `sett
 - Link related backlog items in PR description (without requiring ticket IDs in branch names)
 - Prefer squash merges unless maintainers request otherwise
 
+## Website and Docs Content
+
+- Public site and docs content lives under `site/`
+- Primary entry points:
+  `site/index.html`, `site/docs/index.html`, `site/docs/getting-started.html`, `site/docs/setup.html`
+- For content edits, update files in `site/` and open a docs-focused PR
+- Deployment is handled by `.github/workflows/site-pages.yml` on pushes to `main`
+
 ## CI/CD and Versioning
 
 busydev will use automated versioning and release pipelines.

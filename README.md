@@ -20,6 +20,16 @@ If you use CLI agents (Codex, Claude Code, Aider, etc.) across several repos, yo
 
 > _Coming soon — the app is in active development._
 
+## Website and Docs
+
+Initial public website content for `busydev.com` now lives in `site/`:
+
+- Landing page: `site/index.html`
+- Docs home: `site/docs/index.html`
+- Getting started and setup guides: `site/docs/`
+
+Content is deployed through the GitHub Pages workflow in `.github/workflows/site-pages.yml`.
+
 ## Current Status
 
 busydev is in active development. Core UI and backend are implemented:
