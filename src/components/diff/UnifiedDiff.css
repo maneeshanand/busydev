@@ -1,0 +1,53 @@
+.unified-diff {
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.unified-diff__hunk-header {
+  padding: 4px 12px;
+  color: var(--text-muted, #888);
+  background: rgba(59, 130, 246, 0.08);
+  font-size: 11px;
+}
+
+.unified-diff__line {
+  display: flex;
+  white-space: pre;
+}
+
+.unified-diff__line--add {
+  background: rgba(34, 197, 94, 0.1);
+  color: #53d769;
+}
+
+.unified-diff__line--remove {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.unified-diff__line--context {
+  color: var(--text-muted, #888);
+}
+
+.unified-diff__gutter {
+  width: 40px;
+  flex-shrink: 0;
+  text-align: right;
+  padding: 0 6px;
+  color: var(--text-muted, #666);
+  opacity: 0.5;
+  user-select: none;
+}
+
+.unified-diff__prefix {
+  width: 16px;
+  flex-shrink: 0;
+  text-align: center;
+  user-select: none;
+}
+
+.unified-diff__content {
+  flex: 1;
+  padding-right: 12px;
+}
