@@ -1,2 +1,1 @@
-// TODO: Settings panel components.
-export {};
+export { SettingsPanel } from "./SettingsPanel";
