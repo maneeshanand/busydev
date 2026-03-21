@@ -4,6 +4,7 @@ use tauri::State;
 use uuid::Uuid;
 
 use crate::db::Database;
+use crate::security::sanitize_json_for_persistence;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -33,7 +34,7 @@ pub fn create_mcp_server(
     validate_non_empty("scope", &scope)?;
 
     let server_id = Uuid::new_v4().to_string();
-    let env_json = normalize_optional_text(env_json);
+    let env_json = sanitize_json_for_persistence("env_json", env_json)?;
     let enabled = enabled.unwrap_or(true);
 
     let connection = db.connection();
@@ -88,7 +89,7 @@ pub fn update_mcp_server(
     validate_non_empty("command_or_url", &command_or_url)?;
     validate_non_empty("scope", &scope)?;
 
-    let env_json = normalize_optional_text(env_json);
+    let env_json = sanitize_json_for_persistence("env_json", env_json)?;
     let connection = db.connection();
     let conn = connection
         .lock()
@@ -193,17 +194,6 @@ fn validate_non_empty(name: &str, value: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn normalize_optional_text(value: Option<String>) -> Option<String> {
-    value.and_then(|item| {
-        let trimmed = item.trim().to_string();
-        if trimmed.is_empty() {
-            None
-        } else {
-            Some(trimmed)
-        }
-    })
-}
-
 fn bool_to_int(value: bool) -> i64 {
     if value {
         1
@@ -269,5 +259,18 @@ mod tests {
         assert_eq!(server.transport, "http");
         assert_eq!(server.scope, "global");
         assert!(!server.enabled);
+    }
+
+    #[test]
+    fn sanitize_env_json_redacts_sensitive_keys_on_insert_path() {
+        let env = Some(r#"{"OPENAI_API_KEY":"sk-123","SAFE":"ok"}"#.to_string());
+        let sanitized = sanitize_json_for_persistence("env_json", env)
+            .expect("sanitize should succeed")
+            .expect("sanitized env should exist");
+
+        let value: serde_json::Value =
+            serde_json::from_str(&sanitized).expect("should deserialize sanitized env");
+        assert_eq!(value["OPENAI_API_KEY"], "***REDACTED***");
+        assert_eq!(value["SAFE"], "ok");
     }
 }

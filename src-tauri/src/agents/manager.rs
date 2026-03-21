@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{AgentAdapter, AgentCommand, AgentConfig, AgentEvent, AgentStatus, TokenUsage};
+use crate::security::redact_text_secrets;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -208,7 +209,11 @@ impl AgentManager {
         Ok(items)
     }
 
-    pub fn stream_events(&self, id: &str, since_seq: Option<u64>) -> Result<AgentEventBatch, String> {
+    pub fn stream_events(
+        &self,
+        id: &str,
+        since_seq: Option<u64>,
+    ) -> Result<AgentEventBatch, String> {
         let sessions = self
             .sessions
             .lock()
@@ -280,7 +285,12 @@ fn spawn_stdout_loop(
                     if let Some(event) = adapter.parse_output(&line) {
                         push_runtime_event(&runtime, event);
                     } else if !line.trim().is_empty() {
-                        push_runtime_event(&runtime, AgentEvent::Message { content: line });
+                        push_runtime_event(
+                            &runtime,
+                            AgentEvent::Message {
+                                content: redact_text_secrets(&line),
+                            },
+                        );
                     }
                 }
                 Err(err) => {
@@ -297,7 +307,10 @@ fn spawn_stdout_loop(
     });
 }
 
-fn spawn_stderr_loop(stderr: impl std::io::Read + Send + 'static, runtime: Arc<Mutex<SessionRuntime>>) {
+fn spawn_stderr_loop(
+    stderr: impl std::io::Read + Send + 'static,
+    runtime: Arc<Mutex<SessionRuntime>>,
+) {
     std::thread::spawn(move || {
         let reader = BufReader::new(stderr);
         for line_result in reader.lines() {
@@ -306,7 +319,12 @@ fn spawn_stderr_loop(stderr: impl std::io::Read + Send + 'static, runtime: Arc<M
                     if line.trim().is_empty() {
                         continue;
                     }
-                    push_runtime_event(&runtime, AgentEvent::Error { message: line });
+                    push_runtime_event(
+                        &runtime,
+                        AgentEvent::Error {
+                            message: redact_text_secrets(&line),
+                        },
+                    );
                 }
                 Err(err) => {
                     push_runtime_event(
@@ -355,6 +373,7 @@ fn spawn_exit_watcher(child: Arc<Mutex<Child>>, runtime: Arc<Mutex<SessionRuntim
 }
 
 fn push_runtime_event(runtime: &Arc<Mutex<SessionRuntime>>, event: AgentEvent) {
+    let event = sanitize_runtime_event(event);
     if let Ok(mut locked) = runtime.lock() {
         let envelope = AgentEventEnvelope {
             seq: locked.next_seq,
@@ -368,6 +387,18 @@ fn push_runtime_event(runtime: &Arc<Mutex<SessionRuntime>>, event: AgentEvent) {
             let excess = locked.events.len() - 500;
             locked.events.drain(0..excess);
         }
+    }
+}
+
+fn sanitize_runtime_event(event: AgentEvent) -> AgentEvent {
+    match event {
+        AgentEvent::Message { content } => AgentEvent::Message {
+            content: redact_text_secrets(&content),
+        },
+        AgentEvent::Error { message } => AgentEvent::Error {
+            message: redact_text_secrets(&message),
+        },
+        other => other,
     }
 }
 
@@ -447,5 +478,19 @@ mod tests {
                 status: AgentStatus::Done
             }
         ));
+    }
+
+    #[test]
+    fn sanitize_runtime_event_redacts_message_secrets() {
+        let event = sanitize_runtime_event(AgentEvent::Message {
+            content: "Authorization: Bearer sk-live".to_string(),
+        });
+
+        match event {
+            AgentEvent::Message { content } => {
+                assert!(content.contains("Bearer ***REDACTED***"));
+            }
+            _ => panic!("expected message event"),
+        }
     }
 }
