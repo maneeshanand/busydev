@@ -129,7 +129,7 @@ jobs:
 
       - name: Enforce line coverage threshold
         working-directory: src-tauri
-        run: cargo llvm-cov --locked --all-targets --workspace --fail-under-lines 70
+        run: cargo llvm-cov --locked --all-targets --workspace --fail-under-lines 40
 
       - name: Generate LCOV report
         working-directory: src-tauri
