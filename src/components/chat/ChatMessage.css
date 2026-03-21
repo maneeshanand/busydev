@@ -1,0 +1,124 @@
+.chat-message {
+  margin-bottom: 8px;
+}
+
+.chat-message--status {
+  display: flex;
+  justify-content: center;
+  margin: 12px 0;
+}
+
+.chat-message__status-pill {
+  font-size: 11px;
+  color: var(--text-muted, #888);
+  background: var(--border-color, #0f3460);
+  padding: 2px 10px;
+  border-radius: 10px;
+}
+
+.chat-message--user {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.chat-message--agent {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.chat-message__bubble {
+  max-width: 85%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.chat-message__bubble--user {
+  background: var(--handle-active, #3b82f6);
+  color: white;
+  border-bottom-right-radius: 2px;
+}
+
+.chat-message__bubble--agent {
+  background: var(--rail-bg, #16213e);
+  color: var(--text-primary, #ccc);
+  border-left: 3px solid var(--handle-active, #3b82f6);
+  border-bottom-left-radius: 2px;
+}
+
+.chat-message__bubble--error {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border-left: 3px solid #ef4444;
+  border-bottom-left-radius: 2px;
+  max-width: 85%;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+.chat-message__text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1.5;
+}
+
+/* Tool cards */
+.chat-message--tool {
+  margin: 4px 0;
+}
+
+.chat-message__tool-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--border-color, #0f3460);
+  border-radius: 6px;
+  background: rgba(15, 52, 96, 0.3);
+  color: var(--text-muted, #888);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.chat-message__tool-header:hover {
+  background: rgba(15, 52, 96, 0.5);
+  color: var(--text-primary, #ccc);
+}
+
+.chat-message__tool-icon {
+  font-size: 11px;
+}
+
+.chat-message__tool-label {
+  flex: 1;
+}
+
+.chat-message__tool-chevron {
+  font-size: 8px;
+  transition: transform 0.15s;
+}
+
+.chat-message__tool-chevron--open {
+  transform: rotate(90deg);
+}
+
+.chat-message__tool-data {
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color, #0f3460);
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  background: rgba(15, 52, 96, 0.2);
+  color: var(--text-muted, #888);
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  max-height: 200px;
+  overflow-y: auto;
+}

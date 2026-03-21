@@ -1,17 +1,49 @@
+import { useEffect, useRef } from "react";
+import type { ChatEvent } from "./useAgentStream";
+import { ChatMessage } from "./ChatMessage";
 import "./MessageArea.css";
 
 interface MessageAreaProps {
   hasWorkspace: boolean;
+  events: ChatEvent[];
 }
 
-export function MessageArea({ hasWorkspace }: MessageAreaProps) {
+export function MessageArea({ hasWorkspace, events }: MessageAreaProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom on new events
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [events.length]);
+
+  if (!hasWorkspace) {
+    return (
+      <div className="message-area message-area--empty">
+        <p className="message-area__placeholder">
+          Select a workspace to start chatting
+        </p>
+      </div>
+    );
+  }
+
+  if (events.length === 0) {
+    return (
+      <div className="message-area message-area--empty">
+        <p className="message-area__placeholder">No messages yet</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="message-area">
-      <p className="message-area__empty">
-        {hasWorkspace
-          ? "No messages yet"
-          : "Select a workspace to start chatting"}
-      </p>
+    <div className="message-area" ref={scrollRef}>
+      <div className="message-area__list">
+        {events.map((event) => (
+          <ChatMessage key={event.id} event={event} />
+        ))}
+      </div>
     </div>
   );
 }
