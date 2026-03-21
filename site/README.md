@@ -31,6 +31,7 @@ This folder contains the VitePress-powered landing/docs content for `busydev.com
 - `SITE_FTP_REMOTE_DIR` (`/public_html/` by default)
 - `SITE_FTP_PASSIVE` (`true` default)
 - `SITE_SSL_VERIFY` (`true` default)
+- `SITE_SSL_CHECK_HOSTNAME` (`false` default; set `true` only when FTP host matches cert CN/SAN)
 - `SITE_URL` (`https://busydev.com`)
 - `SITE_CANONICAL_URL` (optional, e.g. `https://www.busydev.com`)
 

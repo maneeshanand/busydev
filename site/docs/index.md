@@ -4,7 +4,7 @@ layout: home
 hero:
   name: "busydev"
   text: "Coordinate coding agents without terminal chaos."
-  tagline: "A desktop command center for Codex, Claude Code, and other CLI coding agents."
+  tagline: "A desktop command center for Codex, Claude Code, and other CLI coding agents. Latest version: v0.1.0."
   actions:
     - theme: brand
       text: Getting Started

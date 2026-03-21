@@ -86,6 +86,7 @@ jobs:
           SITE_FTP_REMOTE_DIR: ${{ vars.SITE_FTP_REMOTE_DIR }}
           SITE_FTP_PASSIVE: ${{ vars.SITE_FTP_PASSIVE }}
           SITE_SSL_VERIFY: ${{ vars.SITE_SSL_VERIFY }}
+          SITE_SSL_CHECK_HOSTNAME: ${{ vars.SITE_SSL_CHECK_HOSTNAME }}
           DISPATCH_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
         run: |
           set -euo pipefail
@@ -95,6 +96,7 @@ jobs:
           remote_dir="${SITE_FTP_REMOTE_DIR:-/public_html/}"
           passive="${SITE_FTP_PASSIVE:-true}"
           ssl_verify="${SITE_SSL_VERIFY:-true}"
+          ssl_check_hostname="${SITE_SSL_CHECK_HOSTNAME:-false}"
 
           if [ "${remote_dir}" != "/" ] && [[ "${remote_dir}" != */ ]]; then
             remote_dir="${remote_dir}/"
@@ -126,6 +128,7 @@ jobs:
           set ftp:ssl-force ${ssl_force}
           set ftp:ssl-protect-data ${ssl_protect_data}
           set ssl:verify-certificate ${ssl_verify}
+          set ssl:check-hostname ${ssl_check_hostname}
           open -u "${SITE_FTP_USERNAME}","${SITE_FTP_PASSWORD}" ${protocol}://${SITE_FTP_HOST}:${port}
           mirror --reverse --delete --verbose ${dry_flag} "${DIST_DIR}/" "${remote_dir}"
           bye
