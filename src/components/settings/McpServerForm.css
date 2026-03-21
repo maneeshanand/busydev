@@ -1,0 +1,60 @@
+.mcp-server-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border-color, #0f3460);
+  border-radius: 6px;
+  background: var(--panel-bg, #1a1a2e);
+}
+
+.mcp-server-form__input,
+.mcp-server-form__select {
+  padding: 6px 8px;
+  border: 1px solid var(--border-color, #0f3460);
+  border-radius: 4px;
+  background: var(--rail-bg, #16213e);
+  color: var(--text-primary, #ccc);
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+}
+
+.mcp-server-form__input:focus,
+.mcp-server-form__select:focus {
+  border-color: var(--handle-active, #3b82f6);
+}
+
+.mcp-server-form__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.mcp-server-form__submit {
+  flex: 1;
+  padding: 5px;
+  border: none;
+  border-radius: 4px;
+  background: var(--handle-active, #3b82f6);
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.mcp-server-form__submit:hover {
+  opacity: 0.9;
+}
+
+.mcp-server-form__cancel {
+  padding: 5px 10px;
+  border: 1px solid var(--border-color, #0f3460);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted, #888);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.mcp-server-form__cancel:hover {
+  color: var(--text-primary, #ccc);
+}
