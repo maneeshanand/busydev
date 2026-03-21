@@ -1,0 +1,29 @@
+.terminal-tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--border-color, #0f3460);
+  background: var(--rail-bg, #16213e);
+  flex-shrink: 0;
+}
+
+.terminal-tab-bar__tab {
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #888);
+  font-size: 12px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.1s, border-color 0.1s;
+}
+
+.terminal-tab-bar__tab:hover {
+  color: var(--text-primary, #ccc);
+}
+
+.terminal-tab-bar__tab--active {
+  color: var(--text-primary, #ccc);
+  border-bottom-color: var(--handle-active, #3b82f6);
+}
