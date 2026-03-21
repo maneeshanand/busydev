@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useProjectStore } from "../../stores";
 import "./AddProjectForm.css";
@@ -12,16 +12,30 @@ export function AddProjectForm({ onDone }: AddProjectFormProps) {
   const [name, setName] = useState("");
   const [repoPath, setRepoPath] = useState("");
 
-  async function handleBrowse() {
-    try {
-      const selected = await open({ directory: true, title: "Select repo folder" });
-      if (selected) {
-        setRepoPath(selected);
+  // Open folder picker immediately on mount
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const selected = await open({ directory: true, title: "Select project repo folder" });
+        if (cancelled) return;
+        if (selected) {
+          setRepoPath(selected);
+          // Auto-fill name from folder basename
+          const basename = selected.split("/").filter(Boolean).pop() ?? "";
+          setName(basename);
+        } else {
+          // User cancelled the picker
+          onDone();
+        }
+      } catch {
+        // Dialog not available (Vite-only dev) — show manual form
       }
-    } catch {
-      // Dialog not available (e.g., Vite-only dev) — fall back to manual input
-    }
-  }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -30,8 +44,18 @@ export function AddProjectForm({ onDone }: AddProjectFormProps) {
     if (result) onDone();
   }
 
+  // Don't render form until we have a path (or dialog failed)
+  if (!repoPath) {
+    return (
+      <div className="add-project-form add-project-form--loading">
+        <span className="add-project-form__hint">Select a folder...</span>
+      </div>
+    );
+  }
+
   return (
     <form className="add-project-form" onSubmit={handleSubmit}>
+      <div className="add-project-form__path-display">{repoPath}</div>
       <input
         className="add-project-form__input"
         type="text"
@@ -41,24 +65,6 @@ export function AddProjectForm({ onDone }: AddProjectFormProps) {
         autoFocus
         required
       />
-      <div className="add-project-form__path-row">
-        <input
-          className="add-project-form__input add-project-form__input--path"
-          type="text"
-          value={repoPath}
-          onChange={(e) => setRepoPath(e.target.value)}
-          placeholder="Repo path"
-          required
-        />
-        <button
-          className="add-project-form__browse"
-          type="button"
-          onClick={handleBrowse}
-          title="Browse for folder"
-        >
-          {"\uD83D\uDCC2"}
-        </button>
-      </div>
       <div className="add-project-form__actions">
         <button className="add-project-form__submit" type="submit">
           Add

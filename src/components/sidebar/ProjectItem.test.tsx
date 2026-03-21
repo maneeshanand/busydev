@@ -7,6 +7,7 @@ describe("ProjectItem", () => {
   const defaultProps = {
     id: "proj-1",
     name: "busydev",
+    repoPath: "/Users/me/busydev",
     workspaces: [],
     isSelected: false,
     selectedWorkspaceId: null,

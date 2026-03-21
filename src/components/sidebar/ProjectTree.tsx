@@ -45,6 +45,7 @@ export function ProjectTree() {
             key={project.id}
             id={project.id}
             name={project.name}
+            repoPath={project.repoPath}
             workspaces={workspaces.filter((w) => w.projectId === project.id)}
             isSelected={selectedProjectId === project.id}
             selectedWorkspaceId={selectedWorkspaceId}

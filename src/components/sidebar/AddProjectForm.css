@@ -8,6 +8,29 @@
   background: var(--panel-bg, #1a1a2e);
 }
 
+.add-project-form--loading {
+  align-items: center;
+  padding: 12px 8px;
+}
+
+.add-project-form__hint {
+  font-size: 12px;
+  color: var(--text-muted, #888);
+  opacity: 0.6;
+}
+
+.add-project-form__path-display {
+  font-size: 11px;
+  color: var(--text-muted, #888);
+  font-family: "SF Mono", "Fira Code", monospace;
+  padding: 4px 6px;
+  background: var(--rail-bg, #16213e);
+  border-radius: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .add-project-form__input {
   padding: 6px 8px;
   border: 1px solid var(--border-color, #0f3460);
@@ -20,32 +43,6 @@
 }
 
 .add-project-form__input:focus {
-  border-color: var(--handle-active, #3b82f6);
-}
-
-.add-project-form__input--path {
-  flex: 1;
-  min-width: 0;
-}
-
-.add-project-form__path-row {
-  display: flex;
-  gap: 4px;
-}
-
-.add-project-form__browse {
-  padding: 4px 8px;
-  border: 1px solid var(--border-color, #0f3460);
-  border-radius: 4px;
-  background: var(--rail-bg, #16213e);
-  color: var(--text-muted, #888);
-  font-size: 14px;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.add-project-form__browse:hover {
-  color: var(--text-primary, #ccc);
   border-color: var(--handle-active, #3b82f6);
 }
 
