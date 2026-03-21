@@ -14,6 +14,9 @@
     "build": "tsc && vite build",
     "build:all": "turbo run build",
     "preview": "vite preview",
+    "docs:dev": "vitepress dev site/docs",
+    "docs:build": "vitepress build site/docs",
+    "docs:preview": "vitepress preview site/docs",
     "tauri": "tauri",
     "lint": "eslint src/",
     "lint:all": "turbo run lint",
@@ -57,6 +60,7 @@
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.57.1",
     "vite": "^7.0.4",
+    "vitepress": "^1.6.4",
     "vitest": "^3.2.4"
   }
 }

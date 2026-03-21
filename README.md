@@ -20,6 +20,16 @@ If you use CLI agents (Codex, Claude Code, Aider, etc.) across several repos, yo
 
 > _Coming soon — the app is in active development._
 
+## Website and Docs
+
+Initial public website content for `busydev.com` now lives in `site/`:
+
+- VitePress docs root: `site/docs/`
+- Home/landing page: `site/docs/index.md`
+- Getting started and setup guides: `site/docs/*.md`
+
+Content is built with VitePress and deployed through `.github/workflows/site-pages.yml`.
+
 ## Current Status
 
 busydev is in active development. Core UI and backend are implemented:

@@ -113,6 +113,17 @@ Suggested scopes: `agent`, `git`, `terminal`, `ui`, `db`, `notifications`, `sett
 - Link related backlog items in PR description (without requiring ticket IDs in branch names)
 - Prefer squash merges unless maintainers request otherwise
 
+## Website and Docs Content
+
+- Public site and docs content is powered by VitePress under `site/docs/`
+- Primary pages:
+  `site/docs/index.md`, `site/docs/getting-started.md`, `site/docs/setup.md`, `site/docs/core-workflows.md`
+- Local preview:
+  `npm run docs:dev`
+- Production build:
+  `npm run docs:build`
+- Deployment is handled by `.github/workflows/site-pages.yml` on pushes to `main`
+
 ## CI/CD and Versioning
 
 busydev will use automated versioning and release pipelines.
