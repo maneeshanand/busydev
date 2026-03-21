@@ -1,0 +1,58 @@
+.add-project-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border-color, #0f3460);
+  border-radius: 6px;
+  background: var(--panel-bg, #1a1a2e);
+}
+
+.add-project-form__input {
+  padding: 6px 8px;
+  border: 1px solid var(--border-color, #0f3460);
+  border-radius: 4px;
+  background: var(--rail-bg, #16213e);
+  color: var(--text-primary, #ccc);
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+}
+
+.add-project-form__input:focus {
+  border-color: var(--handle-active, #3b82f6);
+}
+
+.add-project-form__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.add-project-form__submit {
+  flex: 1;
+  padding: 5px;
+  border: none;
+  border-radius: 4px;
+  background: var(--handle-active, #3b82f6);
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.add-project-form__submit:hover {
+  opacity: 0.9;
+}
+
+.add-project-form__cancel {
+  padding: 5px 10px;
+  border: 1px solid var(--border-color, #0f3460);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted, #888);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.add-project-form__cancel:hover {
+  color: var(--text-primary, #ccc);
+}

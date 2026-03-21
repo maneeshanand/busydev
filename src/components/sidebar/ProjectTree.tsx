@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useProjectStore, useWorkspaceStore } from "../../stores";
 import { ProjectItem } from "./ProjectItem";
+import { AddProjectForm } from "./AddProjectForm";
 import "./ProjectTree.css";
 
 export function ProjectTree() {
@@ -11,6 +12,7 @@ export function ProjectTree() {
     fetchProjects,
     error: projectError,
   } = useProjectStore();
+  const [showForm, setShowForm] = useState(false);
 
   const {
     workspaces,
@@ -35,7 +37,7 @@ export function ProjectTree() {
   return (
     <div className="project-tree">
       {error && <p className="project-tree__error">{error}</p>}
-      {projects.length === 0 && !error ? (
+      {projects.length === 0 && !error && !showForm ? (
         <p className="project-tree__empty">No projects yet</p>
       ) : (
         projects.map((project) => (
@@ -50,6 +52,13 @@ export function ProjectTree() {
             onSelectWorkspace={handleSelectWorkspace}
           />
         ))
+      )}
+      {showForm ? (
+        <AddProjectForm onDone={() => setShowForm(false)} />
+      ) : (
+        <button className="project-tree__add" onClick={() => setShowForm(true)}>
+          + Add Project
+        </button>
       )}
     </div>
   );
