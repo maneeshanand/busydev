@@ -7,6 +7,7 @@ import "./ProjectItem.css";
 interface ProjectItemProps {
   id: string;
   name: string;
+  repoPath: string;
   workspaces: Workspace[];
   isSelected: boolean;
   selectedWorkspaceId: string | null;
@@ -17,6 +18,7 @@ interface ProjectItemProps {
 export function ProjectItem({
   id,
   name,
+  repoPath,
   workspaces,
   isSelected,
   selectedWorkspaceId,
@@ -62,7 +64,7 @@ export function ProjectItem({
             />
           ))}
           {showForm ? (
-            <AddWorkspaceForm projectId={id} onDone={() => setShowForm(false)} />
+            <AddWorkspaceForm projectId={id} repoPath={repoPath} onDone={() => setShowForm(false)} />
           ) : (
             <button
               className="project-item__add-workspace"

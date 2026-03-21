@@ -1,43 +1,39 @@
 import { useState } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
-import { useWorkspaceStore } from "../../stores";
+import { useWorkspaceStore, useSettingsStore } from "../../stores";
 import "./AddWorkspaceForm.css";
 
 interface AddWorkspaceFormProps {
   projectId: string;
+  repoPath: string;
   onDone: () => void;
 }
 
-const ADAPTERS = ["claude", "codex"];
-
-export function AddWorkspaceForm({ projectId, onDone }: AddWorkspaceFormProps) {
+export function AddWorkspaceForm({ projectId, repoPath, onDone }: AddWorkspaceFormProps) {
   const { createWorkspace } = useWorkspaceStore();
-  const [branch, setBranch] = useState("");
+  const { defaultAdapter } = useSettingsStore();
   const [ticket, setTicket] = useState("");
-  const [worktreePath, setWorktreePath] = useState("");
-  const [agentAdapter, setAgentAdapter] = useState("claude");
-
-  async function handleBrowse() {
-    try {
-      const selected = await open({ directory: true, title: "Select worktree folder" });
-      if (selected) {
-        setWorktreePath(selected);
-      }
-    } catch {
-      // Dialog not available
-    }
-  }
+  const [isCreating, setIsCreating] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!branch.trim() || !worktreePath.trim()) return;
+    setIsCreating(true);
+
+    const ticketVal = ticket.trim() || null;
+    const slug = ticketVal
+      ? ticketVal.toLowerCase().replace(/[^a-z0-9-]/g, "-")
+      : `ws-${Date.now()}`;
+    const branch = `busydev/${slug}`;
+    const worktreePath = `${repoPath}/.worktrees/${slug}`;
+
     const result = await createWorkspace({
       projectId,
-      branch: branch.trim(),
-      ticket: ticket.trim() || null,
-      worktreePath: worktreePath.trim(),
-      agentAdapter,
+      branch,
+      ticket: ticketVal,
+      worktreePath,
+      agentAdapter: defaultAdapter,
     });
+
+    setIsCreating(false);
     if (result) onDone();
   }
 
@@ -46,53 +42,30 @@ export function AddWorkspaceForm({ projectId, onDone }: AddWorkspaceFormProps) {
       <input
         className="add-workspace-form__input"
         type="text"
-        value={branch}
-        onChange={(e) => setBranch(e.target.value)}
-        placeholder="Branch name"
-        autoFocus
-        required
-      />
-      <input
-        className="add-workspace-form__input"
-        type="text"
         value={ticket}
         onChange={(e) => setTicket(e.target.value)}
-        placeholder="Ticket (optional)"
+        placeholder="Ticket or description (optional)"
+        autoFocus
       />
-      <div className="add-workspace-form__path-row">
-        <input
-          className="add-workspace-form__input add-workspace-form__input--path"
-          type="text"
-          value={worktreePath}
-          onChange={(e) => setWorktreePath(e.target.value)}
-          placeholder="Worktree path"
-          required
-        />
-        <button
-          className="add-workspace-form__browse"
-          type="button"
-          onClick={handleBrowse}
-          title="Browse for folder"
-        >
-          {"\uD83D\uDCC2"}
-        </button>
+      <div className="add-workspace-form__preview">
+        {ticket.trim()
+          ? `branch: busydev/${ticket.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-")}`
+          : "Press Enter to create with auto-generated name"}
       </div>
-      <select
-        className="add-workspace-form__select"
-        value={agentAdapter}
-        onChange={(e) => setAgentAdapter(e.target.value)}
-      >
-        {ADAPTERS.map((a) => (
-          <option key={a} value={a}>
-            {a}
-          </option>
-        ))}
-      </select>
       <div className="add-workspace-form__actions">
-        <button className="add-workspace-form__submit" type="submit">
-          Add
+        <button
+          className="add-workspace-form__submit"
+          type="submit"
+          disabled={isCreating}
+        >
+          {isCreating ? "Creating..." : "Create"}
         </button>
-        <button className="add-workspace-form__cancel" type="button" onClick={onDone}>
+        <button
+          className="add-workspace-form__cancel"
+          type="button"
+          onClick={onDone}
+          disabled={isCreating}
+        >
           Cancel
         </button>
       </div>

@@ -9,8 +9,7 @@
   background: var(--panel-bg, #1a1a2e);
 }
 
-.add-workspace-form__input,
-.add-workspace-form__select {
+.add-workspace-form__input {
   padding: 6px 8px;
   border: 1px solid var(--border-color, #0f3460);
   border-radius: 4px;
@@ -21,39 +20,15 @@
   outline: none;
 }
 
-.add-workspace-form__input:focus,
-.add-workspace-form__select:focus {
+.add-workspace-form__input:focus {
   border-color: var(--handle-active, #3b82f6);
 }
 
-.add-workspace-form__input--path {
-  flex: 1;
-  min-width: 0;
-}
-
-.add-workspace-form__path-row {
-  display: flex;
-  gap: 4px;
-}
-
-.add-workspace-form__browse {
-  padding: 4px 8px;
-  border: 1px solid var(--border-color, #0f3460);
-  border-radius: 4px;
-  background: var(--rail-bg, #16213e);
+.add-workspace-form__preview {
+  font-size: 11px;
   color: var(--text-muted, #888);
-  font-size: 14px;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.add-workspace-form__browse:hover {
-  color: var(--text-primary, #ccc);
-  border-color: var(--handle-active, #3b82f6);
-}
-
-.add-workspace-form__select {
-  cursor: pointer;
+  opacity: 0.6;
+  padding: 0 2px;
 }
 
 .add-workspace-form__actions {
@@ -72,8 +47,13 @@
   cursor: pointer;
 }
 
-.add-workspace-form__submit:hover {
+.add-workspace-form__submit:hover:not(:disabled) {
   opacity: 0.9;
+}
+
+.add-workspace-form__submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .add-workspace-form__cancel {
