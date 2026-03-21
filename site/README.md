@@ -12,9 +12,27 @@ This folder contains the VitePress-powered landing/docs content for `busydev.com
 
 ## Publishing workflow
 
-- GitHub Actions workflow: `.github/workflows/site-pages.yml`
-- Triggered on changes to `site/**` on `main`
-- Builds VitePress and deploys `site/docs/.vitepress/dist` to GitHub Pages
+- Primary workflow: `.github/workflows/site-bluehost.yml`
+- Triggered on:
+  - pushes to `main` that touch `site/**`
+  - manual `workflow_dispatch` (supports `dry_run`)
+- Builds VitePress and deploys `site/docs/.vitepress/dist` to Bluehost over FTP/FTPS
+
+### Required GitHub Secrets
+
+- `BLUEHOST_FTP_HOST`
+- `BLUEHOST_FTP_USERNAME`
+- `BLUEHOST_FTP_PASSWORD`
+
+### Recommended GitHub Repository Variables
+
+- `BLUEHOST_FTP_PROTOCOL` (`ftps` recommended, or `ftp`)
+- `BLUEHOST_FTP_PORT` (`21` default unless provider-specific override)
+- `BLUEHOST_FTP_REMOTE_DIR` (`/public_html/` by default)
+- `BLUEHOST_FTP_PASSIVE` (`true` default)
+- `BLUEHOST_SSL_VERIFY` (`true` default)
+- `BLUEHOST_SITE_URL` (`https://busydev.com`)
+- `BLUEHOST_CANONICAL_URL` (optional, e.g. `https://www.busydev.com`)
 
 ## Local preview
 
