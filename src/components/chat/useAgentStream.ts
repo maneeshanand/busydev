@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { useAgentStore } from "../../stores";
 
 export type AgentStatus = "Working" | "NeedsInput" | "Idle" | "Error" | "Done";
 
@@ -180,6 +181,20 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
     setError(null);
     nextSeqRef.current = 0;
   }, [worktreePath, stopPolling]);
+
+  // Sync to global agent store for StatusBar
+  useEffect(() => {
+    useAgentStore.getState().setRunning(isRunning);
+  }, [isRunning]);
+
+  useEffect(() => {
+    useAgentStore.getState().setUsage(usage ? {
+      promptTokens: usage.promptTokens,
+      completionTokens: usage.completionTokens,
+      totalTokens: usage.totalTokens,
+      estimatedCostUsd: usage.estimatedCostUsd,
+    } : null);
+  }, [usage]);
 
   return {
     events,

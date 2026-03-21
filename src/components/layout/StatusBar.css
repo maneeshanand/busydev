@@ -1,0 +1,50 @@
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 24px;
+  padding: 0 12px;
+  background: var(--rail-bg, #16213e);
+  border-top: 1px solid var(--border-color, #0f3460);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.status-bar__left,
+.status-bar__right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-bar__workspace {
+  color: var(--text-primary, #ccc);
+  font-weight: 500;
+}
+
+.status-bar__adapter {
+  color: var(--text-muted, #888);
+}
+
+.status-bar__muted {
+  color: var(--text-muted, #888);
+}
+
+.status-bar__separator {
+  color: var(--text-muted, #666);
+  opacity: 0.5;
+}
+
+.status-bar__running {
+  color: var(--status-running, #3b82f6);
+  font-weight: 500;
+}
+
+.status-bar__tokens {
+  color: var(--text-muted, #888);
+}
+
+.status-bar__cost {
+  color: var(--text-primary, #ccc);
+  font-family: "SF Mono", "Fira Code", monospace;
+}
