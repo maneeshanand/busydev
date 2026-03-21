@@ -1,6 +1,13 @@
 import "@testing-library/jest-dom/vitest";
 import { vi } from "vitest";
 
+// Mock ResizeObserver for react-resizable-panels in jsdom
+global.ResizeObserver = vi.fn().mockImplementation(() => ({
+  observe: vi.fn(),
+  unobserve: vi.fn(),
+  disconnect: vi.fn(),
+}));
+
 // Mock @tauri-apps/api/core since tests run without Tauri runtime
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn().mockRejectedValue(new Error("Tauri not available in test")),
