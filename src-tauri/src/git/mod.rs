@@ -586,7 +586,7 @@ mod tests {
 
         let content = fs::read_to_string(repo_dir.join("README.md"))
             .expect("failed reading file after revert");
-        assert_eq!(content, "seed\n");
+        assert_eq!(content.replace("\r\n", "\n"), "seed\n");
 
         cleanup_path(&repo_dir);
     }
