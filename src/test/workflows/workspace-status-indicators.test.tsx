@@ -19,7 +19,7 @@ describe("Workflow: Workspace Status Indicators", () => {
       ticket: "MAN-42",
       branch: "busydev/man-42",
       status: "Running",
-      agentAdapter: "claude",
+      agentAdapter: "Claude Code",
     });
     seedWorkspace(project.id, {
       ticket: "MAN-43",
@@ -74,7 +74,7 @@ describe("Workflow: Workspace Status Indicators", () => {
     // Chat status bar should show workspace info
     await waitFor(() => {
       // Should show adapter name in the chat status bar
-      const claudeElements = screen.getAllByText("claude");
+      const claudeElements = screen.getAllByText("Claude Code");
       expect(claudeElements.length).toBeGreaterThan(0);
     });
   });

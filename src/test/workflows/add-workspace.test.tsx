@@ -28,7 +28,7 @@ describe("Workflow: Add a Workspace", () => {
       isLoading: false,
       error: null,
     });
-    useSettingsStore.setState({ defaultAdapter: "claude" });
+    useSettingsStore.setState({ defaultAdapter: "Claude Code" });
   });
 
   it("shows + Add Workspace button when project is expanded", async () => {
@@ -73,7 +73,7 @@ describe("Workflow: Add a Workspace", () => {
     expect(ws).toBeDefined();
     expect(ws.branch).toBe("busydev/man-42");
     expect(ws.worktreePath).toBe("/Users/test/busydev/.worktrees/man-42");
-    expect(ws.agentAdapter).toBe("claude");
+    expect(ws.agentAdapter).toBe("Claude Code");
     expect(ws.ticket).toBe("MAN-42");
   });
 

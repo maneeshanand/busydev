@@ -34,7 +34,7 @@ describe("Workflow: Select Workspace and Chat", () => {
       ticket: "MAN-42",
       branch: "busydev/man-42",
       status: "Idle",
-      agentAdapter: "claude",
+      agentAdapter: "Claude Code",
     });
     setupTauriMocks();
     useProjectStore.setState({
@@ -86,7 +86,7 @@ describe("Workflow: Select Workspace and Chat", () => {
 
     // Adapter should be visible
     await waitFor(() => {
-      expect(screen.getAllByText("claude").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Claude Code").length).toBeGreaterThan(0);
     });
 
     // Input should be enabled
@@ -124,7 +124,7 @@ describe("Workflow: Select Workspace and Chat", () => {
         "start_agent_session",
         expect.objectContaining({
           input: expect.objectContaining({
-            adapter: "claude",
+            adapter: "Claude Code",
           }),
         }),
       );

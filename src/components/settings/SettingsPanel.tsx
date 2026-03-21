@@ -1,7 +1,7 @@
 import { useSettingsStore } from "../../stores";
 import "./SettingsPanel.css";
 
-const ADAPTERS = ["claude", "codex"];
+const ADAPTERS = ["Claude Code", "Codex"];
 const MODES = ["auto", "plan", "code"];
 
 export function SettingsPanel() {

@@ -54,7 +54,7 @@ export function seedWorkspace(
     ticket: null,
     branch: "busydev/test-workspace",
     worktreePath: "/Users/test/test-project/.worktrees/test",
-    agentAdapter: "claude",
+    agentAdapter: "Claude Code",
     agentConfigJson: null,
     status: "Idle",
     createdAt: new Date().toISOString(),
@@ -123,7 +123,7 @@ export function setupTauriMocks() {
         return {
           session: {
             id: args?.id,
-            adapter: "claude",
+            adapter: "Claude Code",
             workspacePath: "/tmp",
             status: "Idle",
             startedAtMs: Date.now(),
