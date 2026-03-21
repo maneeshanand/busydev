@@ -80,6 +80,52 @@ impl GitManager {
 
         run_git(args)
     }
+
+    pub fn generate_unified_diff(
+        &self,
+        repo_path: &str,
+        base_ref: Option<&str>,
+        paths: Option<&[String]>,
+        staged: bool,
+        context_lines: Option<u16>,
+    ) -> Result<String, String> {
+        validate_repo_path(repo_path)?;
+
+        let mut args = vec![
+            "-C".to_string(),
+            repo_path.to_string(),
+            "diff".to_string(),
+            "--no-color".to_string(),
+        ];
+
+        if staged {
+            args.push("--cached".to_string());
+        }
+
+        let context = context_lines.unwrap_or(3);
+        args.push(format!("--unified={context}"));
+
+        if let Some(reference) = base_ref {
+            let trimmed = reference.trim();
+            if !trimmed.is_empty() {
+                args.push(trimmed.to_string());
+            }
+        }
+
+        if let Some(paths) = paths {
+            let normalized = paths
+                .iter()
+                .map(|path| path.trim())
+                .filter(|path| !path.is_empty())
+                .collect::<Vec<_>>();
+            if !normalized.is_empty() {
+                args.push("--".to_string());
+                args.extend(normalized.into_iter().map(str::to_string));
+            }
+        }
+
+        run_git_with_stdout(args)
+    }
 }
 
 fn validate_repo_path(repo_path: &str) -> Result<(), String> {
@@ -162,6 +208,19 @@ fn run_git(args: Vec<&OsStr>) -> Result<(), String> {
     }
 }
 
+fn run_git_with_stdout(args: Vec<String>) -> Result<String, String> {
+    let output = Command::new("git")
+        .args(args)
+        .output()
+        .map_err(|err| format!("failed to run git command: {err}"))?;
+
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    } else {
+        Err(format_git_error("git command failed", &output))
+    }
+}
+
 fn format_git_error(prefix: &str, output: &Output) -> String {
     let stderr = String::from_utf8_lossy(&output.stderr);
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -233,6 +292,27 @@ mod tests {
             .expect("expected worktree deletion to succeed");
 
         assert!(!worktree_dir.exists());
+
+        cleanup_path(&repo_dir);
+    }
+
+    #[test]
+    fn generate_unified_diff_returns_patch_for_modified_file() {
+        let repo_dir = temp_path("repo-diff");
+        let manager = GitManager;
+
+        init_repo_with_commit(&repo_dir);
+        fs::write(repo_dir.join("README.md"), "seed\nnext line\n")
+            .expect("failed to modify file for diff");
+
+        let diff = manager
+            .generate_unified_diff(repo_dir.to_string_lossy().as_ref(), None, None, false, Some(3))
+            .expect("expected unified diff generation to succeed");
+
+        assert!(diff.contains("diff --git"));
+        assert!(diff.contains("--- a/README.md"));
+        assert!(diff.contains("+++ b/README.md"));
+        assert!(diff.contains("+next line"));
 
         cleanup_path(&repo_dir);
     }

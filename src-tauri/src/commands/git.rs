@@ -18,3 +18,20 @@ pub fn delete_worktree(
 ) -> Result<(), String> {
     GitManager.delete_worktree(&repo_path, &worktree_path, force.unwrap_or(false))
 }
+
+#[tauri::command]
+pub fn generate_unified_diff(
+    repo_path: String,
+    base_ref: Option<String>,
+    paths: Option<Vec<String>>,
+    staged: Option<bool>,
+    context_lines: Option<u16>,
+) -> Result<String, String> {
+    GitManager.generate_unified_diff(
+        &repo_path,
+        base_ref.as_deref(),
+        paths.as_deref(),
+        staged.unwrap_or(false),
+        context_lines,
+    )
+}
