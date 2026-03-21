@@ -20,3 +20,20 @@
   border-radius: 4px;
   margin-bottom: 4px;
 }
+
+.project-tree__add {
+  padding: 6px;
+  border: 1px dashed var(--border-color, #0f3460);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted, #888);
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+  margin-top: 4px;
+}
+
+.project-tree__add:hover {
+  color: var(--text-primary, #ccc);
+  border-color: var(--text-muted, #888);
+}
