@@ -31,10 +31,10 @@ describe("ProjectItem", () => {
     expect(onSelectProject).toHaveBeenCalledWith("proj-1");
   });
 
-  it("shows 'No workspaces' when expanded with empty list", async () => {
+  it("shows 'Add Workspace' button when expanded with empty list", async () => {
     render(<ProjectItem {...defaultProps} />);
     await userEvent.click(screen.getByText("busydev"));
-    expect(screen.getByText("No workspaces")).toBeInTheDocument();
+    expect(screen.getByText("+ Add Workspace")).toBeInTheDocument();
   });
 
   it("renders workspace children when expanded", async () => {

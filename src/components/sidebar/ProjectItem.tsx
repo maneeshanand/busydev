@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Workspace } from "../../stores";
 import { WorkspaceItem } from "./WorkspaceItem";
+import { AddWorkspaceForm } from "./AddWorkspaceForm";
 import "./ProjectItem.css";
 
 interface ProjectItemProps {
@@ -23,6 +24,7 @@ export function ProjectItem({
   onSelectWorkspace,
 }: ProjectItemProps) {
   const [expanded, setExpanded] = useState(false);
+  const [showForm, setShowForm] = useState(false);
 
   function handleClick() {
     onSelectProject(id);
@@ -51,17 +53,23 @@ export function ProjectItem({
       </button>
       {expanded && (
         <div className="project-item__children">
-          {workspaces.length === 0 ? (
-            <p className="project-item__empty">No workspaces</p>
+          {workspaces.map((ws) => (
+            <WorkspaceItem
+              key={ws.id}
+              workspace={ws}
+              isSelected={selectedWorkspaceId === ws.id}
+              onSelect={onSelectWorkspace}
+            />
+          ))}
+          {showForm ? (
+            <AddWorkspaceForm projectId={id} onDone={() => setShowForm(false)} />
           ) : (
-            workspaces.map((ws) => (
-              <WorkspaceItem
-                key={ws.id}
-                workspace={ws}
-                isSelected={selectedWorkspaceId === ws.id}
-                onSelect={onSelectWorkspace}
-              />
-            ))
+            <button
+              className="project-item__add-workspace"
+              onClick={() => setShowForm(true)}
+            >
+              + Add Workspace
+            </button>
           )}
         </div>
       )}

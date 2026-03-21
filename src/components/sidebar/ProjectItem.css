@@ -56,3 +56,24 @@
   color: var(--text-muted, #666);
   opacity: 0.6;
 }
+
+.project-item__add-workspace {
+  display: block;
+  width: calc(100% - 16px);
+  margin-left: 16px;
+  padding: 4px 6px;
+  border: 1px dashed var(--border-color, #0f3460);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted, #888);
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+  transition: color 0.1s, border-color 0.1s;
+  margin-top: 2px;
+}
+
+.project-item__add-workspace:hover {
+  color: var(--text-primary, #ccc);
+  border-color: var(--text-muted, #888);
+}
