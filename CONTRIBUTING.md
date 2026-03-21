@@ -135,6 +135,25 @@ Current policy direction:
 - Expand CI to include lint, test, and build verification
 - Automate release/tag flow with version bump + changelog generation
 
+Version source of truth:
+
+- `package.json` is the canonical semver source.
+- `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json` must match it.
+- Validate consistency with:
+  `npm run version:check`
+- Sync files to the canonical version with:
+  `npm run version:sync`
+
+Release management commands:
+
+- Prepare next version (updates `package.json`, lockfile, Cargo + Tauri versions):
+  `npm run release:prepare -- patch`
+  (or `minor`, `major`, `prepatch`, `preminor`, `premajor`, `prerelease`)
+- Tag current version:
+  `npm run release:tag`
+- One-shot release cut from a clean tree (prepare + commit + tag):
+  `npm run release:cut -- patch`
+
 Tagged release pipeline:
 
 - Push a semantic version tag (for example, `v0.2.0`) to trigger `.github/workflows/release.yml`
