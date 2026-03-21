@@ -17,16 +17,50 @@ Install dependencies:
 npm install
 ```
 
-Run in development:
+Run in development (full app with Tauri):
 
 ```bash
 cargo tauri dev
+```
+
+Run frontend only (no Tauri runtime):
+
+```bash
+npm run dev
 ```
 
 Build:
 
 ```bash
 cargo tauri build
+```
+
+## Testing
+
+Run frontend tests:
+
+```bash
+npm test              # single run
+npm run test:watch    # watch mode
+```
+
+Run Rust tests:
+
+```bash
+cargo test --manifest-path src-tauri/Cargo.toml
+```
+
+Run linting:
+
+```bash
+npm run lint          # ESLint (frontend)
+cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings  # Clippy (backend)
+```
+
+Check formatting:
+
+```bash
+npm run format:check
 ```
 
 ## Local AI Config
@@ -50,7 +84,7 @@ Rules:
 - Use format: `<type>/<short-description>`
 - Use lowercase and hyphen-separated description
 - Keep branch names descriptive and concise
-- Do not include private Linear ticket IDs in branch names
+- Reference GitHub issue numbers where applicable (e.g., `feat/issue-37-layout`)
 
 Examples:
 
