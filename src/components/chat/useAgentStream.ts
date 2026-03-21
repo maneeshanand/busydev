@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { publishNotification } from "../../lib/notifications";
 import { useAgentStore } from "../../stores";
 
 export type AgentStatus = "Working" | "NeedsInput" | "Idle" | "Error" | "Done";
@@ -59,6 +60,7 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
   const [error, setError] = useState<string | null>(null);
   const nextSeqRef = useRef<number>(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const notifiedStatusRef = useRef<AgentStatus | null>(null);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -84,6 +86,20 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
           }));
           setEvents((prev) => [...prev, ...newEvents]);
           nextSeqRef.current = batch.nextSeq;
+
+          for (const envelope of batch.events) {
+            const agentEvent = envelope.event;
+            if (agentEvent.type !== "error") {
+              continue;
+            }
+
+            const message = agentEvent.message ?? agentEvent.content ?? "The agent reported an error.";
+            void publishNotification({
+              title: "Agent error",
+              message,
+              level: "error",
+            });
+          }
         }
 
         if (batch.usage) {
@@ -94,11 +110,40 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
         const running = status === "Working" || status === "NeedsInput";
         setIsRunning(running);
 
+        if (status !== notifiedStatusRef.current) {
+          if (status === "NeedsInput") {
+            void publishNotification({
+              title: "Agent needs input",
+              message: "The active session is waiting for your response.",
+              level: "warning",
+            });
+          } else if (status === "Done") {
+            void publishNotification({
+              title: "Agent completed",
+              message: "The active session finished successfully.",
+              level: "success",
+            });
+          } else if (status === "Error") {
+            void publishNotification({
+              title: "Agent session failed",
+              message: "The active session ended with an error.",
+              level: "error",
+            });
+          }
+          notifiedStatusRef.current = status;
+        }
+
         if (!running) {
           stopPolling();
         }
       } catch (err) {
-        setError(String(err));
+        const message = String(err);
+        setError(message);
+        void publishNotification({
+          title: "Agent stream failed",
+          message,
+          level: "error",
+        });
         stopPolling();
         setIsRunning(false);
       }
@@ -190,6 +235,7 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
     setUsage(null);
     setError(null);
     nextSeqRef.current = 0;
+    notifiedStatusRef.current = null;
   }, [worktreePath, stopPolling]);
   /* eslint-enable react-hooks/set-state-in-effect */
 

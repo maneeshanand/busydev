@@ -3,3 +3,4 @@ export * from "./workspaceStore";
 export * from "./agentStore";
 export * from "./settingsStore";
 export * from "./mcpStore";
+export * from "./notificationStore";
