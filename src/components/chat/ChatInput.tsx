@@ -58,7 +58,7 @@ export function ChatInput({ onSubmit, onStop, isRunning, disabled }: ChatInputPr
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         disabled={disabled}
-        rows={1}
+        rows={3}
       />
       {isRunning ? (
         <button className="chat-input__stop" onClick={onStop} title="Stop agent">
