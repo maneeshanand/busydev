@@ -1,2 +1,3 @@
-// TODO: Chat components (status bar, stream, input area).
-export {};
+export { ChatStatusBar } from "./ChatStatusBar";
+export { MessageArea } from "./MessageArea";
+export { ChatInputPlaceholder } from "./ChatInputPlaceholder";
