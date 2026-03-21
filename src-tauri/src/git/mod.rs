@@ -1,7 +1,13 @@
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs;
 use std::path::Path;
 use std::process::{Command, Output};
+use std::sync::Mutex;
+
+use notify::{
+    Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher, recommended_watcher,
+};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -13,6 +19,141 @@ pub struct Worktree {
 
 #[derive(Debug, Clone, Default)]
 pub struct GitManager;
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitWatchEvent {
+    pub seq: u64,
+    pub repo_path: String,
+    pub paths: Vec<String>,
+    pub kind: String,
+}
+
+struct WatchSession {
+    _watcher: RecommendedWatcher,
+    events: std::sync::Arc<Mutex<Vec<GitWatchEvent>>>,
+}
+
+#[derive(Default)]
+pub struct GitWatchManager {
+    sessions: Mutex<HashMap<String, WatchSession>>,
+}
+
+impl GitWatchManager {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn start_watch(&self, repo_path: &str) -> Result<(), String> {
+        validate_repo_path(repo_path)?;
+        let canonical = canonical_repo_path(repo_path)?;
+
+        {
+            let sessions = self
+                .sessions
+                .lock()
+                .map_err(|_| "failed to lock watch sessions".to_string())?;
+            if sessions.contains_key(&canonical) {
+                return Ok(());
+            }
+        }
+
+        let events = std::sync::Arc::new(Mutex::new(Vec::new()));
+        let next_seq = std::sync::Arc::new(Mutex::new(1_u64));
+        let events_ref = std::sync::Arc::clone(&events);
+        let next_seq_ref = std::sync::Arc::clone(&next_seq);
+        let canonical_for_cb = canonical.clone();
+
+        let mut watcher = recommended_watcher(move |result: notify::Result<Event>| {
+            if let Ok(event) = result {
+                let kind = classify_event_kind(&event.kind).to_string();
+                let paths = event
+                    .paths
+                    .iter()
+                    .map(|path| path.to_string_lossy().to_string())
+                    .collect::<Vec<_>>();
+                let seq = {
+                    let mut locked = next_seq_ref.lock().expect("next_seq lock poisoned");
+                    let current = *locked;
+                    *locked += 1;
+                    current
+                };
+
+                let mut locked = events_ref.lock().expect("watch events lock poisoned");
+                locked.push(GitWatchEvent {
+                    seq,
+                    repo_path: canonical_for_cb.clone(),
+                    paths,
+                    kind,
+                });
+                if locked.len() > 1000 {
+                    let excess = locked.len() - 1000;
+                    locked.drain(0..excess);
+                }
+            }
+        })
+        .map_err(|err| format!("failed to create file watcher: {err}"))?;
+
+        watcher
+            .watch(Path::new(&canonical), RecursiveMode::Recursive)
+            .map_err(|err| format!("failed to start watching repo path: {err}"))?;
+
+        let mut sessions = self
+            .sessions
+            .lock()
+            .map_err(|_| "failed to lock watch sessions".to_string())?;
+        sessions.insert(
+            canonical,
+            WatchSession {
+                _watcher: watcher,
+                events,
+            },
+        );
+
+        Ok(())
+    }
+
+    pub fn stop_watch(&self, repo_path: &str) -> Result<(), String> {
+        let canonical = canonical_repo_path(repo_path)?;
+        let mut sessions = self
+            .sessions
+            .lock()
+            .map_err(|_| "failed to lock watch sessions".to_string())?;
+        sessions.remove(&canonical);
+        Ok(())
+    }
+
+    pub fn poll_events(&self, repo_path: &str, since_seq: Option<u64>) -> Result<Vec<GitWatchEvent>, String> {
+        let canonical = canonical_repo_path(repo_path)?;
+        let sessions = self
+            .sessions
+            .lock()
+            .map_err(|_| "failed to lock watch sessions".to_string())?;
+        let session = sessions
+            .get(&canonical)
+            .ok_or_else(|| "watch session not found for repo path".to_string())?;
+        let min_seq = since_seq.unwrap_or(0);
+
+        let events = session
+            .events
+            .lock()
+            .map_err(|_| "failed to lock watch events".to_string())?;
+
+        Ok(events
+            .iter()
+            .filter(|event| event.seq > min_seq)
+            .cloned()
+            .collect())
+    }
+
+    pub fn list_watches(&self) -> Result<Vec<String>, String> {
+        let sessions = self
+            .sessions
+            .lock()
+            .map_err(|_| "failed to lock watch sessions".to_string())?;
+        Ok(sessions.keys().cloned().collect())
+    }
+}
 
 impl GitManager {
     pub fn create_worktree(
@@ -304,6 +445,23 @@ fn format_git_error(prefix: &str, output: &Output) -> String {
     }
 }
 
+fn canonical_repo_path(repo_path: &str) -> Result<String, String> {
+    fs::canonicalize(repo_path)
+        .map(|path| path.to_string_lossy().to_string())
+        .map_err(|err| format!("failed to canonicalize repo path '{repo_path}': {err}"))
+}
+
+fn classify_event_kind(kind: &EventKind) -> &'static str {
+    match kind {
+        EventKind::Create(_) => "create",
+        EventKind::Modify(_) => "modify",
+        EventKind::Remove(_) => "remove",
+        EventKind::Access(_) => "access",
+        EventKind::Any => "any",
+        EventKind::Other => "other",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -431,6 +589,13 @@ mod tests {
         assert_eq!(content, "seed\n");
 
         cleanup_path(&repo_dir);
+    }
+
+    #[test]
+    fn classify_event_kind_maps_common_kinds() {
+        assert_eq!(classify_event_kind(&EventKind::Create(notify::event::CreateKind::Any)), "create");
+        assert_eq!(classify_event_kind(&EventKind::Modify(notify::event::ModifyKind::Any)), "modify");
+        assert_eq!(classify_event_kind(&EventKind::Remove(notify::event::RemoveKind::Any)), "remove");
     }
 
     fn init_repo_with_commit(repo_path: &Path) {
