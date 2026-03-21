@@ -75,7 +75,11 @@ jobs:
           mkdir -p release-assets
           RELEASE_TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
           ASSET_NAME="busydev-${RELEASE_TAG}-${{ runner.os }}"
-          cp src-tauri/target/release/busydev "release-assets/${ASSET_NAME}"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp src-tauri/target/release/busydev.exe "release-assets/${ASSET_NAME}.exe"
+          else
+            cp src-tauri/target/release/busydev "release-assets/${ASSET_NAME}.bin"
+          fi
 
       - name: Upload release artifact
         uses: actions/upload-artifact@v7
