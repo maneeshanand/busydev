@@ -2,6 +2,7 @@ pub mod agent;
 pub mod git;
 pub mod mcp_server;
 pub mod project;
+pub mod session;
 pub mod settings;
 pub mod terminal;
 pub mod workspace;
