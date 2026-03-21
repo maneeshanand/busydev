@@ -5,4 +5,5 @@ pub mod project;
 pub mod session;
 pub mod settings;
 pub mod terminal;
+pub mod tray;
 pub mod workspace;
