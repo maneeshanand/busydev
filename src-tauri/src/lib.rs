@@ -15,19 +15,21 @@ use commands::agent::{
     stream_agent_events,
 };
 use commands::git::{
-    accept_file_changes, create_worktree, delete_worktree, generate_unified_diff,
-    list_git_watches, poll_git_watch_events, revert_file_changes, start_git_watch,
-    stop_git_watch,
+    accept_file_changes, create_worktree, delete_worktree, generate_unified_diff, list_git_watches,
+    poll_git_watch_events, revert_file_changes, start_git_watch, stop_git_watch,
 };
 use commands::project::{create_project, delete_project, list_projects, update_project};
 use commands::terminal::{
     close_terminal_session, create_terminal_session, list_terminal_sessions,
     resize_terminal_session,
 };
-use commands::workspace::{create_workspace, delete_workspace, list_workspaces, update_workspace};
+use commands::workspace::{
+    cleanup_orphan_workspaces_on_startup, create_workspace, delete_workspace, list_workspaces,
+    update_workspace,
+};
+use git::GitWatchManager;
 use tauri::Manager;
 use terminal::TerminalManager;
-use git::GitWatchManager;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -40,6 +42,7 @@ pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             let db = db::initialize_for_app(app.handle()).map_err(|err| err.to_string())?;
+            let removed_workspace_count = cleanup_orphan_workspaces_on_startup(&db)?;
             app.manage(db);
 
             let mut registry = AgentRegistry::new();
@@ -49,6 +52,12 @@ pub fn run() {
             app.manage(AgentManager::new());
             app.manage(TerminalManager::new());
             app.manage(GitWatchManager::new());
+
+            if removed_workspace_count > 0 {
+                eprintln!(
+                    "startup cleanup removed {removed_workspace_count} orphan workspace record(s)"
+                );
+            }
 
             Ok(())
         })
