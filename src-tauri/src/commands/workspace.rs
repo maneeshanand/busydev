@@ -1,3 +1,6 @@
+use std::path::Path;
+use std::process::Command;
+
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -63,11 +66,15 @@ pub fn create_workspace(
     )
     .map_err(|err| format!("failed to insert workspace: {err}"))?;
 
-    get_workspace_by_id(&conn, &workspace_id)?.ok_or_else(|| "failed to read created workspace".to_string())
+    get_workspace_by_id(&conn, &workspace_id)?
+        .ok_or_else(|| "failed to read created workspace".to_string())
 }
 
 #[tauri::command]
-pub fn list_workspaces(project_id: Option<String>, db: State<'_, Database>) -> Result<Vec<Workspace>, String> {
+pub fn list_workspaces(
+    project_id: Option<String>,
+    db: State<'_, Database>,
+) -> Result<Vec<Workspace>, String> {
     let connection = db.connection();
     let conn = connection
         .lock()
@@ -135,7 +142,29 @@ pub fn delete_workspace(id: String, db: State<'_, Database>) -> Result<(), Strin
     Ok(())
 }
 
-fn list_workspaces_inner(conn: &Connection, project_id: Option<String>) -> Result<Vec<Workspace>, String> {
+pub fn cleanup_orphan_workspaces_on_startup(db: &Database) -> Result<usize, String> {
+    let (removed_count, repo_paths) = {
+        let connection = db.connection();
+        let conn = connection
+            .lock()
+            .map_err(|_| "failed to lock database connection".to_string())?;
+
+        cleanup_orphan_workspaces_inner(&conn)?
+    };
+
+    for repo_path in repo_paths {
+        if let Err(err) = prune_repo_worktrees(&repo_path) {
+            eprintln!("failed to prune git worktrees for '{repo_path}': {err}");
+        }
+    }
+
+    Ok(removed_count)
+}
+
+fn list_workspaces_inner(
+    conn: &Connection,
+    project_id: Option<String>,
+) -> Result<Vec<Workspace>, String> {
     if let Some(filter_project_id) = project_id {
         let mut stmt = conn
             .prepare(
@@ -150,8 +179,7 @@ fn list_workspaces_inner(conn: &Connection, project_id: Option<String>) -> Resul
             .query_map(params![filter_project_id], map_workspace_row)
             .map_err(|err| format!("failed to query workspaces: {err}"))?;
 
-        rows
-            .collect::<Result<Vec<_>, _>>()
+        rows.collect::<Result<Vec<_>, _>>()
             .map_err(|err| format!("failed to decode workspaces: {err}"))
     } else {
         let mut stmt = conn
@@ -166,10 +194,88 @@ fn list_workspaces_inner(conn: &Connection, project_id: Option<String>) -> Resul
             .query_map([], map_workspace_row)
             .map_err(|err| format!("failed to query workspaces: {err}"))?;
 
-        rows
-            .collect::<Result<Vec<_>, _>>()
+        rows.collect::<Result<Vec<_>, _>>()
             .map_err(|err| format!("failed to decode workspaces: {err}"))
     }
+}
+
+fn cleanup_orphan_workspaces_inner(conn: &Connection) -> Result<(usize, Vec<String>), String> {
+    let mut repo_stmt = conn
+        .prepare("SELECT repo_path FROM projects")
+        .map_err(|err| format!("failed to prepare projects query: {err}"))?;
+    let repo_rows = repo_stmt
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(|err| format!("failed to query projects: {err}"))?;
+
+    let repo_paths = repo_rows
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|err| format!("failed to decode project repo paths: {err}"))?;
+
+    let mut ws_stmt = conn
+        .prepare("SELECT id, worktree_path FROM workspaces")
+        .map_err(|err| format!("failed to prepare workspaces query: {err}"))?;
+    let ws_rows = ws_stmt
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(|err| format!("failed to query workspaces: {err}"))?;
+
+    let workspaces = ws_rows
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|err| format!("failed to decode workspace rows: {err}"))?;
+
+    let orphan_ids = workspaces
+        .into_iter()
+        .filter_map(|(id, worktree_path)| {
+            if Path::new(&worktree_path).exists() {
+                None
+            } else {
+                Some(id)
+            }
+        })
+        .collect::<Vec<_>>();
+
+    for workspace_id in &orphan_ids {
+        conn.execute(
+            "DELETE FROM workspaces WHERE id = ?1",
+            params![workspace_id],
+        )
+        .map_err(|err| format!("failed to delete orphan workspace '{workspace_id}': {err}"))?;
+    }
+
+    Ok((orphan_ids.len(), repo_paths))
+}
+
+fn prune_repo_worktrees(repo_path: &str) -> Result<(), String> {
+    if !Path::new(repo_path).is_dir() {
+        return Ok(());
+    }
+
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(repo_path)
+        .arg("worktree")
+        .arg("prune")
+        .output()
+        .map_err(|err| format!("failed to run git worktree prune: {err}"))?;
+
+    if output.status.success() {
+        return Ok(());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let message = if stderr.trim().is_empty() {
+        stdout.trim().to_string()
+    } else {
+        stderr.trim().to_string()
+    };
+
+    Err(if message.is_empty() {
+        "git worktree prune failed with unknown error".to_string()
+    } else {
+        message
+    })
 }
 
 fn get_workspace_by_id(conn: &Connection, id: &str) -> Result<Option<Workspace>, String> {
@@ -233,6 +339,8 @@ fn normalize_optional_text(value: Option<String>) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn list_workspaces_filters_by_project_id() {
@@ -266,10 +374,86 @@ mod tests {
         )
         .expect("failed to insert workspace w2");
 
-        let filtered = list_workspaces_inner(&conn, Some("p1".to_string())).expect("failed to list workspaces");
+        let filtered = list_workspaces_inner(&conn, Some("p1".to_string()))
+            .expect("failed to list workspaces");
 
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].id, "w1");
         assert_eq!(filtered[0].project_id, "p1");
+    }
+
+    #[test]
+    fn cleanup_orphan_workspaces_removes_missing_worktree_rows() {
+        let conn = Connection::open_in_memory().expect("failed to open in-memory db");
+        conn.execute_batch(
+            "PRAGMA foreign_keys = ON;
+             CREATE TABLE projects (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                repo_path TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+             );
+             CREATE TABLE workspaces (
+                id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                ticket TEXT,
+                branch TEXT NOT NULL,
+                worktree_path TEXT NOT NULL,
+                agent_adapter TEXT NOT NULL,
+                agent_config_json TEXT,
+                status TEXT NOT NULL DEFAULT 'idle',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+             );",
+        )
+        .expect("failed to create tables");
+
+        conn.execute(
+            "INSERT INTO projects (id, name, repo_path) VALUES ('p1', 'Proj', '/tmp/repo')",
+            [],
+        )
+        .expect("failed to insert project");
+
+        let existing_path = temp_dir_path("ws-existing");
+        fs::create_dir_all(&existing_path).expect("failed to create existing worktree path");
+        let missing_path = temp_dir_path("ws-missing");
+
+        conn.execute(
+            "INSERT INTO workspaces (id, project_id, ticket, branch, worktree_path, agent_adapter, status)
+             VALUES ('w-missing', 'p1', NULL, 'feat/a', ?1, 'codex', 'idle')",
+            params![missing_path.to_string_lossy()],
+        )
+        .expect("failed to insert missing workspace");
+
+        conn.execute(
+            "INSERT INTO workspaces (id, project_id, ticket, branch, worktree_path, agent_adapter, status)
+             VALUES ('w-existing', 'p1', NULL, 'feat/b', ?1, 'codex', 'idle')",
+            params![existing_path.to_string_lossy()],
+        )
+        .expect("failed to insert existing workspace");
+
+        let (removed_count, _) =
+            cleanup_orphan_workspaces_inner(&conn).expect("cleanup should succeed");
+        assert_eq!(removed_count, 1);
+
+        let workspace_count: i64 = conn
+            .query_row("SELECT COUNT(1) FROM workspaces", [], |row| row.get(0))
+            .expect("failed to count workspaces");
+        assert_eq!(workspace_count, 1);
+
+        let remaining_id: String = conn
+            .query_row("SELECT id FROM workspaces LIMIT 1", [], |row| row.get(0))
+            .expect("failed to read remaining workspace");
+        assert_eq!(remaining_id, "w-existing");
+
+        let _ = fs::remove_dir_all(existing_path);
+    }
+
+    fn temp_dir_path(prefix: &str) -> std::path::PathBuf {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock should be after epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!("busydev-{prefix}-{now}"))
     }
 }
