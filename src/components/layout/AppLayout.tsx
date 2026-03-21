@@ -6,10 +6,12 @@ import { ChatPanel } from "./ChatPanel";
 import { ContextPanel } from "./ContextPanel";
 import { ResizeHandle } from "./ResizeHandle";
 import { StatusBar } from "./StatusBar";
+import { useTrayBadge } from "../../hooks";
 import "./AppLayout.css";
 
 export function AppLayout() {
   const [activePanel, setActivePanel] = useState<string | null>(null);
+  useTrayBadge();
 
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: "busydev-main",

@@ -7,6 +7,7 @@ mod security;
 mod session_retention;
 mod state;
 mod terminal;
+mod tray;
 
 use agents::claude::ClaudeAdapter;
 use agents::codex::CodexAdapter;
@@ -29,6 +30,7 @@ use commands::terminal::{
     close_terminal_session, create_terminal_session, list_terminal_sessions,
     resize_terminal_session,
 };
+use commands::tray::update_tray_badge;
 use commands::workspace::{
     cleanup_orphan_workspaces_on_startup, create_workspace, delete_workspace, list_workspaces,
     update_workspace,
@@ -38,6 +40,7 @@ use notifications::publish_notification;
 use session_retention::{cleanup_expired_sessions, spawn_daily_cleanup_job};
 use tauri::Manager;
 use terminal::TerminalManager;
+use tray::TrayState;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -61,6 +64,8 @@ pub fn run() {
             app.manage(AgentManager::new());
             app.manage(TerminalManager::new());
             app.manage(GitWatchManager::new());
+            app.manage(TrayState::new());
+            tray::setup_tray(app.handle())?;
             let db_for_cleanup = app.state::<db::Database>().inner().clone();
             spawn_daily_cleanup_job(db_for_cleanup);
 
@@ -111,7 +116,8 @@ pub fn run() {
             send_agent_input,
             list_agent_sessions,
             stream_agent_events,
-            publish_notification
+            publish_notification,
+            update_tray_badge
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
