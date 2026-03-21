@@ -1,0 +1,79 @@
+name: Auto Tag
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-tag-main
+  cancel-in-progress: false
+
+jobs:
+  tag-main:
+    name: Create next release tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Compute next tag
+        id: next-tag
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git fetch --tags --force
+
+          EXISTING_TAG_AT_HEAD="$(git tag --points-at HEAD 'v*' | head -n 1 || true)"
+          if [ -n "${EXISTING_TAG_AT_HEAD}" ]; then
+            echo "should_tag=false" >> "$GITHUB_OUTPUT"
+            echo "tag=${EXISTING_TAG_AT_HEAD}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          LAST_TAG="$(git tag --list 'v*' --sort=-version:refname | head -n 1 || true)"
+
+          if [ -z "${LAST_TAG}" ]; then
+            MAJOR=0
+            MINOR=1
+            PATCH=0
+          else
+            VERSION="${LAST_TAG#v}"
+            IFS='.' read -r MAJOR MINOR PATCH_RAW <<< "${VERSION}"
+            PATCH="${PATCH_RAW%%-*}"
+
+            if ! [[ "${MAJOR:-}" =~ ^[0-9]+$ && "${MINOR:-}" =~ ^[0-9]+$ && "${PATCH:-}" =~ ^[0-9]+$ ]]; then
+              echo "Invalid latest tag format: ${LAST_TAG}" >&2
+              exit 1
+            fi
+
+            PATCH=$((PATCH + 1))
+          fi
+
+          NEXT_TAG="v${MAJOR}.${MINOR}.${PATCH}"
+
+          while git rev-parse -q --verify "refs/tags/${NEXT_TAG}" >/dev/null; do
+            PATCH=$((PATCH + 1))
+            NEXT_TAG="v${MAJOR}.${MINOR}.${PATCH}"
+          done
+
+          echo "should_tag=true" >> "$GITHUB_OUTPUT"
+          echo "tag=${NEXT_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        if: steps.next-tag.outputs.should_tag == 'true'
+        run: |
+          TAG="${{ steps.next-tag.outputs.tag }}"
+          git tag -a "${TAG}" -m "Release ${TAG}"
+          git push origin "${TAG}"
