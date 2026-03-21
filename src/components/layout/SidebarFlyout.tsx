@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { ProjectTree } from "../sidebar";
-import { SettingsPanel } from "../settings";
+import { SettingsPanel, McpServerList } from "../settings";
 import "./SidebarFlyout.css";
 
 interface SidebarFlyoutProps {
@@ -51,7 +51,10 @@ export function SidebarFlyout({ activePanel, onClose }: SidebarFlyoutProps) {
         {activePanel === "projects" ? (
           <ProjectTree />
         ) : activePanel === "settings" ? (
-          <SettingsPanel />
+          <>
+            <SettingsPanel />
+            <McpServerList />
+          </>
         ) : (
           <p className="sidebar-flyout__placeholder">{activePanel} panel content</p>
         )}
