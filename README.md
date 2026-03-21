@@ -24,11 +24,11 @@ If you use CLI agents (Codex, Claude Code, Aider, etc.) across several repos, yo
 
 Initial public website content for `busydev.com` now lives in `site/`:
 
-- Landing page: `site/index.html`
-- Docs home: `site/docs/index.html`
-- Getting started and setup guides: `site/docs/`
+- VitePress docs root: `site/docs/`
+- Home/landing page: `site/docs/index.md`
+- Getting started and setup guides: `site/docs/*.md`
 
-Content is deployed through the GitHub Pages workflow in `.github/workflows/site-pages.yml`.
+Content is built with VitePress and deployed through `.github/workflows/site-pages.yml`.
 
 ## Current Status
 

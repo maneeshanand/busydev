@@ -115,10 +115,13 @@ Suggested scopes: `agent`, `git`, `terminal`, `ui`, `db`, `notifications`, `sett
 
 ## Website and Docs Content
 
-- Public site and docs content lives under `site/`
-- Primary entry points:
-  `site/index.html`, `site/docs/index.html`, `site/docs/getting-started.html`, `site/docs/setup.html`
-- For content edits, update files in `site/` and open a docs-focused PR
+- Public site and docs content is powered by VitePress under `site/docs/`
+- Primary pages:
+  `site/docs/index.md`, `site/docs/getting-started.md`, `site/docs/setup.md`, `site/docs/core-workflows.md`
+- Local preview:
+  `npm run docs:dev`
+- Production build:
+  `npm run docs:build`
 - Deployment is handled by `.github/workflows/site-pages.yml` on pushes to `main`
 
 ## CI/CD and Versioning

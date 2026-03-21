@@ -1,20 +1,25 @@
 # busydev.com site content
 
-This folder contains the initial landing page and docs content for `busydev.com`.
+This folder contains the VitePress-powered landing/docs content for `busydev.com`.
 
 ## Structure
 
-- `site/index.html`: landing page
-- `site/docs/index.html`: docs home
-- `site/docs/getting-started.html`: quickstart
-- `site/docs/setup.html`: prerequisites and setup
-- `site/docs/core-workflows.html`: practical usage flow
-- `site/styles.css`: shared site styling
+- `site/docs/index.md`: landing/home page
+- `site/docs/getting-started.md`: quickstart
+- `site/docs/setup.md`: prerequisites and setup
+- `site/docs/core-workflows.md`: practical usage flow
+- `site/docs/.vitepress/config.mts`: VitePress site config
 
 ## Publishing workflow
 
 - GitHub Actions workflow: `.github/workflows/site-pages.yml`
 - Triggered on changes to `site/**` on `main`
-- Deploys the static `site/` directory to GitHub Pages
+- Builds VitePress and deploys `site/docs/.vitepress/dist` to GitHub Pages
 
-For content-only updates, edit HTML/CSS files in this folder and merge to `main`.
+## Local preview
+
+```bash
+npm run docs:dev
+```
+
+For content updates, edit Markdown under `site/docs/` and merge to `main`.
