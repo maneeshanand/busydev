@@ -124,4 +124,12 @@ Current policy direction:
 - Expand CI to include lint, test, and build verification
 - Automate release/tag flow with version bump + changelog generation
 
+Tagged release pipeline:
+
+- Push a semantic version tag (for example, `v0.2.0`) to trigger `.github/workflows/release.yml`
+- Release workflow builds Linux and macOS artifacts and publishes/updates a GitHub Release
+- Release notes include a generated full changelog for the release range:
+  merged PRs, linked issues, and notable breaking changes
+- Manual reruns are available via `workflow_dispatch` on the release workflow
+
 If a change affects release/version behavior, document it explicitly in the PR description.
