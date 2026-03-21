@@ -6,6 +6,8 @@ target/
 node_modules/
 dist/
 .vite/
+.turbo/
+src-tauri/.turbo/
 
 # Tauri generated/build output
 src-tauri/target/
