@@ -32,6 +32,7 @@ export function DiffContent({ hasWorkspace, worktreePath, onFilesChanged }: Diff
     }
   }, [worktreePath, onFilesChanged]);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (hasWorkspace && worktreePath) {
       fetchDiff();
@@ -41,26 +42,33 @@ export function DiffContent({ hasWorkspace, worktreePath, onFilesChanged }: Diff
       onFilesChanged(0);
     }
   }, [hasWorkspace, worktreePath, fetchDiff, onFilesChanged]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
-  const handleAccept = useCallback(async (path: string) => {
-    if (!worktreePath) return;
-    try {
-      await invoke("accept_file_changes", { repoPath: worktreePath, paths: [path] });
-      fetchDiff();
-    } catch (err) {
-      setError(String(err));
-    }
-  }, [worktreePath, fetchDiff]);
+  const handleAccept = useCallback(
+    async (path: string) => {
+      if (!worktreePath) return;
+      try {
+        await invoke("accept_file_changes", { repoPath: worktreePath, paths: [path] });
+        fetchDiff();
+      } catch (err) {
+        setError(String(err));
+      }
+    },
+    [worktreePath, fetchDiff],
+  );
 
-  const handleRevert = useCallback(async (path: string) => {
-    if (!worktreePath) return;
-    try {
-      await invoke("revert_file_changes", { repoPath: worktreePath, paths: [path] });
-      fetchDiff();
-    } catch (err) {
-      setError(String(err));
-    }
-  }, [worktreePath, fetchDiff]);
+  const handleRevert = useCallback(
+    async (path: string) => {
+      if (!worktreePath) return;
+      try {
+        await invoke("revert_file_changes", { repoPath: worktreePath, paths: [path] });
+        fetchDiff();
+      } catch (err) {
+        setError(String(err));
+      }
+    },
+    [worktreePath, fetchDiff],
+  );
 
   if (!hasWorkspace) {
     return (
@@ -89,12 +97,7 @@ export function DiffContent({ hasWorkspace, worktreePath, onFilesChanged }: Diff
   return (
     <div className="diff-content diff-content--has-files">
       {files.map((file) => (
-        <DiffFileItem
-          key={file.path}
-          file={file}
-          onAccept={handleAccept}
-          onRevert={handleRevert}
-        />
+        <DiffFileItem key={file.path} file={file} onAccept={handleAccept} onRevert={handleRevert} />
       ))}
     </div>
   );

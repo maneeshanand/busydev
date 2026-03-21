@@ -67,49 +67,55 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
     }
   }, []);
 
-  const poll = useCallback(async (id: string) => {
-    try {
-      const batch = await invoke<AgentEventBatch>("stream_agent_events", {
-        id,
-        sinceSeq: nextSeqRef.current,
-      });
+  const poll = useCallback(
+    async (id: string) => {
+      try {
+        const batch = await invoke<AgentEventBatch>("stream_agent_events", {
+          id,
+          sinceSeq: nextSeqRef.current,
+        });
 
-      if (batch.events.length > 0) {
-        const newEvents: ChatEvent[] = batch.events.map((env) => ({
-          id: `${id}-${env.seq}`,
-          source: "agent" as const,
-          event: env.event,
-          timestamp: env.timestampMs,
-        }));
-        setEvents((prev) => [...prev, ...newEvents]);
-        nextSeqRef.current = batch.nextSeq;
-      }
+        if (batch.events.length > 0) {
+          const newEvents: ChatEvent[] = batch.events.map((env) => ({
+            id: `${id}-${env.seq}`,
+            source: "agent" as const,
+            event: env.event,
+            timestamp: env.timestampMs,
+          }));
+          setEvents((prev) => [...prev, ...newEvents]);
+          nextSeqRef.current = batch.nextSeq;
+        }
 
-      if (batch.usage) {
-        setUsage(batch.usage);
-      }
+        if (batch.usage) {
+          setUsage(batch.usage);
+        }
 
-      const status = batch.session.status;
-      const running = status === "Working" || status === "NeedsInput";
-      setIsRunning(running);
+        const status = batch.session.status;
+        const running = status === "Working" || status === "NeedsInput";
+        setIsRunning(running);
 
-      if (!running) {
+        if (!running) {
+          stopPolling();
+        }
+      } catch (err) {
+        setError(String(err));
         stopPolling();
+        setIsRunning(false);
       }
-    } catch (err) {
-      setError(String(err));
-      stopPolling();
-      setIsRunning(false);
-    }
-  }, [stopPolling]);
+    },
+    [stopPolling],
+  );
 
-  const startPolling = useCallback((id: string) => {
-    stopPolling();
-    nextSeqRef.current = 0;
-    pollRef.current = setInterval(() => poll(id), POLL_INTERVAL_MS);
-    // Immediate first poll
-    poll(id);
-  }, [poll, stopPolling]);
+  const startPolling = useCallback(
+    (id: string) => {
+      stopPolling();
+      nextSeqRef.current = 0;
+      pollRef.current = setInterval(() => poll(id), POLL_INTERVAL_MS);
+      // Immediate first poll
+      poll(id);
+    },
+    [poll, stopPolling],
+  );
 
   const startSession = useCallback(async () => {
     if (!worktreePath || !adapter) return null;
@@ -128,32 +134,35 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
     }
   }, [worktreePath, adapter, startPolling]);
 
-  const sendInput = useCallback(async (message: string) => {
-    // Add user message to events
-    const userEvent: ChatEvent = {
-      id: `user-${Date.now()}`,
-      source: "user",
-      event: { type: "message", content: message },
-      timestamp: Date.now(),
-    };
-    setEvents((prev) => [...prev, userEvent]);
+  const sendInput = useCallback(
+    async (message: string) => {
+      // Add user message to events
+      const userEvent: ChatEvent = {
+        id: `user-${Date.now()}`,
+        source: "user",
+        event: { type: "message", content: message },
+        timestamp: Date.now(),
+      };
+      setEvents((prev) => [...prev, userEvent]);
 
-    let id = sessionId;
-    if (!id) {
-      id = await startSession();
-      if (!id) return;
-    }
-
-    try {
-      await invoke("send_agent_input", { id, input: message });
-      if (!pollRef.current) {
-        setIsRunning(true);
-        startPolling(id);
+      let id = sessionId;
+      if (!id) {
+        id = await startSession();
+        if (!id) return;
       }
-    } catch (err) {
-      setError(String(err));
-    }
-  }, [sessionId, startSession, startPolling]);
+
+      try {
+        await invoke("send_agent_input", { id, input: message });
+        if (!pollRef.current) {
+          setIsRunning(true);
+          startPolling(id);
+        }
+      } catch (err) {
+        setError(String(err));
+      }
+    },
+    [sessionId, startSession, startPolling],
+  );
 
   const stopSession = useCallback(async () => {
     if (!sessionId) return;
@@ -171,7 +180,8 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
     return () => stopPolling();
   }, [stopPolling]);
 
-  // Reset when workspace changes
+  // Reset when workspace changes — setState calls are intentional batch reset
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     stopPolling();
     setEvents([]);
@@ -181,6 +191,7 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
     setError(null);
     nextSeqRef.current = 0;
   }, [worktreePath, stopPolling]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Sync to global agent store for StatusBar
   useEffect(() => {
@@ -188,12 +199,16 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
   }, [isRunning]);
 
   useEffect(() => {
-    useAgentStore.getState().setUsage(usage ? {
-      promptTokens: usage.promptTokens,
-      completionTokens: usage.completionTokens,
-      totalTokens: usage.totalTokens,
-      estimatedCostUsd: usage.estimatedCostUsd,
-    } : null);
+    useAgentStore.getState().setUsage(
+      usage
+        ? {
+            promptTokens: usage.promptTokens,
+            completionTokens: usage.completionTokens,
+            totalTokens: usage.totalTokens,
+            estimatedCostUsd: usage.estimatedCostUsd,
+          }
+        : null,
+    );
   }, [usage]);
 
   return {

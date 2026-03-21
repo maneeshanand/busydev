@@ -7,14 +7,8 @@ export function TerminalPanel() {
   const workspace = workspaces.find((w) => w.id === selectedWorkspaceId) ?? null;
   const hasWorkspace = workspace !== null;
 
-  const {
-    sessions,
-    activeSessionId,
-    createSession,
-    closeSession,
-    selectSession,
-    resizeSession,
-  } = useTerminalSession(workspace?.worktreePath ?? null);
+  const { sessions, activeSessionId, createSession, closeSession, selectSession, resizeSession } =
+    useTerminalSession(workspace?.worktreePath ?? null);
 
   return (
     <div className="terminal-panel">

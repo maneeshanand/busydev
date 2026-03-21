@@ -28,21 +28,24 @@ export function useTerminalSession(worktreePath: string | null) {
     }
   }, [worktreePath]);
 
-  const closeSession = useCallback(async (id: string) => {
-    try {
-      await invoke("close_terminal_session", { id });
-      setSessions((prev) => {
-        const remaining = prev.filter((s) => s.id !== id);
-        if (activeSessionId === id) {
-          setActiveSessionId(remaining[0]?.id ?? null);
-        }
-        return remaining;
-      });
-      setError(null);
-    } catch (err) {
-      setError(String(err));
-    }
-  }, [activeSessionId]);
+  const closeSession = useCallback(
+    async (id: string) => {
+      try {
+        await invoke("close_terminal_session", { id });
+        setSessions((prev) => {
+          const remaining = prev.filter((s) => s.id !== id);
+          if (activeSessionId === id) {
+            setActiveSessionId(remaining[0]?.id ?? null);
+          }
+          return remaining;
+        });
+        setError(null);
+      } catch (err) {
+        setError(String(err));
+      }
+    },
+    [activeSessionId],
+  );
 
   const resizeSession = useCallback(async (id: string, cols: number, rows: number) => {
     try {

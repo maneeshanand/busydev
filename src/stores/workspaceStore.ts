@@ -89,9 +89,7 @@ export const useWorkspaceStore = create<WorkspaceStoreState>((set) => ({
     try {
       const workspace = await invoke<Workspace>("update_workspace", { id, ...input });
       set((state) => ({
-        workspaces: state.workspaces.map((existing) =>
-          existing.id === id ? workspace : existing,
-        ),
+        workspaces: state.workspaces.map((existing) => (existing.id === id ? workspace : existing)),
         isLoading: false,
       }));
       return workspace;

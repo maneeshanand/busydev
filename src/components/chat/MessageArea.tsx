@@ -22,9 +22,7 @@ export function MessageArea({ hasWorkspace, events }: MessageAreaProps) {
   if (!hasWorkspace) {
     return (
       <div className="message-area message-area--empty">
-        <p className="message-area__placeholder">
-          Select a workspace to start chatting
-        </p>
+        <p className="message-area__placeholder">Select a workspace to start chatting</p>
       </div>
     );
   }

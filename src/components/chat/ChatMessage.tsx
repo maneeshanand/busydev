@@ -55,13 +55,12 @@ function ToolCard({ label, data }: { label: string; data: unknown }) {
 
   return (
     <div className="chat-message chat-message--tool">
-      <button
-        className="chat-message__tool-header"
-        onClick={() => setExpanded((prev) => !prev)}
-      >
+      <button className="chat-message__tool-header" onClick={() => setExpanded((prev) => !prev)}>
         <span className="chat-message__tool-icon">{"\u2699"}</span>
         <span className="chat-message__tool-label">{label}</span>
-        <span className={`chat-message__tool-chevron ${expanded ? "chat-message__tool-chevron--open" : ""}`}>
+        <span
+          className={`chat-message__tool-chevron ${expanded ? "chat-message__tool-chevron--open" : ""}`}
+        >
           {"\u25B6"}
         </span>
       </button>
@@ -76,11 +75,17 @@ function ToolCard({ label, data }: { label: string; data: unknown }) {
 
 function formatStatus(status: string): string {
   switch (status) {
-    case "Working": return "Agent is working...";
-    case "NeedsInput": return "Agent needs input";
-    case "Idle": return "Agent idle";
-    case "Error": return "Agent error";
-    case "Done": return "Agent finished";
-    default: return status;
+    case "Working":
+      return "Agent is working...";
+    case "NeedsInput":
+      return "Agent needs input";
+    case "Idle":
+      return "Agent idle";
+    case "Error":
+      return "Agent error";
+    case "Done":
+      return "Agent finished";
+    default:
+      return status;
   }
 }

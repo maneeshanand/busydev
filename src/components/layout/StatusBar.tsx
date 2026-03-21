@@ -13,9 +13,7 @@ export function StatusBar() {
         {workspace ? (
           <>
             <StatusIndicator status={workspace.status} />
-            <span className="status-bar__workspace">
-              {workspace.ticket ?? workspace.branch}
-            </span>
+            <span className="status-bar__workspace">{workspace.ticket ?? workspace.branch}</span>
             <span className="status-bar__separator">{"\u2022"}</span>
             <span className="status-bar__adapter">{workspace.agentAdapter}</span>
           </>
@@ -27,13 +25,9 @@ export function StatusBar() {
         {isRunning && <span className="status-bar__running">Running</span>}
         {usage && (
           <>
-            <span className="status-bar__tokens">
-              {usage.totalTokens.toLocaleString()} tokens
-            </span>
+            <span className="status-bar__tokens">{usage.totalTokens.toLocaleString()} tokens</span>
             <span className="status-bar__separator">{"\u2022"}</span>
-            <span className="status-bar__cost">
-              ${usage.estimatedCostUsd.toFixed(4)}
-            </span>
+            <span className="status-bar__cost">${usage.estimatedCostUsd.toFixed(4)}</span>
           </>
         )}
       </div>

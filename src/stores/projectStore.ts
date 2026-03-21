@@ -65,9 +65,7 @@ export const useProjectStore = create<ProjectStoreState>((set) => ({
     try {
       const project = await invoke<Project>("update_project", { id, name });
       set((state) => ({
-        projects: state.projects.map((existing) =>
-          existing.id === id ? project : existing,
-        ),
+        projects: state.projects.map((existing) => (existing.id === id ? project : existing)),
         isLoading: false,
       }));
       return project;
@@ -89,9 +87,7 @@ export const useProjectStore = create<ProjectStoreState>((set) => ({
         return {
           projects: remaining,
           selectedProjectId:
-            state.selectedProjectId === id
-              ? (remaining[0]?.id ?? null)
-              : state.selectedProjectId,
+            state.selectedProjectId === id ? (remaining[0]?.id ?? null) : state.selectedProjectId,
           isLoading: false,
         };
       });
