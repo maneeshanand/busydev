@@ -11,6 +11,11 @@ vi.mock("@tauri-apps/api/event", () => ({
 }));
 
 // Mock @xterm/xterm since jsdom doesn't support canvas
+// Mock @tauri-apps/plugin-dialog for folder picker
+vi.mock("@tauri-apps/plugin-dialog", () => ({
+  open: vi.fn().mockResolvedValue(null),
+}));
+
 vi.mock("@xterm/xterm", () => ({
   Terminal: vi.fn().mockImplementation(() => ({
     loadAddon: vi.fn(),
