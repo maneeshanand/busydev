@@ -34,6 +34,7 @@ use commands::workspace::{
     update_workspace,
 };
 use git::GitWatchManager;
+use notifications::publish_notification;
 use session_retention::{cleanup_expired_sessions, spawn_daily_cleanup_job};
 use tauri::Manager;
 use terminal::TerminalManager;
@@ -109,7 +110,8 @@ pub fn run() {
             stop_agent_session,
             send_agent_input,
             list_agent_sessions,
-            stream_agent_events
+            stream_agent_events,
+            publish_notification
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

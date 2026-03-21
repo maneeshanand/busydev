@@ -6,6 +6,10 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn().mockRejectedValue(new Error("Tauri not available in test")),
 }));
 
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn().mockResolvedValue(() => {}),
+}));
+
 // Mock @xterm/xterm since jsdom doesn't support canvas
 vi.mock("@xterm/xterm", () => ({
   Terminal: vi.fn().mockImplementation(() => ({
