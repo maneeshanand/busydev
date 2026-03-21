@@ -102,6 +102,13 @@ Contributions are welcome. busydev is built in public with a modular architectur
 
 For setup, conventions, and workflow details, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
+Release/version helpers:
+
+- `npm run version:check`
+- `npm run version:sync`
+- `npm run release:prepare -- patch`
+- `npm run release:cut -- patch`
+
 ## License
 
 MIT
