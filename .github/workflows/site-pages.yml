@@ -1,11 +1,6 @@
 name: Site Pages
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "site/**"
-      - ".github/workflows/site-pages.yml"
   workflow_dispatch:
 
 env:
