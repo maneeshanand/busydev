@@ -14,7 +14,10 @@ use commands::agent::{
     list_agent_sessions, send_agent_input, start_agent_session, stop_agent_session,
     stream_agent_events,
 };
-use commands::git::{create_worktree, delete_worktree, generate_unified_diff};
+use commands::git::{
+    accept_file_changes, create_worktree, delete_worktree, generate_unified_diff,
+    revert_file_changes,
+};
 use commands::project::{create_project, delete_project, list_projects, update_project};
 use commands::terminal::{
     close_terminal_session, create_terminal_session, list_terminal_sessions,
@@ -56,6 +59,8 @@ pub fn run() {
             create_worktree,
             delete_worktree,
             generate_unified_diff,
+            accept_file_changes,
+            revert_file_changes,
             create_workspace,
             list_workspaces,
             update_workspace,
