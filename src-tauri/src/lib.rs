@@ -18,6 +18,9 @@ use commands::git::{
     accept_file_changes, create_worktree, delete_worktree, generate_unified_diff, list_git_watches,
     poll_git_watch_events, revert_file_changes, start_git_watch, stop_git_watch,
 };
+use commands::mcp_server::{
+    create_mcp_server, delete_mcp_server, list_mcp_servers, update_mcp_server,
+};
 use commands::project::{create_project, delete_project, list_projects, update_project};
 use commands::terminal::{
     close_terminal_session, create_terminal_session, list_terminal_sessions,
@@ -81,6 +84,10 @@ pub fn run() {
             list_workspaces,
             update_workspace,
             delete_workspace,
+            create_mcp_server,
+            list_mcp_servers,
+            update_mcp_server,
+            delete_mcp_server,
             create_terminal_session,
             list_terminal_sessions,
             resize_terminal_session,
