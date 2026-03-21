@@ -7,7 +7,7 @@ import { useSettingsStore } from "../../stores";
 describe("SettingsPanel", () => {
   beforeEach(() => {
     useSettingsStore.setState({
-      defaultAdapter: "claude",
+      defaultAdapter: "Claude Code",
       defaultShell: "",
       defaultModel: "",
       defaultMode: "auto",
@@ -22,15 +22,15 @@ describe("SettingsPanel", () => {
 
   it("renders default adapter selector", () => {
     render(<SettingsPanel />);
-    const select = screen.getByDisplayValue("claude");
+    const select = screen.getByDisplayValue("Claude Code");
     expect(select).toBeInTheDocument();
   });
 
   it("updates adapter in store on change", async () => {
     render(<SettingsPanel />);
-    const select = screen.getByDisplayValue("claude");
-    await userEvent.selectOptions(select, "codex");
-    expect(useSettingsStore.getState().defaultAdapter).toBe("codex");
+    const select = screen.getByDisplayValue("Claude Code");
+    await userEvent.selectOptions(select, "Codex");
+    expect(useSettingsStore.getState().defaultAdapter).toBe("Codex");
   });
 
   it("renders mode selector with default auto", () => {

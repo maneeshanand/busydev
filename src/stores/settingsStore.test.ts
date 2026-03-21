@@ -4,7 +4,7 @@ import { useSettingsStore } from "./settingsStore";
 describe("settingsStore", () => {
   beforeEach(() => {
     useSettingsStore.setState({
-      defaultAdapter: "claude",
+      defaultAdapter: "Claude Code",
       defaultShell: "",
       defaultModel: "",
       defaultMode: "auto",
@@ -13,15 +13,15 @@ describe("settingsStore", () => {
 
   it("starts with default values", () => {
     const state = useSettingsStore.getState();
-    expect(state.defaultAdapter).toBe("claude");
+    expect(state.defaultAdapter).toBe("Claude Code");
     expect(state.defaultShell).toBe("");
     expect(state.defaultModel).toBe("");
     expect(state.defaultMode).toBe("auto");
   });
 
   it("updates adapter", () => {
-    useSettingsStore.getState().setDefaultAdapter("codex");
-    expect(useSettingsStore.getState().defaultAdapter).toBe("codex");
+    useSettingsStore.getState().setDefaultAdapter("Codex");
+    expect(useSettingsStore.getState().defaultAdapter).toBe("Codex");
   });
 
   it("updates shell", () => {

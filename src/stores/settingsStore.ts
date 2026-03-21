@@ -15,7 +15,7 @@ type SettingsState = {
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
-      defaultAdapter: "claude",
+      defaultAdapter: "Claude Code",
       defaultShell: "",
       defaultModel: "",
       defaultMode: "auto",
