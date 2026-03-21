@@ -1,0 +1,42 @@
+.workspace-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 8px 4px 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #888);
+  cursor: pointer;
+  text-align: left;
+  border-radius: 4px;
+  transition: background 0.1s;
+}
+
+.workspace-item:hover {
+  background: var(--rail-hover, #0f3460);
+  color: var(--text-primary, #ccc);
+}
+
+.workspace-item--selected {
+  background: var(--rail-active, #0f3460);
+  color: var(--text-primary, #ccc);
+}
+
+.workspace-item__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.workspace-item__name {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.workspace-item__adapter {
+  font-size: 10px;
+  opacity: 0.6;
+}
