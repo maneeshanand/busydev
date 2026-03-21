@@ -52,15 +52,49 @@ export interface ChatEvent {
 
 const POLL_INTERVAL_MS = 500;
 
+interface WorkspaceChatSnapshot {
+  events: ChatEvent[];
+  sessionId: string | null;
+  usage: TokenUsage | null;
+  nextSeq: number;
+  notifiedStatus: AgentStatus | null;
+}
+
+const workspaceChatSnapshots = new Map<string, WorkspaceChatSnapshot>();
+
 export function useAgentStream(worktreePath: string | null, adapter: string | null) {
-  const [events, setEvents] = useState<ChatEvent[]>([]);
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const initialSnapshot = worktreePath ? workspaceChatSnapshots.get(worktreePath) : undefined;
+  const [events, setEvents] = useState<ChatEvent[]>(() => initialSnapshot?.events ?? []);
+  const [sessionId, setSessionId] = useState<string | null>(() => initialSnapshot?.sessionId ?? null);
   const [isRunning, setIsRunning] = useState(false);
-  const [usage, setUsage] = useState<TokenUsage | null>(null);
+  const [usage, setUsage] = useState<TokenUsage | null>(() => initialSnapshot?.usage ?? null);
   const [error, setError] = useState<string | null>(null);
-  const nextSeqRef = useRef<number>(0);
+  const nextSeqRef = useRef<number>(initialSnapshot?.nextSeq ?? 0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const notifiedStatusRef = useRef<AgentStatus | null>(null);
+  const notifiedStatusRef = useRef<AgentStatus | null>(initialSnapshot?.notifiedStatus ?? null);
+  const previousWorktreePathRef = useRef<string | null>(worktreePath);
+
+  const persistSnapshot = useCallback(
+    (
+      nextEvents: ChatEvent[],
+      nextSessionId: string | null,
+      nextUsage: TokenUsage | null,
+      nextSeq: number,
+      nextNotifiedStatus: AgentStatus | null,
+    ) => {
+      if (!worktreePath) {
+        return;
+      }
+      workspaceChatSnapshots.set(worktreePath, {
+        events: nextEvents,
+        sessionId: nextSessionId,
+        usage: nextUsage,
+        nextSeq,
+        notifiedStatus: nextNotifiedStatus,
+      });
+    },
+    [worktreePath],
+  );
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -177,7 +211,7 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
       setError(String(err));
       return null;
     }
-  }, [worktreePath, adapter, startPolling]);
+  }, [adapter, startPolling, worktreePath]);
 
   const addErrorEvent = useCallback((msg: string) => {
     const errorEvent: ChatEvent = {
@@ -221,7 +255,7 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
         addErrorEvent(String(err));
       }
     },
-    [sessionId, startSession, startPolling, addErrorEvent],
+    [addErrorEvent, sessionId, startPolling, startSession],
   );
 
   const stopSession = useCallback(async () => {
@@ -240,10 +274,36 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
     return () => stopPolling();
   }, [stopPolling]);
 
-  // Reset when workspace changes — setState calls are intentional batch reset
+  // Reset or hydrate when workspace changes — setState calls are intentional batch updates
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
+    const previous = previousWorktreePathRef.current;
+    if (previous === worktreePath) {
+      return;
+    }
+
     stopPolling();
+
+    const snapshot = worktreePath ? workspaceChatSnapshots.get(worktreePath) : undefined;
+    if (snapshot) {
+      setEvents(snapshot.events);
+      setSessionId(snapshot.sessionId);
+      setUsage(snapshot.usage);
+      nextSeqRef.current = snapshot.nextSeq;
+      notifiedStatusRef.current = snapshot.notifiedStatus;
+      setIsRunning(false);
+      setError(null);
+      previousWorktreePathRef.current = worktreePath;
+      return;
+    }
+
+    // On first workspace selection (null -> workspace), keep current state to avoid
+    // clobbering a just-submitted first message while effects settle.
+    if (previous === null && worktreePath !== null) {
+      previousWorktreePathRef.current = worktreePath;
+      return;
+    }
+
     setEvents([]);
     setSessionId(null);
     setIsRunning(false);
@@ -251,6 +311,7 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
     setError(null);
     nextSeqRef.current = 0;
     notifiedStatusRef.current = null;
+    previousWorktreePathRef.current = worktreePath;
   }, [worktreePath, stopPolling]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -258,6 +319,10 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
   useEffect(() => {
     useAgentStore.getState().setRunning(isRunning);
   }, [isRunning]);
+
+  useEffect(() => {
+    persistSnapshot(events, sessionId, usage, nextSeqRef.current, notifiedStatusRef.current);
+  }, [events, persistSnapshot, sessionId, usage]);
 
   useEffect(() => {
     useAgentStore.getState().setUsage(
