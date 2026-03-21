@@ -12,27 +12,27 @@ This folder contains the VitePress-powered landing/docs content for `busydev.com
 
 ## Publishing workflow
 
-- Primary workflow: `.github/workflows/site-bluehost.yml`
+- Primary workflow: `.github/workflows/site-ftp-deploy.yml`
 - Triggered on:
   - pushes to `main` that touch `site/**`
   - manual `workflow_dispatch` (supports `dry_run`)
-- Builds VitePress and deploys `site/docs/.vitepress/dist` to Bluehost over FTP/FTPS
+- Builds VitePress and deploys `site/docs/.vitepress/dist` over FTP/FTPS
 
 ### Required GitHub Secrets
 
-- `BLUEHOST_FTP_HOST`
-- `BLUEHOST_FTP_USERNAME`
-- `BLUEHOST_FTP_PASSWORD`
+- `SITE_FTP_HOST`
+- `SITE_FTP_USERNAME`
+- `SITE_FTP_PASSWORD`
 
 ### Recommended GitHub Repository Variables
 
-- `BLUEHOST_FTP_PROTOCOL` (`ftps` recommended, or `ftp`)
-- `BLUEHOST_FTP_PORT` (`21` default unless provider-specific override)
-- `BLUEHOST_FTP_REMOTE_DIR` (`/public_html/` by default)
-- `BLUEHOST_FTP_PASSIVE` (`true` default)
-- `BLUEHOST_SSL_VERIFY` (`true` default)
-- `BLUEHOST_SITE_URL` (`https://busydev.com`)
-- `BLUEHOST_CANONICAL_URL` (optional, e.g. `https://www.busydev.com`)
+- `SITE_FTP_PROTOCOL` (`ftps` recommended, or `ftp`)
+- `SITE_FTP_PORT` (`21` default unless provider-specific override)
+- `SITE_FTP_REMOTE_DIR` (`/public_html/` by default)
+- `SITE_FTP_PASSIVE` (`true` default)
+- `SITE_SSL_VERIFY` (`true` default)
+- `SITE_URL` (`https://busydev.com`)
+- `SITE_CANONICAL_URL` (optional, e.g. `https://www.busydev.com`)
 
 ## Local preview
 

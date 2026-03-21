@@ -1,4 +1,4 @@
-name: Site Bluehost Deploy
+name: Site FTP Deploy
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
       - "site/**"
       - "package.json"
       - "package-lock.json"
-      - ".github/workflows/site-bluehost.yml"
+      - ".github/workflows/site-ftp-deploy.yml"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -23,16 +23,16 @@ env:
   DIST_DIR: site/docs/.vitepress/dist
 
 concurrency:
-  group: site-bluehost-prod
+  group: site-ftp-prod
   cancel-in-progress: true
 
 jobs:
   deploy:
-    name: Build and deploy site to Bluehost
+    name: Build and deploy site via FTP
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: ${{ vars.BLUEHOST_SITE_URL || 'https://busydev.com' }}
+      url: ${{ vars.SITE_URL || 'https://busydev.com' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -54,13 +54,13 @@ jobs:
 
       - name: Validate deployment configuration
         env:
-          BLUEHOST_FTP_HOST: ${{ secrets.BLUEHOST_FTP_HOST }}
-          BLUEHOST_FTP_USERNAME: ${{ secrets.BLUEHOST_FTP_USERNAME }}
-          BLUEHOST_FTP_PASSWORD: ${{ secrets.BLUEHOST_FTP_PASSWORD }}
+          SITE_FTP_HOST: ${{ secrets.SITE_FTP_HOST }}
+          SITE_FTP_USERNAME: ${{ secrets.SITE_FTP_USERNAME }}
+          SITE_FTP_PASSWORD: ${{ secrets.SITE_FTP_PASSWORD }}
         run: |
           set -euo pipefail
           missing=()
-          for key in BLUEHOST_FTP_HOST BLUEHOST_FTP_USERNAME BLUEHOST_FTP_PASSWORD; do
+          for key in SITE_FTP_HOST SITE_FTP_USERNAME SITE_FTP_PASSWORD; do
             if [ -z "${!key}" ]; then
               missing+=("$key")
             fi
@@ -78,30 +78,30 @@ jobs:
 
       - name: Deploy static site over FTP/FTPS
         env:
-          BLUEHOST_FTP_HOST: ${{ secrets.BLUEHOST_FTP_HOST }}
-          BLUEHOST_FTP_USERNAME: ${{ secrets.BLUEHOST_FTP_USERNAME }}
-          BLUEHOST_FTP_PASSWORD: ${{ secrets.BLUEHOST_FTP_PASSWORD }}
-          BLUEHOST_FTP_PORT: ${{ vars.BLUEHOST_FTP_PORT }}
-          BLUEHOST_FTP_PROTOCOL: ${{ vars.BLUEHOST_FTP_PROTOCOL }}
-          BLUEHOST_FTP_REMOTE_DIR: ${{ vars.BLUEHOST_FTP_REMOTE_DIR }}
-          BLUEHOST_FTP_PASSIVE: ${{ vars.BLUEHOST_FTP_PASSIVE }}
-          BLUEHOST_SSL_VERIFY: ${{ vars.BLUEHOST_SSL_VERIFY }}
+          SITE_FTP_HOST: ${{ secrets.SITE_FTP_HOST }}
+          SITE_FTP_USERNAME: ${{ secrets.SITE_FTP_USERNAME }}
+          SITE_FTP_PASSWORD: ${{ secrets.SITE_FTP_PASSWORD }}
+          SITE_FTP_PORT: ${{ vars.SITE_FTP_PORT }}
+          SITE_FTP_PROTOCOL: ${{ vars.SITE_FTP_PROTOCOL }}
+          SITE_FTP_REMOTE_DIR: ${{ vars.SITE_FTP_REMOTE_DIR }}
+          SITE_FTP_PASSIVE: ${{ vars.SITE_FTP_PASSIVE }}
+          SITE_SSL_VERIFY: ${{ vars.SITE_SSL_VERIFY }}
           DISPATCH_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
         run: |
           set -euo pipefail
 
-          protocol="${BLUEHOST_FTP_PROTOCOL:-ftps}"
-          port="${BLUEHOST_FTP_PORT:-21}"
-          remote_dir="${BLUEHOST_FTP_REMOTE_DIR:-/public_html/}"
-          passive="${BLUEHOST_FTP_PASSIVE:-true}"
-          ssl_verify="${BLUEHOST_SSL_VERIFY:-true}"
+          protocol="${SITE_FTP_PROTOCOL:-ftps}"
+          port="${SITE_FTP_PORT:-21}"
+          remote_dir="${SITE_FTP_REMOTE_DIR:-/public_html/}"
+          passive="${SITE_FTP_PASSIVE:-true}"
+          ssl_verify="${SITE_SSL_VERIFY:-true}"
 
           if [ "${remote_dir}" != "/" ] && [[ "${remote_dir}" != */ ]]; then
             remote_dir="${remote_dir}/"
           fi
 
           if [ "$protocol" != "ftp" ] && [ "$protocol" != "ftps" ]; then
-            echo "Unsupported BLUEHOST_FTP_PROTOCOL '$protocol'. Use 'ftp' or 'ftps'." >&2
+            echo "Unsupported SITE_FTP_PROTOCOL '$protocol'. Use 'ftp' or 'ftps'." >&2
             exit 1
           fi
 
@@ -126,23 +126,23 @@ jobs:
           set ftp:ssl-force ${ssl_force}
           set ftp:ssl-protect-data ${ssl_protect_data}
           set ssl:verify-certificate ${ssl_verify}
-          open -u "${BLUEHOST_FTP_USERNAME}","${BLUEHOST_FTP_PASSWORD}" ${protocol}://${BLUEHOST_FTP_HOST}:${port}
+          open -u "${SITE_FTP_USERNAME}","${SITE_FTP_PASSWORD}" ${protocol}://${SITE_FTP_HOST}:${port}
           mirror --reverse --delete --verbose ${dry_flag} "${DIST_DIR}/" "${remote_dir}"
           bye
           LFTP_CMDS
 
       - name: Verify production URL
         env:
-          BLUEHOST_SITE_URL: ${{ vars.BLUEHOST_SITE_URL }}
-          BLUEHOST_CANONICAL_URL: ${{ vars.BLUEHOST_CANONICAL_URL }}
+          SITE_URL: ${{ vars.SITE_URL }}
+          SITE_CANONICAL_URL: ${{ vars.SITE_CANONICAL_URL }}
         run: |
           set -euo pipefail
-          site_url="${BLUEHOST_SITE_URL:-https://busydev.com}"
+          site_url="${SITE_URL:-https://busydev.com}"
 
           curl -fsSL --retry 5 --retry-delay 2 "$site_url" > /dev/null
 
-          if [ -n "${BLUEHOST_CANONICAL_URL:-}" ]; then
-            effective_url="$(curl -sS -o /dev/null -w '%{url_effective}' --location "${BLUEHOST_CANONICAL_URL}")"
+          if [ -n "${SITE_CANONICAL_URL:-}" ]; then
+            effective_url="$(curl -sS -o /dev/null -w '%{url_effective}' --location "${SITE_CANONICAL_URL}")"
             if [ "${effective_url}" != "${site_url}" ]; then
               echo "Canonical redirect mismatch: expected ${site_url}, got ${effective_url}" >&2
               exit 1
