@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, type InvokeArgs } from "@tauri-apps/api/core";
 
 const mockedInvoke = vi.mocked(invoke);
 
@@ -65,7 +65,8 @@ export function seedWorkspace(
 }
 
 export function setupTauriMocks() {
-  mockedInvoke.mockImplementation(async (command: string, args?: Record<string, unknown>) => {
+  mockedInvoke.mockImplementation(async (command: string, rawArgs?: InvokeArgs) => {
+    const args = rawArgs as Record<string, unknown> | undefined;
     switch (command) {
       case "list_projects":
         return [...projectDb];

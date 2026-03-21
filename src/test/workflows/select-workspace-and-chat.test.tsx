@@ -5,7 +5,7 @@
  * message appears in stream → agent response appears.
  */
 import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@tauri-apps/api/core";
 import { AppLayout } from "../../components/layout/AppLayout";
@@ -135,7 +135,7 @@ describe("Workflow: Select Workspace and Chat", () => {
   it.skip("shows error in chat when agent session fails to start", async () => {
     const mockedInvoke = setupTauriMocks();
     const original = mockedInvoke.getMockImplementation()!;
-    mockedInvoke.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
+    mockedInvoke.mockImplementation(async (cmd: string, args?: Parameters<typeof invoke>[1]) => {
       if (cmd === "start_agent_session") {
         throw new Error("Agent adapter 'claude' not found");
       }

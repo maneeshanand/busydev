@@ -2,7 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { vi } from "vitest";
 
 // Mock ResizeObserver for react-resizable-panels in jsdom
-global.ResizeObserver = vi.fn().mockImplementation(() => ({
+(window as Window & typeof globalThis).ResizeObserver = vi.fn().mockImplementation(() => ({
   observe: vi.fn(),
   unobserve: vi.fn(),
   disconnect: vi.fn(),
