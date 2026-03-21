@@ -16,7 +16,8 @@ use commands::agent::{
 };
 use commands::git::{
     accept_file_changes, create_worktree, delete_worktree, generate_unified_diff,
-    revert_file_changes,
+    list_git_watches, poll_git_watch_events, revert_file_changes, start_git_watch,
+    stop_git_watch,
 };
 use commands::project::{create_project, delete_project, list_projects, update_project};
 use commands::terminal::{
@@ -26,6 +27,7 @@ use commands::terminal::{
 use commands::workspace::{create_workspace, delete_workspace, list_workspaces, update_workspace};
 use tauri::Manager;
 use terminal::TerminalManager;
+use git::GitWatchManager;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -46,6 +48,7 @@ pub fn run() {
             app.manage(registry);
             app.manage(AgentManager::new());
             app.manage(TerminalManager::new());
+            app.manage(GitWatchManager::new());
 
             Ok(())
         })
@@ -61,6 +64,10 @@ pub fn run() {
             generate_unified_diff,
             accept_file_changes,
             revert_file_changes,
+            start_git_watch,
+            stop_git_watch,
+            poll_git_watch_events,
+            list_git_watches,
             create_workspace,
             list_workspaces,
             update_workspace,

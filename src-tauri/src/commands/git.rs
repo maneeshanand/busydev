@@ -1,4 +1,6 @@
-use crate::git::{GitManager, Worktree};
+use tauri::State;
+
+use crate::git::{GitManager, GitWatchEvent, GitWatchManager, Worktree};
 
 #[tauri::command]
 pub fn create_worktree(
@@ -44,4 +46,28 @@ pub fn accept_file_changes(repo_path: String, paths: Vec<String>) -> Result<(), 
 #[tauri::command]
 pub fn revert_file_changes(repo_path: String, paths: Vec<String>) -> Result<(), String> {
     GitManager.revert_file_changes(&repo_path, &paths)
+}
+
+#[tauri::command]
+pub fn start_git_watch(repo_path: String, watch_manager: State<'_, GitWatchManager>) -> Result<(), String> {
+    watch_manager.start_watch(&repo_path)
+}
+
+#[tauri::command]
+pub fn stop_git_watch(repo_path: String, watch_manager: State<'_, GitWatchManager>) -> Result<(), String> {
+    watch_manager.stop_watch(&repo_path)
+}
+
+#[tauri::command]
+pub fn poll_git_watch_events(
+    repo_path: String,
+    since_seq: Option<u64>,
+    watch_manager: State<'_, GitWatchManager>,
+) -> Result<Vec<GitWatchEvent>, String> {
+    watch_manager.poll_events(&repo_path, since_seq)
+}
+
+#[tauri::command]
+pub fn list_git_watches(watch_manager: State<'_, GitWatchManager>) -> Result<Vec<String>, String> {
+    watch_manager.list_watches()
 }
