@@ -16,9 +16,23 @@ If you use CLI agents (Codex, Claude Code, Aider, etc.) across several repos, yo
 - Get attention signals via in-app notifications and tray badge
 - Stay LLM-agnostic through an adapter-based agent system
 
+## Screenshot
+
+> _Coming soon — the app is in active development._
+
 ## Current Status
 
-busydev is in active development. The architecture and backlog are defined, and foundational implementation is underway.
+busydev is in active development. Core UI and backend are implemented:
+
+- Three-panel resizable layout (sidebar, chat, diff/terminal)
+- Project and workspace management with SQLite persistence
+- Agent chat with live event streaming (message, tool call, status)
+- Unified diff viewer with per-file accept/revert
+- xterm.js terminal integration with tab management
+- Claude and Codex agent adapters
+- Git worktree lifecycle management
+- Settings panel with MCP server configuration
+- Status bar with token usage and cost tracking
 
 ## Tech Stack
 
@@ -43,41 +57,40 @@ Install dependencies:
 npm install
 ```
 
-Run monorepo checks (frontend + backend):
+Run frontend lint and tests:
 
 ```bash
-npm run check
+npm run lint
+npm test
 ```
 
 Run in development:
 
 ```bash
-npm run tauri dev
+cargo tauri dev
+```
+
+Run frontend only (no Tauri runtime):
+
+```bash
+npm run dev
 ```
 
 Build:
 
 ```bash
-npm run build:all
+cargo tauri build
 ```
-
-## Roadmap (High Level)
-
-1. Repo health and project scaffolding
-2. Data model + SQLite migrations
-3. Three-panel UI shell
-4. Git integration (worktrees, diffs, file watching)
-5. Terminal manager + xterm integration
-6. Agent manager + adapters (Codex/Claude)
-7. Chat/diff UX polish
-8. Notifications and settings
 
 ## Contributing
 
-Contributions are welcome. We are building this in public and keeping the architecture modular so new contributors can pick up focused tickets quickly.
+Contributions are welcome. busydev is built in public with a modular architecture so contributors can pick up focused tickets.
 
-Please open an issue or pick from the busydev backlog in Linear, then submit a PR with a clear scope.
-For workflow and branch conventions, see [CONTRIBUTING.md](./CONTRIBUTING.md).
+1. Browse [open issues](https://github.com/maneeshanand/busydev/issues)
+2. Comment on one you'd like to take
+3. Submit a PR with a clear scope
+
+For setup, conventions, and workflow details, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## License
 
