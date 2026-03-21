@@ -11,11 +11,7 @@ export function ContextPanel() {
 
   return (
     <div className="context-panel">
-      <Group
-        orientation="vertical"
-        defaultLayout={defaultLayout}
-        onLayoutChanged={onLayoutChanged}
-      >
+      <Group orientation="vertical" defaultLayout={defaultLayout} onLayoutChanged={onLayoutChanged}>
         <Panel id="diff" defaultSize="60%" minSize="20%">
           <DiffPanel />
         </Panel>

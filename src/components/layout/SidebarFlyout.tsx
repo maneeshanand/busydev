@@ -50,9 +50,7 @@ export function SidebarFlyout({ activePanel, onClose }: SidebarFlyoutProps) {
         {activePanel === "projects" ? (
           <ProjectTree />
         ) : (
-          <p className="sidebar-flyout__placeholder">
-            {activePanel} panel content
-          </p>
+          <p className="sidebar-flyout__placeholder">{activePanel} panel content</p>
         )}
       </div>
     </div>

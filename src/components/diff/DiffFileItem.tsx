@@ -15,11 +15,10 @@ export function DiffFileItem({ file, onAccept, onRevert }: DiffFileItemProps) {
   return (
     <div className="diff-file-item">
       <div className="diff-file-item__header">
-        <button
-          className="diff-file-item__toggle"
-          onClick={() => setExpanded((prev) => !prev)}
-        >
-          <span className={`diff-file-item__chevron ${expanded ? "diff-file-item__chevron--open" : ""}`}>
+        <button className="diff-file-item__toggle" onClick={() => setExpanded((prev) => !prev)}>
+          <span
+            className={`diff-file-item__chevron ${expanded ? "diff-file-item__chevron--open" : ""}`}
+          >
             {"\u25B6"}
           </span>
           <span className="diff-file-item__path">{file.path}</span>

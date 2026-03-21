@@ -120,9 +120,7 @@ export function TerminalContent({ activeSessionId, hasWorkspace, onResize }: Ter
   if (!activeSessionId) {
     return (
       <div className="terminal-content terminal-content--empty">
-        <p className="terminal-content__message">
-          Click + to create a terminal session
-        </p>
+        <p className="terminal-content__message">Click + to create a terminal session</p>
       </div>
     );
   }

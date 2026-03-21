@@ -47,11 +47,7 @@ export function ChatInput({ onSubmit, onStop, isRunning, disabled }: ChatInputPr
 
   return (
     <div className={`chat-input ${disabled ? "chat-input--disabled" : ""}`}>
-      <button
-        className="chat-input__attach"
-        disabled={disabled}
-        title="Attach file"
-      >
+      <button className="chat-input__attach" disabled={disabled} title="Attach file">
         {"\uD83D\uDCCE"}
       </button>
       <textarea
@@ -65,11 +61,7 @@ export function ChatInput({ onSubmit, onStop, isRunning, disabled }: ChatInputPr
         rows={1}
       />
       {isRunning ? (
-        <button
-          className="chat-input__stop"
-          onClick={onStop}
-          title="Stop agent"
-        >
+        <button className="chat-input__stop" onClick={onStop} title="Stop agent">
           Stop
         </button>
       ) : (

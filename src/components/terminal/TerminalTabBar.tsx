@@ -27,10 +27,7 @@ export function TerminalTabBar({
             activeSessionId === session.id ? "terminal-tab-bar__tab--active" : ""
           }`}
         >
-          <button
-            className="terminal-tab-bar__tab-label"
-            onClick={() => onSelect(session.id)}
-          >
+          <button className="terminal-tab-bar__tab-label" onClick={() => onSelect(session.id)}>
             Terminal {i + 1}
           </button>
           <button
