@@ -12,6 +12,12 @@
   --text-primary: #ccc;
   --text-muted: #888;
 
+  /* Status colors */
+  --status-idle: #666;
+  --status-running: #3b82f6;
+  --status-needs-input: #f59e0b;
+  --status-error: #ef4444;
+
   /* Typography */
   font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
   font-size: 14px;
