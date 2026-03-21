@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { ProjectTree } from "../sidebar";
 import "./SidebarFlyout.css";
 
 interface SidebarFlyoutProps {
@@ -46,9 +47,13 @@ export function SidebarFlyout({ activePanel, onClose }: SidebarFlyoutProps) {
         </button>
       </div>
       <div className="sidebar-flyout__content">
-        <p className="sidebar-flyout__placeholder">
-          {activePanel} panel content
-        </p>
+        {activePanel === "projects" ? (
+          <ProjectTree />
+        ) : (
+          <p className="sidebar-flyout__placeholder">
+            {activePanel} panel content
+          </p>
+        )}
       </div>
     </div>
   );
