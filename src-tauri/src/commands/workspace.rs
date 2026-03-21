@@ -7,6 +7,7 @@ use tauri::State;
 use uuid::Uuid;
 
 use crate::db::Database;
+use crate::security::sanitize_json_for_persistence;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -43,6 +44,7 @@ pub fn create_workspace(
 
     let workspace_id = Uuid::new_v4().to_string();
     let ticket = normalize_optional_text(ticket);
+    let agent_config_json = sanitize_json_for_persistence("agent_config_json", agent_config_json)?;
 
     let connection = db.connection();
     let conn = connection
@@ -101,6 +103,7 @@ pub fn update_workspace(
     validate_non_empty("status", &status)?;
 
     let ticket = normalize_optional_text(ticket);
+    let agent_config_json = sanitize_json_for_persistence("agent_config_json", agent_config_json)?;
     let connection = db.connection();
     let conn = connection
         .lock()
@@ -339,6 +342,7 @@ fn normalize_optional_text(value: Option<String>) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::security::sanitize_json_for_persistence;
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -455,5 +459,18 @@ mod tests {
             .expect("clock should be after epoch")
             .as_nanos();
         std::env::temp_dir().join(format!("busydev-{prefix}-{now}"))
+    }
+
+    #[test]
+    fn sanitize_agent_config_json_redacts_sensitive_keys() {
+        let config = Some(r#"{"authorization":"Bearer abc","safe":"value"}"#.to_string());
+        let sanitized = sanitize_json_for_persistence("agent_config_json", config)
+            .expect("sanitize should succeed")
+            .expect("sanitized config should exist");
+
+        let value: serde_json::Value =
+            serde_json::from_str(&sanitized).expect("sanitized config should remain valid json");
+        assert_eq!(value["authorization"], "***REDACTED***");
+        assert_eq!(value["safe"], "value");
     }
 }

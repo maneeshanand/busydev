@@ -3,6 +3,7 @@ mod commands;
 mod db;
 mod git;
 mod notifications;
+mod security;
 mod state;
 mod terminal;
 
