@@ -4,6 +4,7 @@ mod db;
 mod git;
 mod notifications;
 mod security;
+mod session_retention;
 mod state;
 mod terminal;
 
@@ -23,6 +24,7 @@ use commands::mcp_server::{
     create_mcp_server, delete_mcp_server, list_mcp_servers, update_mcp_server,
 };
 use commands::project::{create_project, delete_project, list_projects, update_project};
+use commands::session::run_session_retention_cleanup;
 use commands::terminal::{
     close_terminal_session, create_terminal_session, list_terminal_sessions,
     resize_terminal_session,
@@ -32,6 +34,7 @@ use commands::workspace::{
     update_workspace,
 };
 use git::GitWatchManager;
+use session_retention::{cleanup_expired_sessions, spawn_daily_cleanup_job};
 use tauri::Manager;
 use terminal::TerminalManager;
 
@@ -47,6 +50,7 @@ pub fn run() {
         .setup(|app| {
             let db = db::initialize_for_app(app.handle()).map_err(|err| err.to_string())?;
             let removed_workspace_count = cleanup_orphan_workspaces_on_startup(&db)?;
+            let expired_session_count = cleanup_expired_sessions(&db)?;
             app.manage(db);
 
             let mut registry = AgentRegistry::new();
@@ -56,10 +60,17 @@ pub fn run() {
             app.manage(AgentManager::new());
             app.manage(TerminalManager::new());
             app.manage(GitWatchManager::new());
+            let db_for_cleanup = app.state::<db::Database>().inner().clone();
+            spawn_daily_cleanup_job(db_for_cleanup);
 
             if removed_workspace_count > 0 {
                 eprintln!(
                     "startup cleanup removed {removed_workspace_count} orphan workspace record(s)"
+                );
+            }
+            if expired_session_count > 0 {
+                eprintln!(
+                    "startup cleanup removed {expired_session_count} expired session record(s)"
                 );
             }
 
@@ -85,6 +96,7 @@ pub fn run() {
             list_workspaces,
             update_workspace,
             delete_workspace,
+            run_session_retention_cleanup,
             create_mcp_server,
             list_mcp_servers,
             update_mcp_server,
