@@ -1,0 +1,150 @@
+name: Site FTP Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/site-ftp-deploy.yml"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Validate FTP sync without writing files"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  DIST_DIR: site/docs/.vitepress/dist
+
+concurrency:
+  group: site-ftp-prod
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build and deploy site via FTP
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ vars.SITE_URL || 'https://busydev.com' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build docs site
+        run: npm run docs:build
+
+      - name: Validate build output exists
+        run: test -f "$DIST_DIR/index.html"
+
+      - name: Validate deployment configuration
+        env:
+          SITE_FTP_HOST: ${{ secrets.SITE_FTP_HOST }}
+          SITE_FTP_USERNAME: ${{ secrets.SITE_FTP_USERNAME }}
+          SITE_FTP_PASSWORD: ${{ secrets.SITE_FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for key in SITE_FTP_HOST SITE_FTP_USERNAME SITE_FTP_PASSWORD; do
+            if [ -z "${!key}" ]; then
+              missing+=("$key")
+            fi
+          done
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "Missing required GitHub Secrets: ${missing[*]}" >&2
+            exit 1
+          fi
+
+      - name: Install lftp
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp
+
+      - name: Deploy static site over FTP/FTPS
+        env:
+          SITE_FTP_HOST: ${{ secrets.SITE_FTP_HOST }}
+          SITE_FTP_USERNAME: ${{ secrets.SITE_FTP_USERNAME }}
+          SITE_FTP_PASSWORD: ${{ secrets.SITE_FTP_PASSWORD }}
+          SITE_FTP_PORT: ${{ vars.SITE_FTP_PORT }}
+          SITE_FTP_PROTOCOL: ${{ vars.SITE_FTP_PROTOCOL }}
+          SITE_FTP_REMOTE_DIR: ${{ vars.SITE_FTP_REMOTE_DIR }}
+          SITE_FTP_PASSIVE: ${{ vars.SITE_FTP_PASSIVE }}
+          SITE_SSL_VERIFY: ${{ vars.SITE_SSL_VERIFY }}
+          DISPATCH_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+        run: |
+          set -euo pipefail
+
+          protocol="${SITE_FTP_PROTOCOL:-ftps}"
+          port="${SITE_FTP_PORT:-21}"
+          remote_dir="${SITE_FTP_REMOTE_DIR:-/public_html/}"
+          passive="${SITE_FTP_PASSIVE:-true}"
+          ssl_verify="${SITE_SSL_VERIFY:-true}"
+
+          if [ "${remote_dir}" != "/" ] && [[ "${remote_dir}" != */ ]]; then
+            remote_dir="${remote_dir}/"
+          fi
+
+          if [ "$protocol" != "ftp" ] && [ "$protocol" != "ftps" ]; then
+            echo "Unsupported SITE_FTP_PROTOCOL '$protocol'. Use 'ftp' or 'ftps'." >&2
+            exit 1
+          fi
+
+          dry_flag=""
+          if [ "${DISPATCH_DRY_RUN}" = "true" ]; then
+            dry_flag="--dry-run"
+          fi
+
+          ssl_force="false"
+          ssl_protect_data="false"
+          if [ "$protocol" = "ftps" ]; then
+            ssl_force="true"
+            ssl_protect_data="true"
+          fi
+
+          lftp <<LFTP_CMDS
+          set cmd:fail-exit true
+          set net:timeout 30
+          set net:max-retries 2
+          set net:reconnect-interval-base 5
+          set ftp:passive-mode ${passive}
+          set ftp:ssl-force ${ssl_force}
+          set ftp:ssl-protect-data ${ssl_protect_data}
+          set ssl:verify-certificate ${ssl_verify}
+          open -u "${SITE_FTP_USERNAME}","${SITE_FTP_PASSWORD}" ${protocol}://${SITE_FTP_HOST}:${port}
+          mirror --reverse --delete --verbose ${dry_flag} "${DIST_DIR}/" "${remote_dir}"
+          bye
+          LFTP_CMDS
+
+      - name: Verify production URL
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+          SITE_CANONICAL_URL: ${{ vars.SITE_CANONICAL_URL }}
+        run: |
+          set -euo pipefail
+          site_url="${SITE_URL:-https://busydev.com}"
+
+          curl -fsSL --retry 5 --retry-delay 2 "$site_url" > /dev/null
+
+          if [ -n "${SITE_CANONICAL_URL:-}" ]; then
+            effective_url="$(curl -sS -o /dev/null -w '%{url_effective}' --location "${SITE_CANONICAL_URL}")"
+            if [ "${effective_url}" != "${site_url}" ]; then
+              echo "Canonical redirect mismatch: expected ${site_url}, got ${effective_url}" >&2
+              exit 1
+            fi
+          fi
