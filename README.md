@@ -43,16 +43,22 @@ Install dependencies:
 npm install
 ```
 
+Run monorepo checks (frontend + backend):
+
+```bash
+npm run check
+```
+
 Run in development:
 
 ```bash
-cargo tauri dev
+npm run tauri dev
 ```
 
 Build:
 
 ```bash
-cargo tauri build
+npm run build:all
 ```
 
 ## Roadmap (High Level)

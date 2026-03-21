@@ -1,0 +1,11 @@
+{
+  "name": "@busydev/tauri-backend",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build": "cargo build",
+    "lint": "cargo clippy --all-targets",
+    "test": "cargo test",
+    "check": "cargo clippy --all-targets && cargo test"
+  }
+}
