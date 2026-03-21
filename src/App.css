@@ -1,7 +1,7 @@
 :root {
   /* Theme colors */
-  --app-bg: #1a1a2e;
-  --panel-bg: #1a1a2e;
+  --app-bg: #000000;
+  --panel-bg: #000000;
   --rail-bg: #16213e;
   --rail-hover: #0f3460;
   --rail-active: #0f3460;
