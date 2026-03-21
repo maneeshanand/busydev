@@ -33,7 +33,7 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), String> {
         .build()
         .map_err(|e| format!("failed to build tray menu: {e}"))?;
 
-    let icon = Image::from_png_bytes(include_bytes!("../icons/32x32.png"))
+    let icon = Image::from_bytes(include_bytes!("../icons/32x32.png"))
         .map_err(|e| format!("failed to load tray icon: {e}"))?;
 
     TrayIconBuilder::with_id("busydev-tray")
