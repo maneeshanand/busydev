@@ -11,6 +11,7 @@ export function AddProjectForm({ onDone }: AddProjectFormProps) {
   const { createProject } = useProjectStore();
   const [name, setName] = useState("");
   const [repoPath, setRepoPath] = useState("");
+  const [dialogFailed, setDialogFailed] = useState(false);
 
   // Open folder picker immediately on mount
   useEffect(() => {
@@ -20,16 +21,22 @@ export function AddProjectForm({ onDone }: AddProjectFormProps) {
         const selected = await open({ directory: true, title: "Select project repo folder" });
         if (cancelled) return;
         if (selected) {
-          setRepoPath(selected);
-          // Auto-fill name from folder basename
-          const basename = selected.split("/").filter(Boolean).pop() ?? "";
-          setName(basename);
+          // Tauri dialog can return string or string[]
+          const path = Array.isArray(selected) ? selected[0] : selected;
+          if (path) {
+            setRepoPath(path);
+            const basename = path.split("/").filter(Boolean).pop() ?? "";
+            setName(basename);
+          } else {
+            onDone();
+          }
         } else {
           // User cancelled the picker
           onDone();
         }
       } catch {
-        // Dialog not available (Vite-only dev) — show manual form
+        // Dialog not available — show manual fallback form
+        setDialogFailed(true);
       }
     })();
     return () => {
@@ -44,8 +51,8 @@ export function AddProjectForm({ onDone }: AddProjectFormProps) {
     if (result) onDone();
   }
 
-  // Don't render form until we have a path (or dialog failed)
-  if (!repoPath) {
+  // Waiting for dialog
+  if (!repoPath && !dialogFailed) {
     return (
       <div className="add-project-form add-project-form--loading">
         <span className="add-project-form__hint">Select a folder...</span>
@@ -55,7 +62,18 @@ export function AddProjectForm({ onDone }: AddProjectFormProps) {
 
   return (
     <form className="add-project-form" onSubmit={handleSubmit}>
-      <div className="add-project-form__path-display">{repoPath}</div>
+      {repoPath ? (
+        <div className="add-project-form__path-display">{repoPath}</div>
+      ) : (
+        <input
+          className="add-project-form__input"
+          type="text"
+          value={repoPath}
+          onChange={(e) => setRepoPath(e.target.value)}
+          placeholder="Repo path (e.g. /Users/me/myproject)"
+          required
+        />
+      )}
       <input
         className="add-project-form__input"
         type="text"

@@ -179,6 +179,16 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
     }
   }, [worktreePath, adapter, startPolling]);
 
+  const addErrorEvent = useCallback((msg: string) => {
+    const errorEvent: ChatEvent = {
+      id: `error-${Date.now()}`,
+      source: "agent",
+      event: { type: "error", message: msg },
+      timestamp: Date.now(),
+    };
+    setEvents((prev) => [...prev, errorEvent]);
+  }, []);
+
   const sendInput = useCallback(
     async (message: string) => {
       // Add user message to events
@@ -193,7 +203,12 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
       let id = sessionId;
       if (!id) {
         id = await startSession();
-        if (!id) return;
+        if (!id) {
+          addErrorEvent(
+            "Failed to start agent session. Check that the workspace and adapter are configured correctly.",
+          );
+          return;
+        }
       }
 
       try {
@@ -203,10 +218,10 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
           startPolling(id);
         }
       } catch (err) {
-        setError(String(err));
+        addErrorEvent(String(err));
       }
     },
-    [sessionId, startSession, startPolling],
+    [sessionId, startSession, startPolling, addErrorEvent],
   );
 
   const stopSession = useCallback(async () => {
