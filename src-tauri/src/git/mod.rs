@@ -126,6 +126,45 @@ impl GitManager {
 
         run_git_with_stdout(args)
     }
+
+    pub fn accept_file_changes(&self, repo_path: &str, paths: &[String]) -> Result<(), String> {
+        validate_repo_path(repo_path)?;
+        let normalized_paths = normalize_paths(paths)?;
+
+        let mut args = vec![
+            "-C".to_string(),
+            repo_path.to_string(),
+            "add".to_string(),
+            "--".to_string(),
+        ];
+        args.extend(normalized_paths);
+
+        run_git_with_status(args)
+    }
+
+    pub fn revert_file_changes(&self, repo_path: &str, paths: &[String]) -> Result<(), String> {
+        validate_repo_path(repo_path)?;
+        let normalized_paths = normalize_paths(paths)?;
+
+        let mut reset_args = vec![
+            "-C".to_string(),
+            repo_path.to_string(),
+            "reset".to_string(),
+            "HEAD".to_string(),
+            "--".to_string(),
+        ];
+        reset_args.extend(normalized_paths.iter().cloned());
+        run_git_with_status(reset_args)?;
+
+        let mut checkout_args = vec![
+            "-C".to_string(),
+            repo_path.to_string(),
+            "checkout".to_string(),
+            "--".to_string(),
+        ];
+        checkout_args.extend(normalized_paths);
+        run_git_with_status(checkout_args)
+    }
 }
 
 fn validate_repo_path(repo_path: &str) -> Result<(), String> {
@@ -218,6 +257,34 @@ fn run_git_with_stdout(args: Vec<String>) -> Result<String, String> {
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     } else {
         Err(format_git_error("git command failed", &output))
+    }
+}
+
+fn run_git_with_status(args: Vec<String>) -> Result<(), String> {
+    let output = Command::new("git")
+        .args(args)
+        .output()
+        .map_err(|err| format!("failed to run git command: {err}"))?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(format_git_error("git command failed", &output))
+    }
+}
+
+fn normalize_paths(paths: &[String]) -> Result<Vec<String>, String> {
+    let normalized = paths
+        .iter()
+        .map(|path| path.trim())
+        .filter(|path| !path.is_empty())
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+
+    if normalized.is_empty() {
+        Err("at least one file path must be provided".to_string())
+    } else {
+        Ok(normalized)
     }
 }
 
@@ -317,6 +384,55 @@ mod tests {
         cleanup_path(&repo_dir);
     }
 
+    #[test]
+    fn accept_file_changes_stages_selected_file() {
+        let repo_dir = temp_path("repo-accept");
+        let manager = GitManager;
+
+        init_repo_with_commit(&repo_dir);
+        fs::write(repo_dir.join("README.md"), "seed\nstaged line\n")
+            .expect("failed to modify file for staging");
+
+        manager
+            .accept_file_changes(
+                repo_dir.to_string_lossy().as_ref(),
+                &[String::from("README.md")],
+            )
+            .expect("expected file accept to succeed");
+
+        let output = run_git_capture(
+            &repo_dir,
+            ["diff", "--cached", "--name-only", "--", "README.md"],
+        )
+        .expect("failed to inspect cached diff");
+        assert!(output.lines().any(|line| line.trim() == "README.md"));
+
+        cleanup_path(&repo_dir);
+    }
+
+    #[test]
+    fn revert_file_changes_restores_file_contents() {
+        let repo_dir = temp_path("repo-revert");
+        let manager = GitManager;
+
+        init_repo_with_commit(&repo_dir);
+        fs::write(repo_dir.join("README.md"), "seed\nchanged line\n")
+            .expect("failed to modify file for revert");
+
+        manager
+            .revert_file_changes(
+                repo_dir.to_string_lossy().as_ref(),
+                &[String::from("README.md")],
+            )
+            .expect("expected file revert to succeed");
+
+        let content = fs::read_to_string(repo_dir.join("README.md"))
+            .expect("failed reading file after revert");
+        assert_eq!(content, "seed\n");
+
+        cleanup_path(&repo_dir);
+    }
+
     fn init_repo_with_commit(repo_path: &Path) {
         fs::create_dir_all(repo_path).expect("failed to create repo dir");
         run_git_in(repo_path, ["init"]).expect("failed to init repo");
@@ -348,6 +464,20 @@ mod tests {
 
         if output.status.success() {
             Ok(())
+        } else {
+            Err(format_git_error("git command failed", &output))
+        }
+    }
+
+    fn run_git_capture<const N: usize>(cwd: &Path, args: [&str; N]) -> Result<String, String> {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(cwd)
+            .output()
+            .map_err(|err| format!("failed to run git: {err}"))?;
+
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).to_string())
         } else {
             Err(format_git_error("git command failed", &output))
         }

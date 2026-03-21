@@ -35,3 +35,13 @@ pub fn generate_unified_diff(
         context_lines,
     )
 }
+
+#[tauri::command]
+pub fn accept_file_changes(repo_path: String, paths: Vec<String>) -> Result<(), String> {
+    GitManager.accept_file_changes(&repo_path, &paths)
+}
+
+#[tauri::command]
+pub fn revert_file_changes(repo_path: String, paths: Vec<String>) -> Result<(), String> {
+    GitManager.revert_file_changes(&repo_path, &paths)
+}
