@@ -1,2 +1,2 @@
-// TODO: Diff viewer components.
-export {};
+export { DiffHeader } from "./DiffHeader";
+export { DiffContent } from "./DiffContent";

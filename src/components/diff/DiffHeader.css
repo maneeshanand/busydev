@@ -1,0 +1,23 @@
+.diff-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color, #0f3460);
+  background: var(--rail-bg, #16213e);
+  flex-shrink: 0;
+}
+
+.diff-header__title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary, #ccc);
+}
+
+.diff-header__badge {
+  font-size: 10px;
+  color: var(--text-muted, #888);
+  background: var(--border-color, #0f3460);
+  padding: 1px 6px;
+  border-radius: 8px;
+}

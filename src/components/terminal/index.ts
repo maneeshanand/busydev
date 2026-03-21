@@ -1,2 +1,2 @@
-// TODO: Terminal panel components and tab UI.
-export {};
+export { TerminalTabBar } from "./TerminalTabBar";
+export { TerminalContent } from "./TerminalContent";
