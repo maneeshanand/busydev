@@ -1,0 +1,49 @@
+:root {
+  /* Theme colors */
+  --app-bg: #000000;
+  --panel-bg: #000000;
+  --rail-bg: #16213e;
+  --rail-hover: #0f3460;
+  --rail-active: #0f3460;
+  --flyout-bg: #16213e;
+  --border-color: #0f3460;
+  --handle-color: #444;
+  --handle-active: #3b82f6;
+  --text-primary: #ccc;
+  --text-muted: #888;
+
+  /* Status colors */
+  --status-idle: #666;
+  --status-running: #3b82f6;
+  --status-needs-input: #f59e0b;
+  --status-error: #ef4444;
+
+  /* Typography */
+  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--text-primary);
+  background-color: var(--app-bg);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
