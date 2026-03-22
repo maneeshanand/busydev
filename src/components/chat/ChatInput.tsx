@@ -53,7 +53,7 @@ export function ChatInput({ onSubmit, onStop, isRunning, disabled }: ChatInputPr
       <textarea
         ref={textareaRef}
         className="chat-input__textarea"
-        placeholder={disabled ? "Select a workspace..." : "Type a message..."}
+        placeholder={disabled ? "Set a local path..." : "Type a message..."}
         value={value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}

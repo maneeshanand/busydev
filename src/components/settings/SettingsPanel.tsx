@@ -1,16 +1,15 @@
-import { useSettingsStore } from "../../stores";
+import { usePassthroughStore, useSettingsStore } from "../../stores";
 import "./SettingsPanel.css";
 
-const ADAPTERS = ["Claude Code", "Codex"];
+const ADAPTERS = ["Codex", "Claude Code"];
 const MODES = ["auto", "plan", "code"];
 
 export function SettingsPanel() {
+  const { adapter, workspacePath, setAdapter, setWorkspacePath } = usePassthroughStore();
   const {
-    defaultAdapter,
     defaultShell,
     defaultModel,
     defaultMode,
-    setDefaultAdapter,
     setDefaultShell,
     setDefaultModel,
     setDefaultMode,
@@ -22,11 +21,11 @@ export function SettingsPanel() {
         <h3 className="settings-panel__heading">General</h3>
 
         <label className="settings-panel__label">
-          <span className="settings-panel__label-text">Default Agent</span>
+          <span className="settings-panel__label-text">Agent</span>
           <select
             className="settings-panel__select"
-            value={defaultAdapter}
-            onChange={(e) => setDefaultAdapter(e.target.value)}
+            value={adapter}
+            onChange={(e) => setAdapter(e.target.value)}
           >
             {ADAPTERS.map((a) => (
               <option key={a} value={a}>
@@ -34,6 +33,17 @@ export function SettingsPanel() {
               </option>
             ))}
           </select>
+        </label>
+
+        <label className="settings-panel__label">
+          <span className="settings-panel__label-text">Local Path</span>
+          <input
+            className="settings-panel__input"
+            type="text"
+            value={workspacePath}
+            onChange={(e) => setWorkspacePath(e.target.value)}
+            placeholder="/absolute/path/to/repo"
+          />
         </label>
 
         <label className="settings-panel__label">

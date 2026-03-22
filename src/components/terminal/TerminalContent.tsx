@@ -112,7 +112,7 @@ export function TerminalContent({ activeSessionId, hasWorkspace, onResize }: Ter
   if (!hasWorkspace) {
     return (
       <div className="terminal-content terminal-content--empty">
-        <p className="terminal-content__message">Select a workspace</p>
+        <p className="terminal-content__message">Set a local path</p>
       </div>
     );
   }

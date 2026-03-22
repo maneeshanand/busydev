@@ -1,12 +1,11 @@
 import { useCallback, useState } from "react";
-import { useWorkspaceStore } from "../../stores";
+import { usePassthroughStore } from "../../stores";
 import { DiffHeader, DiffContent } from "../diff";
 import "./DiffPanel.css";
 
 export function DiffPanel() {
-  const { workspaces, selectedWorkspaceId } = useWorkspaceStore();
-  const workspace = workspaces.find((w) => w.id === selectedWorkspaceId) ?? null;
-  const hasWorkspace = workspace !== null;
+  const { workspacePath } = usePassthroughStore();
+  const hasTarget = workspacePath.trim().length > 0;
 
   const [fileCount, setFileCount] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -21,11 +20,11 @@ export function DiffPanel() {
 
   return (
     <div className="diff-panel">
-      <DiffHeader hasWorkspace={hasWorkspace} fileCount={fileCount} onRefresh={handleRefresh} />
+      <DiffHeader hasTarget={hasTarget} fileCount={fileCount} onRefresh={handleRefresh} />
       <DiffContent
         key={refreshKey}
-        hasWorkspace={hasWorkspace}
-        worktreePath={workspace?.worktreePath ?? null}
+        hasTarget={hasTarget}
+        targetPath={hasTarget ? workspacePath : null}
         onFilesChanged={handleFilesChanged}
       />
     </div>

@@ -6,7 +6,6 @@ interface IconRailProps {
 }
 
 const ICONS = [
-  { id: "projects", label: "P" },
   { id: "search", label: "S" },
   { id: "settings", label: "\u2699" },
 ];

@@ -18,8 +18,8 @@ describe("ChatInput", () => {
 
   it("renders disabled placeholder when disabled", () => {
     render(<ChatInput {...defaultProps} disabled={true} />);
-    expect(screen.getByPlaceholderText("Select a workspace...")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Select a workspace...")).toBeDisabled();
+    expect(screen.getByPlaceholderText("Set a local path...")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Set a local path...")).toBeDisabled();
   });
 
   it("shows Send button when not running", () => {

@@ -1,14 +1,13 @@
-import { useWorkspaceStore } from "../../stores";
+import { usePassthroughStore } from "../../stores";
 import { TerminalTabBar, TerminalContent, useTerminalSession } from "../terminal";
 import "./TerminalPanel.css";
 
 export function TerminalPanel() {
-  const { workspaces, selectedWorkspaceId } = useWorkspaceStore();
-  const workspace = workspaces.find((w) => w.id === selectedWorkspaceId) ?? null;
-  const hasWorkspace = workspace !== null;
+  const { workspacePath } = usePassthroughStore();
+  const hasTarget = workspacePath.trim().length > 0;
 
   const { sessions, activeSessionId, createSession, closeSession, selectSession, resizeSession } =
-    useTerminalSession(workspace?.worktreePath ?? null);
+    useTerminalSession(hasTarget ? workspacePath : null);
 
   return (
     <div className="terminal-panel">
@@ -18,11 +17,11 @@ export function TerminalPanel() {
         onSelect={selectSession}
         onCreate={createSession}
         onClose={closeSession}
-        disabled={!hasWorkspace}
+        disabled={!hasTarget}
       />
       <TerminalContent
         activeSessionId={activeSessionId}
-        hasWorkspace={hasWorkspace}
+        hasWorkspace={hasTarget}
         onResize={resizeSession}
       />
     </div>

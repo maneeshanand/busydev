@@ -2,5 +2,6 @@ export * from "./projectStore";
 export * from "./workspaceStore";
 export * from "./agentStore";
 export * from "./settingsStore";
+export * from "./passthroughStore";
 export * from "./mcpStore";
 export * from "./notificationStore";

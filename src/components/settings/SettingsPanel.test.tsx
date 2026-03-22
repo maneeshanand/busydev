@@ -2,10 +2,14 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SettingsPanel } from "./SettingsPanel";
-import { useSettingsStore } from "../../stores";
+import { usePassthroughStore, useSettingsStore } from "../../stores";
 
 describe("SettingsPanel", () => {
   beforeEach(() => {
+    usePassthroughStore.setState({
+      adapter: "Claude Code",
+      workspacePath: "",
+    });
     useSettingsStore.setState({
       defaultAdapter: "Claude Code",
       defaultShell: "",
@@ -20,17 +24,17 @@ describe("SettingsPanel", () => {
     expect(screen.getByText("Agent Config")).toBeInTheDocument();
   });
 
-  it("renders default adapter selector", () => {
+  it("renders adapter selector", () => {
     render(<SettingsPanel />);
     const select = screen.getByDisplayValue("Claude Code");
     expect(select).toBeInTheDocument();
   });
 
-  it("updates adapter in store on change", async () => {
+  it("updates passthrough adapter on change", async () => {
     render(<SettingsPanel />);
     const select = screen.getByDisplayValue("Claude Code");
     await userEvent.selectOptions(select, "Codex");
-    expect(useSettingsStore.getState().defaultAdapter).toBe("Codex");
+    expect(usePassthroughStore.getState().adapter).toBe("Codex");
   });
 
   it("renders mode selector with default auto", () => {

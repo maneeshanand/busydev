@@ -4,13 +4,13 @@ import { MessageArea } from "./MessageArea";
 import type { ChatEvent } from "./useAgentStream";
 
 describe("MessageArea", () => {
-  it("shows workspace prompt when no workspace", () => {
-    render(<MessageArea hasWorkspace={false} events={[]} />);
-    expect(screen.getByText("Select a workspace to start chatting")).toBeInTheDocument();
+  it("shows path prompt when no target path", () => {
+    render(<MessageArea hasTarget={false} events={[]} />);
+    expect(screen.getByText("Set a local path to start chatting")).toBeInTheDocument();
   });
 
-  it("shows no messages when workspace selected but empty", () => {
-    render(<MessageArea hasWorkspace={true} events={[]} />);
+  it("shows no messages when target configured but empty", () => {
+    render(<MessageArea hasTarget={true} events={[]} />);
     expect(screen.getByText("No messages yet")).toBeInTheDocument();
   });
 
@@ -29,7 +29,7 @@ describe("MessageArea", () => {
         timestamp: Date.now(),
       },
     ];
-    render(<MessageArea hasWorkspace={true} events={events} />);
+    render(<MessageArea hasTarget={true} events={events} />);
     expect(screen.getByText("Hello agent")).toBeInTheDocument();
     expect(screen.getByText("Hello human")).toBeInTheDocument();
   });

@@ -232,7 +232,7 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
 
   const startSession = useCallback(async (): Promise<string> => {
     if (!worktreePath || !adapter) {
-      throw new Error("Workspace path or adapter is missing.");
+      throw new Error("Path or adapter is missing.");
     }
 
     try {
@@ -279,7 +279,7 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
           const detail =
             err instanceof Error && err.message
               ? err.message
-              : "Check that the workspace and adapter are configured correctly.";
+              : "Check that the adapter and path are configured correctly.";
           addErrorEvent(`Failed to start agent session: ${detail}`);
           return;
         }

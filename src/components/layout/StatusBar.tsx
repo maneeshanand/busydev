@@ -1,24 +1,22 @@
-import { useWorkspaceStore, useAgentStore } from "../../stores";
-import { StatusIndicator } from "../sidebar/StatusIndicator";
+import { usePassthroughStore, useAgentStore } from "../../stores";
 import "./StatusBar.css";
 
 export function StatusBar() {
-  const { workspaces, selectedWorkspaceId } = useWorkspaceStore();
-  const workspace = workspaces.find((w) => w.id === selectedWorkspaceId) ?? null;
+  const { adapter, workspacePath } = usePassthroughStore();
   const { isRunning, usage } = useAgentStore();
+  const hasTarget = workspacePath.trim().length > 0;
 
   return (
     <div className="status-bar">
       <div className="status-bar__left">
-        {workspace ? (
+        {hasTarget ? (
           <>
-            <StatusIndicator status={workspace.status} />
-            <span className="status-bar__workspace">{workspace.ticket ?? workspace.branch}</span>
+            <span className="status-bar__workspace">{workspacePath}</span>
             <span className="status-bar__separator">{"\u2022"}</span>
-            <span className="status-bar__adapter">{workspace.agentAdapter}</span>
+            <span className="status-bar__adapter">{adapter}</span>
           </>
         ) : (
-          <span className="status-bar__muted">No workspace selected</span>
+          <span className="status-bar__muted">No path configured</span>
         )}
       </div>
       <div className="status-bar__right">

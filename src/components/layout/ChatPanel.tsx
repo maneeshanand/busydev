@@ -1,25 +1,25 @@
-import { useWorkspaceStore } from "../../stores";
+import { usePassthroughStore } from "../../stores";
 import { ChatStatusBar, MessageArea, ChatInput, useAgentStream } from "../chat";
 import "./ChatPanel.css";
 
 export function ChatPanel() {
-  const { workspaces, selectedWorkspaceId } = useWorkspaceStore();
-  const workspace = workspaces.find((w) => w.id === selectedWorkspaceId) ?? null;
+  const { adapter, workspacePath } = usePassthroughStore();
+  const hasTarget = workspacePath.trim().length > 0;
 
   const { events, isRunning, sendInput, stopSession } = useAgentStream(
-    workspace?.worktreePath ?? null,
-    workspace?.agentAdapter ?? null,
+    hasTarget ? workspacePath : null,
+    adapter,
   );
 
   return (
     <div className="chat-panel">
-      <ChatStatusBar workspace={workspace} />
-      <MessageArea hasWorkspace={workspace !== null} events={events} />
+      <ChatStatusBar />
+      <MessageArea hasTarget={hasTarget} events={events} />
       <ChatInput
         onSubmit={sendInput}
         onStop={stopSession}
         isRunning={isRunning}
-        disabled={workspace === null}
+        disabled={!hasTarget}
       />
     </div>
   );

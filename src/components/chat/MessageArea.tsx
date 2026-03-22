@@ -4,11 +4,11 @@ import { ChatMessage } from "./ChatMessage";
 import "./MessageArea.css";
 
 interface MessageAreaProps {
-  hasWorkspace: boolean;
+  hasTarget: boolean;
   events: ChatEvent[];
 }
 
-export function MessageArea({ hasWorkspace, events }: MessageAreaProps) {
+export function MessageArea({ hasTarget, events }: MessageAreaProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom on new events
@@ -19,10 +19,10 @@ export function MessageArea({ hasWorkspace, events }: MessageAreaProps) {
     }
   }, [events.length]);
 
-  if (!hasWorkspace) {
+  if (!hasTarget) {
     return (
       <div className="message-area message-area--empty">
-        <p className="message-area__placeholder">Select a workspace to start chatting</p>
+        <p className="message-area__placeholder">Set a local path to start chatting</p>
       </div>
     );
   }
