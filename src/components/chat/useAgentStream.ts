@@ -230,9 +230,9 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
     [poll, stopPolling],
   );
 
-  const startSession = useCallback(async () => {
+  const startSession = useCallback(async (): Promise<string> => {
     if (!worktreePath || !adapter) {
-      return null;
+      throw new Error("Workspace path or adapter is missing.");
     }
 
     try {
@@ -253,8 +253,9 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
       startPolling(session.id);
       return session.id;
     } catch (err) {
-      setError(String(err));
-      return null;
+      const message = String(err);
+      setError(message);
+      throw new Error(message);
     }
   }, [adapter, events, startPolling, usage, worktreePath]);
 
@@ -272,11 +273,14 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
 
       let id = sessionId;
       if (!id) {
-        id = await startSession();
-        if (!id) {
-          addErrorEvent(
-            "Failed to start agent session. Check that the workspace and adapter are configured correctly.",
-          );
+        try {
+          id = await startSession();
+        } catch (err) {
+          const detail =
+            err instanceof Error && err.message
+              ? err.message
+              : "Check that the workspace and adapter are configured correctly.";
+          addErrorEvent(`Failed to start agent session: ${detail}`);
           return;
         }
       }

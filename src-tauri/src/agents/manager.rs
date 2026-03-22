@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::env;
 use std::fs::{self, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -303,7 +304,8 @@ impl Default for AgentManager {
 }
 
 fn spawn_agent_command(command: &AgentCommand) -> Result<Child, String> {
-    let mut cmd = Command::new(&command.program);
+    let program = resolve_program_path(&command.program).unwrap_or_else(|| command.program.clone());
+    let mut cmd = Command::new(&program);
     cmd.args(&command.args)
         .current_dir(&command.cwd)
         .stdin(Stdio::piped())
@@ -315,7 +317,7 @@ fn spawn_agent_command(command: &AgentCommand) -> Result<Child, String> {
     }
 
     cmd.spawn()
-        .map_err(|err| format!("failed to spawn agent process '{}': {err}", command.program))
+        .map_err(|err| format!("failed to spawn agent process '{}': {err}", program))
 }
 
 fn spawn_stdout_loop(
@@ -472,6 +474,33 @@ fn now_ms() -> u128 {
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_millis())
         .unwrap_or(0)
+}
+
+fn resolve_program_path(program: &str) -> Option<String> {
+    let path = Path::new(program);
+    if path.components().count() > 1 {
+        return Some(program.to_string());
+    }
+
+    let mut dirs = Vec::new();
+    if let Some(raw_path) = env::var_os("PATH") {
+        dirs.extend(env::split_paths(&raw_path));
+    }
+
+    for fallback in [
+        "/opt/homebrew/bin",
+        "/usr/local/bin",
+        "/usr/bin",
+        "/bin",
+        "/opt/local/bin",
+    ] {
+        dirs.push(PathBuf::from(fallback));
+    }
+
+    dirs.into_iter()
+        .map(|dir| dir.join(program))
+        .find(|candidate| candidate.is_file())
+        .map(|candidate| candidate.to_string_lossy().to_string())
 }
 
 fn create_session_log_file(session_id: &str) -> Result<PathBuf, String> {
