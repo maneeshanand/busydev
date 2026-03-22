@@ -9,7 +9,7 @@ const workspace: Workspace = {
   ticket: "MAN-42",
   branch: "feat/auth",
   worktreePath: "/tmp/wt",
-  agentAdapter: "claude",
+  agentAdapter: "Claude Code",
   agentConfigJson: null,
   status: "Running",
   createdAt: "2026-01-01",
@@ -32,9 +32,10 @@ describe("ChatStatusBar", () => {
     expect(screen.getByText("feat/auth")).toBeInTheDocument();
   });
 
-  it("shows agent adapter", () => {
+  it("shows adapter selector", () => {
     render(<ChatStatusBar workspace={workspace} />);
-    expect(screen.getByText("claude")).toBeInTheDocument();
+    expect(screen.getByLabelText("Adapter")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Claude Code")).toBeInTheDocument();
   });
 
   it("shows status indicator", () => {
