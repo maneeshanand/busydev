@@ -3,7 +3,7 @@ import { useMcpStore } from "../../stores";
 import "./McpServerForm.css";
 
 const TRANSPORTS = ["stdio", "sse"];
-const SCOPES = ["global", "project"];
+const SCOPES = ["global", "path"];
 
 interface McpServerFormProps {
   onDone: () => void;
@@ -61,6 +61,7 @@ export function McpServerForm({ onDone }: McpServerFormProps) {
         className="mcp-server-form__select"
         value={scope}
         onChange={(e) => setScope(e.target.value)}
+        aria-label="Scope"
       >
         {SCOPES.map((s) => (
           <option key={s} value={s}>
