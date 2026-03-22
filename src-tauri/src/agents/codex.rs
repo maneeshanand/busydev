@@ -31,12 +31,15 @@ impl AgentAdapter for CodexAdapter {
         }
 
         if cfg!(target_os = "macos") {
-            let mut args = vec![
+            let codex_cmd = shell_command("codex", &codex_args);
+            let sh_cmd = format!("stty -echo; exec {codex_cmd}");
+            let args = vec![
                 "-q".to_string(),
                 "/dev/null".to_string(),
-                "codex".to_string(),
+                "/bin/zsh".to_string(),
+                "-lc".to_string(),
+                sh_cmd,
             ];
-            args.extend(codex_args);
 
             return AgentCommand {
                 program: "script".to_string(),
