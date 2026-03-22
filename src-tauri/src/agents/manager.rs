@@ -79,9 +79,9 @@ impl AgentManager {
         adapter: Arc<dyn AgentAdapter>,
         input: StartAgentSessionInput,
     ) -> Result<AgentSessionInfo, String> {
-        validate_workspace_path(&input.workspace_path)?;
+        let workspace_path = resolve_workspace_path(&input.workspace_path)?;
         let config = input.config.unwrap_or_default();
-        let command = adapter.build_command(&input.workspace_path, &config);
+        let command = adapter.build_command(&workspace_path, &config);
         let mut child = spawn_agent_command(&command)?;
 
         let stdout = child
@@ -103,7 +103,7 @@ impl AgentManager {
         let info = AgentSessionInfo {
             id: session_id.clone(),
             adapter: input.adapter,
-            workspace_path: input.workspace_path,
+            workspace_path,
             status: AgentStatus::Working,
             started_at_ms,
         };
@@ -660,6 +660,36 @@ fn validate_workspace_path(workspace_path: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn resolve_workspace_path(workspace_path: &str) -> Result<String, String> {
+    validate_workspace_path(workspace_path).map(|_| workspace_path.to_string()).or_else(|_| {
+        let original = PathBuf::from(workspace_path);
+        if !original.exists() {
+            // If this is a stale detached worktree path like ".../.worktrees/<name>",
+            // prefer the repository root as the fallback workspace.
+            if let Some(worktrees_dir) = original.parent() {
+                if worktrees_dir.file_name().and_then(|s| s.to_str()) == Some(".worktrees") {
+                    if let Some(repo_root) = worktrees_dir.parent() {
+                        if repo_root.is_dir() {
+                            return Ok(repo_root.to_string_lossy().to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        // Otherwise pick the nearest existing parent directory.
+        let mut cursor = original.as_path();
+        while let Some(parent) = cursor.parent() {
+            if parent.is_dir() {
+                return Ok(parent.to_string_lossy().to_string());
+            }
+            cursor = parent;
+        }
+
+        validate_workspace_path(workspace_path).map(|_| workspace_path.to_string())
+    })
+}
+
 fn create_session_log_file(session_id: &str) -> Result<PathBuf, String> {
     let dir = std::env::temp_dir().join("busydev-agent-logs");
     fs::create_dir_all(&dir)
@@ -775,5 +805,21 @@ mod tests {
             }
             _ => panic!("expected message event"),
         }
+    }
+
+    #[test]
+    fn resolve_workspace_path_falls_back_for_stale_worktree() {
+        let unique = Uuid::new_v4().to_string();
+        let base = std::env::temp_dir().join(format!("busydev-workspace-resolver-{unique}"));
+        let repo_root = base.join("repo");
+        let stale_worktree = repo_root.join(".worktrees").join("missing-worktree");
+
+        std::fs::create_dir_all(&repo_root).expect("repo root should be created");
+
+        let resolved =
+            resolve_workspace_path(stale_worktree.to_str().expect("utf8 path")).expect("resolved");
+        assert_eq!(resolved, repo_root.to_string_lossy());
+
+        std::fs::remove_dir_all(&base).expect("cleanup should succeed");
     }
 }
