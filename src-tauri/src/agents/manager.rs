@@ -100,6 +100,7 @@ impl AgentManager {
         let session_id = Uuid::new_v4().to_string();
         let started_at_ms = now_ms();
         let log_path = create_session_log_file(&session_id)?;
+        let pid = child.id();
         let info = AgentSessionInfo {
             id: session_id.clone(),
             adapter: input.adapter,
@@ -123,6 +124,15 @@ impl AgentManager {
             &runtime,
             AgentEvent::Status {
                 status: AgentStatus::Working,
+            },
+        );
+        push_runtime_event(
+            &runtime,
+            AgentEvent::Message {
+                content: format!(
+                    "[io process] started pid={} program={} args={:?}",
+                    pid, command.program, command.args
+                ),
             },
         );
 
@@ -417,6 +427,12 @@ fn spawn_stdout_loop(
                 }
             }
         }
+        push_runtime_event(
+            &runtime,
+            AgentEvent::Message {
+                content: "[io stdout] <eof>".to_string(),
+            },
+        );
     });
 }
 
@@ -456,6 +472,12 @@ fn spawn_stderr_loop(
                 }
             }
         }
+        push_runtime_event(
+            &runtime,
+            AgentEvent::Message {
+                content: "[io stderr] <eof>".to_string(),
+            },
+        );
     });
 }
 
@@ -472,9 +494,21 @@ fn spawn_exit_watcher(child: Arc<Mutex<Child>>, runtime: Arc<Mutex<SessionRuntim
 
         match result {
             Ok(status) if status.success() => {
+                push_runtime_event(
+                    &runtime,
+                    AgentEvent::Message {
+                        content: format!("[io process] exited status={status}"),
+                    },
+                );
                 update_session_status(&runtime, AgentStatus::Done);
             }
             Ok(status) => {
+                push_runtime_event(
+                    &runtime,
+                    AgentEvent::Message {
+                        content: format!("[io process] exited status={status}"),
+                    },
+                );
                 push_runtime_event(
                     &runtime,
                     AgentEvent::Error {
