@@ -230,14 +230,18 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
     [poll, stopPolling],
   );
 
-  const startSession = useCallback(async (): Promise<string> => {
+  const startSession = useCallback(async (initialPrompt?: string): Promise<string> => {
     if (!worktreePath || !adapter) {
       throw new Error("Path or adapter is missing.");
     }
 
     try {
       const session = await invoke<AgentSessionInfo>("start_agent_session", {
-        input: { adapter, workspacePath: worktreePath },
+        input: {
+          adapter,
+          workspacePath: worktreePath,
+          ...(initialPrompt ? { initialPrompt } : {}),
+        },
       });
       setSessionId(session.id);
       setIsRunning(true);
@@ -272,9 +276,13 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
       ]);
 
       let id = sessionId;
+      const isCodex = adapter?.trim().toLowerCase() === "codex";
       if (!id) {
         try {
-          id = await startSession();
+          id = await startSession(isCodex ? message : undefined);
+          if (isCodex) {
+            return;
+          }
         } catch (err) {
           const detail =
             err instanceof Error && err.message
@@ -312,7 +320,7 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
         addErrorEvent(errMessage);
       }
     },
-    [addErrorEvent, appendEvents, sessionId, startPolling, startSession],
+    [adapter, addErrorEvent, appendEvents, sessionId, startPolling, startSession],
   );
 
   const stopSession = useCallback(async () => {

@@ -14,7 +14,12 @@ impl AgentAdapter for ClaudeAdapter {
         "Claude Code"
     }
 
-    fn build_command(&self, workspace_path: &str, config: &AgentConfig) -> AgentCommand {
+    fn build_command(
+        &self,
+        workspace_path: &str,
+        config: &AgentConfig,
+        _initial_prompt: Option<&str>,
+    ) -> AgentCommand {
         let mut args = vec!["--output-format".to_string(), "stream-json".to_string()];
         if let Some(model) = &config.model {
             args.push("--model".to_string());

@@ -14,8 +14,13 @@ impl AgentAdapter for CodexAdapter {
         "Codex"
     }
 
-    fn build_command(&self, workspace_path: &str, config: &AgentConfig) -> AgentCommand {
-        let mut codex_args = vec![
+    fn build_command(
+        &self,
+        workspace_path: &str,
+        config: &AgentConfig,
+        initial_prompt: Option<&str>,
+    ) -> AgentCommand {
+        let mut args = vec![
             "-a".to_string(),
             "never".to_string(),
             "-s".to_string(),
@@ -23,39 +28,21 @@ impl AgentAdapter for CodexAdapter {
             "--skip-git-repo-check".to_string(),
             "exec".to_string(),
             "--json".to_string(),
-            "-".to_string(),
         ];
         if let Some(model) = &config.model {
-            codex_args.push("--model".to_string());
-            codex_args.push(model.clone());
+            args.push("--model".to_string());
+            args.push(model.clone());
         }
 
-        if cfg!(target_os = "macos") {
-            let codex_cmd = shell_command("codex", &codex_args);
-            let sh_cmd = format!("stty -echo; exec {codex_cmd}");
-            let args = vec![
-                "-q".to_string(),
-                "/dev/null".to_string(),
-                "/bin/zsh".to_string(),
-                "-lc".to_string(),
-                sh_cmd,
-            ];
-
-            return AgentCommand {
-                program: "script".to_string(),
-                args,
-                cwd: workspace_path.to_string(),
-                env: HashMap::new(),
-            };
+        if let Some(prompt) = initial_prompt {
+            args.push(prompt.to_string());
+        } else {
+            args.push("-".to_string());
         }
 
         AgentCommand {
-            program: "script".to_string(),
-            args: vec![
-                "-qefc".to_string(),
-                shell_command("codex", &codex_args),
-                "/dev/null".to_string(),
-            ],
+            program: "codex".to_string(),
+            args,
             cwd: workspace_path.to_string(),
             env: HashMap::new(),
         }
@@ -148,30 +135,6 @@ impl AgentAdapter for CodexAdapter {
                 .collect::<Vec<_>>()
         })
     }
-}
-
-fn shell_command(program: &str, args: &[String]) -> String {
-    let mut parts = Vec::with_capacity(args.len() + 1);
-    parts.push(shell_escape(program));
-    for arg in args {
-        parts.push(shell_escape(arg));
-    }
-    parts.join(" ")
-}
-
-fn shell_escape(value: &str) -> String {
-    if value.is_empty() {
-        return "''".to_string();
-    }
-    if value
-        .bytes()
-        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'.' | b'-' | b'_'))
-    {
-        return value.to_string();
-    }
-
-    let escaped = value.replace('\'', r"'\''");
-    format!("'{escaped}'")
 }
 
 fn event_from_json_payload(payload: &Value) -> Option<AgentEvent> {

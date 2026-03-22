@@ -46,6 +46,7 @@ pub struct AgentEventBatch {
 pub struct StartAgentSessionInput {
     pub adapter: String,
     pub workspace_path: String,
+    pub initial_prompt: Option<String>,
     pub config: Option<AgentConfig>,
 }
 
@@ -81,7 +82,7 @@ impl AgentManager {
     ) -> Result<AgentSessionInfo, String> {
         let workspace_path = resolve_workspace_path(&input.workspace_path)?;
         let config = input.config.unwrap_or_default();
-        let command = adapter.build_command(&workspace_path, &config);
+        let command = adapter.build_command(&workspace_path, &config, input.initial_prompt.as_deref());
         let mut child = spawn_agent_command(&command)?;
 
         let stdout = child

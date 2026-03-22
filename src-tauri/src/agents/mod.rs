@@ -93,7 +93,12 @@ pub struct AgentCommand {
 
 pub trait AgentAdapter: Send + Sync {
     fn name(&self) -> &'static str;
-    fn build_command(&self, workspace_path: &str, config: &AgentConfig) -> AgentCommand;
+    fn build_command(
+        &self,
+        workspace_path: &str,
+        config: &AgentConfig,
+        initial_prompt: Option<&str>,
+    ) -> AgentCommand;
     fn parse_output(&self, line: &str) -> Option<AgentEvent>;
     fn detect_status(&self, recent_events: &[AgentEvent]) -> AgentStatus;
     fn get_usage(&self, recent_events: &[AgentEvent]) -> Option<TokenUsage>;
@@ -165,7 +170,12 @@ mod tests {
             self.0
         }
 
-        fn build_command(&self, workspace_path: &str, _config: &AgentConfig) -> AgentCommand {
+        fn build_command(
+            &self,
+            workspace_path: &str,
+            _config: &AgentConfig,
+            _initial_prompt: Option<&str>,
+        ) -> AgentCommand {
             AgentCommand {
                 program: "dummy".into(),
                 args: vec![],
