@@ -118,7 +118,35 @@ impl AgentRegistry {
     }
 
     pub fn get(&self, name: &str) -> Option<Arc<dyn AgentAdapter>> {
-        self.adapters.get(name).map(Arc::clone)
+        let requested = name.trim();
+
+        if let Some(adapter) = self.adapters.get(requested) {
+            return Some(Arc::clone(adapter));
+        }
+
+        let lowered = requested.to_ascii_lowercase();
+
+        if let Some(adapter) = self
+            .adapters
+            .iter()
+            .find_map(|(registered_name, adapter)| {
+                if registered_name.to_ascii_lowercase() == lowered {
+                    Some(Arc::clone(adapter))
+                } else {
+                    None
+                }
+            })
+        {
+            return Some(adapter);
+        }
+
+        let legacy_alias = match lowered.as_str() {
+            "claude" | "claude-code" | "claude_code" => Some("Claude Code"),
+            "codex" => Some("Codex"),
+            _ => None,
+        }?;
+
+        self.adapters.get(legacy_alias).map(Arc::clone)
     }
 
     pub fn names(&self) -> Vec<String> {
@@ -130,11 +158,11 @@ impl AgentRegistry {
 mod tests {
     use super::*;
 
-    struct DummyAdapter;
+    struct NamedAdapter(&'static str);
 
-    impl AgentAdapter for DummyAdapter {
+    impl AgentAdapter for NamedAdapter {
         fn name(&self) -> &'static str {
-            "dummy"
+            self.0
         }
 
         fn build_command(&self, workspace_path: &str, _config: &AgentConfig) -> AgentCommand {
@@ -179,10 +207,31 @@ mod tests {
     #[test]
     fn registry_registers_and_retrieves_adapter() {
         let mut registry = AgentRegistry::new();
-        registry.register(DummyAdapter);
+        registry.register(NamedAdapter("dummy"));
 
         let adapter = registry.get("dummy");
         assert!(adapter.is_some());
         assert!(registry.names().contains(&"dummy".to_string()));
+    }
+
+    #[test]
+    fn registry_lookup_is_case_insensitive() {
+        let mut registry = AgentRegistry::new();
+        registry.register(NamedAdapter("Codex"));
+
+        assert!(registry.get("codex").is_some());
+        assert!(registry.get("CODEX").is_some());
+    }
+
+    #[test]
+    fn registry_lookup_supports_legacy_aliases() {
+        let mut registry = AgentRegistry::new();
+        registry.register(NamedAdapter("Claude Code"));
+        registry.register(NamedAdapter("Codex"));
+
+        assert!(registry.get("claude").is_some());
+        assert!(registry.get("claude-code").is_some());
+        assert!(registry.get("claude_code").is_some());
+        assert!(registry.get("codex").is_some());
     }
 }
