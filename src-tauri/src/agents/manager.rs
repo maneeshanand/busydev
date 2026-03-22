@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::env;
+use std::ffi::OsString;
 use std::fs::{self, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -304,20 +305,41 @@ impl Default for AgentManager {
 }
 
 fn spawn_agent_command(command: &AgentCommand) -> Result<Child, String> {
-    let program = resolve_program_path(&command.program).unwrap_or_else(|| command.program.clone());
-    let mut cmd = Command::new(&program);
-    cmd.args(&command.args)
-        .current_dir(&command.cwd)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    if !command.env.is_empty() {
-        cmd.envs(&command.env);
+    let mut candidates = resolve_program_candidates(&command.program);
+    if candidates.is_empty() {
+        candidates.push(command.program.clone());
     }
 
-    cmd.spawn()
-        .map_err(|err| format!("failed to spawn agent process '{}': {err}", program))
+    let path_seed = command
+        .env
+        .get("PATH")
+        .map(OsString::from)
+        .or_else(|| env::var_os("PATH"));
+    let augmented_path = augment_path(path_seed);
+
+    let mut last_error: Option<String> = None;
+    for program in candidates {
+        let mut cmd = Command::new(&program);
+        cmd.args(&command.args)
+            .current_dir(&command.cwd)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .env("PATH", &augmented_path);
+
+        if !command.env.is_empty() {
+            cmd.envs(&command.env);
+        }
+
+        match cmd.spawn() {
+            Ok(child) => return Ok(child),
+            Err(err) => {
+                last_error = Some(format!("failed to spawn agent process '{}': {err}", program));
+            }
+        }
+    }
+
+    Err(last_error.unwrap_or_else(|| "failed to spawn agent process".to_string()))
 }
 
 fn spawn_stdout_loop(
@@ -476,10 +498,12 @@ fn now_ms() -> u128 {
         .unwrap_or(0)
 }
 
-fn resolve_program_path(program: &str) -> Option<String> {
+fn resolve_program_candidates(program: &str) -> Vec<String> {
+    let mut out = Vec::new();
     let path = Path::new(program);
     if path.components().count() > 1 {
-        return Some(program.to_string());
+        out.push(program.to_string());
+        return out;
     }
 
     let mut dirs = Vec::new();
@@ -497,10 +521,42 @@ fn resolve_program_path(program: &str) -> Option<String> {
         dirs.push(PathBuf::from(fallback));
     }
 
-    dirs.into_iter()
-        .map(|dir| dir.join(program))
-        .find(|candidate| candidate.is_file())
-        .map(|candidate| candidate.to_string_lossy().to_string())
+    for dir in dirs {
+        let candidate = dir.join(program);
+        if candidate.is_file() {
+            let value = candidate.to_string_lossy().to_string();
+            if !out.contains(&value) {
+                out.push(value);
+            }
+        }
+    }
+
+    if !out.contains(&program.to_string()) {
+        out.push(program.to_string());
+    }
+
+    out
+}
+
+fn augment_path(seed: Option<OsString>) -> OsString {
+    let mut dirs = Vec::new();
+    if let Some(raw_path) = seed {
+        dirs.extend(env::split_paths(&raw_path));
+    }
+    for fallback in [
+        "/opt/homebrew/bin",
+        "/usr/local/bin",
+        "/usr/bin",
+        "/bin",
+        "/opt/local/bin",
+    ] {
+        let path = PathBuf::from(fallback);
+        if !dirs.iter().any(|entry| entry == &path) {
+            dirs.push(path);
+        }
+    }
+
+    env::join_paths(dirs).unwrap_or_else(|_| OsString::from("/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin"))
 }
 
 fn create_session_log_file(session_id: &str) -> Result<PathBuf, String> {
