@@ -152,13 +152,29 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
         });
 
         if (batch.events.length > 0) {
-          const newEvents: ChatEvent[] = batch.events.map((env) => ({
-            id: `${id}-${env.seq}`,
-            source: "agent" as const,
-            event: env.event,
-            timestamp: env.timestampMs,
-          }));
-          appendEvents((prev) => [...prev, ...newEvents]);
+          const newEvents: ChatEvent[] = [];
+          for (const env of batch.events) {
+            const nextEvent: ChatEvent = {
+              id: `${id}-${env.seq}`,
+              source: "agent",
+              event: env.event,
+              timestamp: env.timestampMs,
+            };
+
+            if (nextEvent.event.type === "status") {
+              const nextStatus = nextEvent.event.status ?? null;
+              if (!nextStatus || nextStatus === lastStatusRef.current) {
+                continue;
+              }
+              lastStatusRef.current = nextStatus;
+            }
+
+            newEvents.push(nextEvent);
+          }
+
+          if (newEvents.length > 0) {
+            appendEvents((prev) => [...prev, ...newEvents]);
+          }
         }
 
         nextSeqRef.current = batch.nextSeq;
