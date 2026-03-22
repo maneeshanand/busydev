@@ -79,25 +79,41 @@ fn is_sensitive_key(key: &str) -> bool {
 
 fn redact_bearer_tokens(input: &str) -> String {
     let mut out = String::with_capacity(input.len());
-    let bytes = input.as_bytes();
     let mut i = 0;
-    while i < bytes.len() {
-        if i + 7 <= bytes.len() && input[i..i + 7].eq_ignore_ascii_case("bearer ") {
+    while i < input.len() {
+        let Some(remaining) = input.get(i..) else {
+            break;
+        };
+
+        if remaining
+            .get(..7)
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case("bearer "))
+        {
             out.push_str("Bearer ");
             i += 7;
-            while i < bytes.len() {
-                let ch = bytes[i] as char;
+
+            while i < input.len() {
+                let Some(next_remaining) = input.get(i..) else {
+                    break;
+                };
+                let Some(ch) = next_remaining.chars().next() else {
+                    break;
+                };
                 if ch.is_whitespace() || ch == '"' || ch == '\'' || ch == ',' {
                     break;
                 }
-                i += 1;
+                i += ch.len_utf8();
             }
             out.push_str(REDACTED);
             continue;
         }
 
-        out.push(bytes[i] as char);
-        i += 1;
+        if let Some(ch) = remaining.chars().next() {
+            out.push(ch);
+            i += ch.len_utf8();
+        } else {
+            break;
+        }
     }
     out
 }
@@ -165,5 +181,13 @@ mod tests {
         assert!(redacted.contains("Bearer ***REDACTED***"));
         assert!(redacted.contains("token=***REDACTED***"));
         assert!(redacted.contains("normal=value"));
+    }
+
+    #[test]
+    fn redact_text_secrets_handles_utf8_without_panicking() {
+        let line = r#"{"type":"item.completed","item":{"text":"I’m ready Authorization: Bearer sk-test"}}"#;
+        let redacted = redact_text_secrets(line);
+        assert!(redacted.contains("I’m ready"));
+        assert!(redacted.contains("Bearer ***REDACTED***"));
     }
 }
