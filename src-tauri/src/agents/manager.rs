@@ -58,7 +58,7 @@ struct SessionRuntime {
 
 struct ManagedSession {
     child: Arc<Mutex<Child>>,
-    stdin: Arc<Mutex<ChildStdin>>,
+    stdin: Arc<Mutex<Option<ChildStdin>>>,
     runtime: Arc<Mutex<SessionRuntime>>,
     adapter: Arc<dyn AgentAdapter>,
 }
@@ -127,7 +127,7 @@ impl AgentManager {
         );
 
         let child = Arc::new(Mutex::new(child));
-        let stdin = Arc::new(Mutex::new(stdin));
+        let stdin = Arc::new(Mutex::new(Some(stdin)));
         let managed = ManagedSession {
             child: Arc::clone(&child),
             stdin,
@@ -184,10 +184,13 @@ impl AgentManager {
             .get(id)
             .ok_or_else(|| "agent session not found".to_string())?;
 
-        let mut stdin = managed
+        let mut stdin_guard = managed
             .stdin
             .lock()
             .map_err(|_| "failed to lock agent stdin".to_string())?;
+        let stdin = stdin_guard
+            .as_mut()
+            .ok_or_else(|| "agent stdin is closed".to_string())?;
 
         stdin
             .write_all(input.as_bytes())
@@ -200,6 +203,10 @@ impl AgentManager {
         stdin
             .flush()
             .map_err(|err| format!("failed flushing agent stdin: {err}"))?;
+
+        if should_close_stdin_after_first_input(managed.adapter.name()) {
+            let _ = stdin_guard.take();
+        }
 
         append_runtime_log(
             &managed.runtime,
@@ -504,6 +511,10 @@ fn update_session_status(runtime: &Arc<Mutex<SessionRuntime>>, status: AgentStat
         locked.info.status = status.clone();
     }
     push_runtime_event(runtime, AgentEvent::Status { status });
+}
+
+fn should_close_stdin_after_first_input(adapter_name: &str) -> bool {
+    matches!(adapter_name, "Codex" | "Claude Code")
 }
 
 fn now_ms() -> u128 {
