@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use serde_json::{json, Value};
 
 use super::{
-    AgentAdapter, AgentCommand, AgentConfig, AgentEvent, AgentStatus, Capability,
-    CapabilityEvent, McpServer, TokenUsage,
+    AgentAdapter, AgentCommand, AgentConfig, AgentEvent, AgentStatus, Capability, CapabilityEvent,
+    McpServer, TokenUsage,
 };
 
 pub struct CodexAdapter;
@@ -15,15 +15,36 @@ impl AgentAdapter for CodexAdapter {
     }
 
     fn build_command(&self, workspace_path: &str, config: &AgentConfig) -> AgentCommand {
-        let mut args = Vec::new();
+        let mut codex_args = Vec::new();
         if let Some(model) = &config.model {
-            args.push("--model".to_string());
-            args.push(model.clone());
+            codex_args.push("--model".to_string());
+            codex_args.push(model.clone());
+        }
+
+        if cfg!(target_os = "macos") {
+            let mut args = vec![
+                "-q".to_string(),
+                "/dev/null".to_string(),
+                "codex".to_string(),
+            ];
+            args.extend(codex_args);
+
+            return AgentCommand {
+                program: "script".to_string(),
+                args,
+                cwd: workspace_path.to_string(),
+                env: HashMap::new(),
+            };
         }
 
         AgentCommand {
-            program: "codex".to_string(),
-            args,
+            // Run Codex through util-linux `script` to provide a PTY on Linux.
+            program: "script".to_string(),
+            args: vec![
+                "-qefc".to_string(),
+                shell_command("codex", &codex_args),
+                "/dev/null".to_string(),
+            ],
             cwd: workspace_path.to_string(),
             env: HashMap::new(),
         }
@@ -118,11 +139,36 @@ impl AgentAdapter for CodexAdapter {
     }
 }
 
-fn event_from_json_payload(payload: &Value) -> Option<AgentEvent> {
-    if let Some(error_message) = payload
-        .get("error")
-        .and_then(|error| error.as_str().or_else(|| error.get("message").and_then(Value::as_str)))
+fn shell_command(program: &str, args: &[String]) -> String {
+    let mut parts = Vec::with_capacity(args.len() + 1);
+    parts.push(shell_escape(program));
+    for arg in args {
+        parts.push(shell_escape(arg));
+    }
+    parts.join(" ")
+}
+
+fn shell_escape(value: &str) -> String {
+    if value.is_empty() {
+        return "''".to_string();
+    }
+    if value
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'.' | b'-' | b'_'))
     {
+        return value.to_string();
+    }
+
+    let escaped = value.replace('\'', r"'\''");
+    format!("'{escaped}'")
+}
+
+fn event_from_json_payload(payload: &Value) -> Option<AgentEvent> {
+    if let Some(error_message) = payload.get("error").and_then(|error| {
+        error
+            .as_str()
+            .or_else(|| error.get("message").and_then(Value::as_str))
+    }) {
         return Some(AgentEvent::Error {
             message: error_message.to_string(),
         });
