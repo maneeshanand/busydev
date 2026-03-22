@@ -79,6 +79,7 @@ impl AgentManager {
         adapter: Arc<dyn AgentAdapter>,
         input: StartAgentSessionInput,
     ) -> Result<AgentSessionInfo, String> {
+        validate_workspace_path(&input.workspace_path)?;
         let config = input.config.unwrap_or_default();
         let command = adapter.build_command(&input.workspace_path, &config);
         let mut child = spawn_agent_command(&command)?;
@@ -579,9 +580,14 @@ fn spawn_via_node(command: &AgentCommand, script_path: &str, augmented_path: &Os
         return Err("failed to spawn via node: no node binary found".to_string());
     }
 
+    let script_real = fs::canonicalize(script_path)
+        .ok()
+        .unwrap_or_else(|| PathBuf::from(script_path));
+
+    let mut errors = Vec::new();
     for node in node_candidates {
         let mut node_args = Vec::with_capacity(command.args.len() + 1);
-        node_args.push(script_path.to_string());
+        node_args.push(script_real.to_string_lossy().to_string());
         node_args.extend(command.args.clone());
 
         let mut cmd = Command::new(&node);
@@ -596,14 +602,22 @@ fn spawn_via_node(command: &AgentCommand, script_path: &str, augmented_path: &Os
             cmd.envs(&command.env);
         }
 
-        if let Ok(child) = cmd.spawn() {
-            return Ok(child);
+        match cmd.spawn() {
+            Ok(child) => return Ok(child),
+            Err(err) => errors.push(format!(
+                "failed node spawn '{}' '{}' cwd='{}': {}",
+                node,
+                script_real.display(),
+                command.cwd,
+                err
+            )),
         }
     }
 
     Err(format!(
-        "failed to spawn via node for launcher '{}'",
-        script_path
+        "failed to spawn via node for launcher '{}': {}",
+        script_path,
+        errors.join(" | ")
     ))
 }
 
@@ -628,6 +642,22 @@ fn is_node_launcher_script(path: &Path) -> bool {
 
     let header = String::from_utf8_lossy(&buf[..n]);
     header.starts_with("#!/usr/bin/env node") || header.starts_with("#!/usr/bin/node")
+}
+
+fn validate_workspace_path(workspace_path: &str) -> Result<(), String> {
+    if workspace_path.trim().is_empty() {
+        return Err("workspace path is empty".to_string());
+    }
+
+    let path = Path::new(workspace_path);
+    if !path.exists() {
+        return Err(format!("workspace path does not exist: {}", workspace_path));
+    }
+    if !path.is_dir() {
+        return Err(format!("workspace path is not a directory: {}", workspace_path));
+    }
+
+    Ok(())
 }
 
 fn create_session_log_file(session_id: &str) -> Result<PathBuf, String> {
