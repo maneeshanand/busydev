@@ -153,8 +153,7 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
         nextSeqRef.current = batch.nextSeq;
         setUsage(batch.usage);
 
-        const running =
-          batch.session.status === "Working" || batch.session.status === "NeedsInput";
+        const running = batch.session.status === "Working";
         setIsRunning(running);
 
         if (!running) {
