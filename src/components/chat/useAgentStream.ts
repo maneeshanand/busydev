@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { publishNotification } from "../../lib/notifications";
 import { useAgentStore } from "../../stores";
 
 export type AgentStatus = "Working" | "NeedsInput" | "Idle" | "Error" | "Done";
@@ -51,50 +50,46 @@ export interface ChatEvent {
 }
 
 const POLL_INTERVAL_MS = 500;
+const EMPTY_EVENTS: ChatEvent[] = [];
 
-interface WorkspaceChatSnapshot {
+type StreamSnapshot = {
   events: ChatEvent[];
   sessionId: string | null;
-  usage: TokenUsage | null;
   nextSeq: number;
-  notifiedStatus: AgentStatus | null;
+  usage: TokenUsage | null;
+  isRunning: boolean;
+  error: string | null;
+};
+
+const streamSnapshots = new Map<string, StreamSnapshot>();
+
+export function __resetAgentStreamSnapshotsForTests() {
+  streamSnapshots.clear();
 }
 
-const workspaceChatSnapshots = new Map<string, WorkspaceChatSnapshot>();
+function getSnapshot(path: string | null): StreamSnapshot | null {
+  if (!path) {
+    return null;
+  }
+  return streamSnapshots.get(path) ?? null;
+}
+
+function setSnapshot(path: string | null, snapshot: StreamSnapshot): void {
+  if (!path) {
+    return;
+  }
+  streamSnapshots.set(path, snapshot);
+}
 
 export function useAgentStream(worktreePath: string | null, adapter: string | null) {
-  const initialSnapshot = worktreePath ? workspaceChatSnapshots.get(worktreePath) : undefined;
-  const [events, setEvents] = useState<ChatEvent[]>(() => initialSnapshot?.events ?? []);
-  const [sessionId, setSessionId] = useState<string | null>(() => initialSnapshot?.sessionId ?? null);
-  const [isRunning, setIsRunning] = useState(false);
-  const [usage, setUsage] = useState<TokenUsage | null>(() => initialSnapshot?.usage ?? null);
-  const [error, setError] = useState<string | null>(null);
-  const nextSeqRef = useRef<number>(initialSnapshot?.nextSeq ?? 0);
+  const snapshot = getSnapshot(worktreePath);
+  const [events, setEvents] = useState<ChatEvent[]>(snapshot?.events ?? EMPTY_EVENTS);
+  const [sessionId, setSessionId] = useState<string | null>(snapshot?.sessionId ?? null);
+  const [isRunning, setIsRunning] = useState(snapshot?.isRunning ?? false);
+  const [usage, setUsage] = useState<TokenUsage | null>(snapshot?.usage ?? null);
+  const [error, setError] = useState<string | null>(snapshot?.error ?? null);
+  const nextSeqRef = useRef<number>(snapshot?.nextSeq ?? 0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const notifiedStatusRef = useRef<AgentStatus | null>(initialSnapshot?.notifiedStatus ?? null);
-  const previousWorktreePathRef = useRef<string | null>(worktreePath);
-
-  const persistSnapshot = useCallback(
-    (
-      nextEvents: ChatEvent[],
-      nextSessionId: string | null,
-      nextUsage: TokenUsage | null,
-      nextSeq: number,
-      nextNotifiedStatus: AgentStatus | null,
-    ) => {
-      if (!worktreePath) {
-        return;
-      }
-      workspaceChatSnapshots.set(worktreePath, {
-        events: nextEvents,
-        sessionId: nextSessionId,
-        usage: nextUsage,
-        nextSeq,
-        notifiedStatus: nextNotifiedStatus,
-      });
-    },
-    [worktreePath],
-  );
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -102,6 +97,40 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
       pollRef.current = null;
     }
   }, []);
+
+  const appendEvents = useCallback(
+    (build: (prev: ChatEvent[]) => ChatEvent[]) => {
+      setEvents((prev) => {
+        const next = build(prev);
+        const current = getSnapshot(worktreePath);
+        setSnapshot(worktreePath, {
+          events: next,
+          sessionId: current?.sessionId ?? sessionId,
+          nextSeq: current?.nextSeq ?? nextSeqRef.current,
+          usage: current?.usage ?? usage,
+          isRunning: current?.isRunning ?? isRunning,
+          error: current?.error ?? error,
+        });
+        return next;
+      });
+    },
+    [error, isRunning, sessionId, usage, worktreePath],
+  );
+
+  const addErrorEvent = useCallback(
+    (msg: string) => {
+      appendEvents((prev) => [
+        ...prev,
+        {
+          id: `error-${Date.now()}`,
+          source: "agent",
+          event: { type: "error", message: msg },
+          timestamp: Date.now(),
+        },
+      ]);
+    },
+    [appendEvents],
+  );
 
   const poll = useCallback(
     async (id: string) => {
@@ -118,54 +147,15 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
             event: env.event,
             timestamp: env.timestampMs,
           }));
-          setEvents((prev) => [...prev, ...newEvents]);
-          nextSeqRef.current = batch.nextSeq;
-
-          for (const envelope of batch.events) {
-            const agentEvent = envelope.event;
-            if (agentEvent.type !== "error") {
-              continue;
-            }
-
-            const message = agentEvent.message ?? agentEvent.content ?? "The agent reported an error.";
-            void publishNotification({
-              title: "Agent error",
-              message,
-              level: "error",
-            });
-          }
+          appendEvents((prev) => [...prev, ...newEvents]);
         }
 
-        if (batch.usage) {
-          setUsage(batch.usage);
-        }
+        nextSeqRef.current = batch.nextSeq;
+        setUsage(batch.usage);
 
-        const status = batch.session.status;
-        const running = status === "Working" || status === "NeedsInput";
+        const running =
+          batch.session.status === "Working" || batch.session.status === "NeedsInput";
         setIsRunning(running);
-
-        if (status !== notifiedStatusRef.current) {
-          if (status === "NeedsInput") {
-            void publishNotification({
-              title: "Agent needs input",
-              message: "The active session is waiting for your response.",
-              level: "warning",
-            });
-          } else if (status === "Done") {
-            void publishNotification({
-              title: "Agent completed",
-              message: "The active session finished successfully.",
-              level: "success",
-            });
-          } else if (status === "Error") {
-            void publishNotification({
-              title: "Agent session failed",
-              message: "The active session ended with an error.",
-              level: "error",
-            });
-          }
-          notifiedStatusRef.current = status;
-        }
 
         if (!running) {
           stopPolling();
@@ -173,31 +163,31 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
       } catch (err) {
         const message = String(err);
         setError(message);
-        void publishNotification({
-          title: "Agent stream failed",
-          message,
-          level: "error",
-        });
-        stopPolling();
+        addErrorEvent(message);
         setIsRunning(false);
+        stopPolling();
       }
     },
-    [stopPolling],
+    [addErrorEvent, appendEvents, stopPolling],
   );
 
   const startPolling = useCallback(
     (id: string) => {
       stopPolling();
       nextSeqRef.current = 0;
-      pollRef.current = setInterval(() => poll(id), POLL_INTERVAL_MS);
-      // Immediate first poll
-      poll(id);
+      pollRef.current = setInterval(() => {
+        void poll(id);
+      }, POLL_INTERVAL_MS);
+      void poll(id);
     },
     [poll, stopPolling],
   );
 
   const startSession = useCallback(async () => {
-    if (!worktreePath || !adapter) return null;
+    if (!worktreePath || !adapter) {
+      return null;
+    }
+
     try {
       const session = await invoke<AgentSessionInfo>("start_agent_session", {
         input: { adapter, workspacePath: worktreePath },
@@ -205,34 +195,33 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
       setSessionId(session.id);
       setIsRunning(true);
       setError(null);
+      setSnapshot(worktreePath, {
+        events,
+        sessionId: session.id,
+        nextSeq: nextSeqRef.current,
+        usage,
+        isRunning: true,
+        error: null,
+      });
       startPolling(session.id);
       return session.id;
     } catch (err) {
       setError(String(err));
       return null;
     }
-  }, [adapter, startPolling, worktreePath]);
-
-  const addErrorEvent = useCallback((msg: string) => {
-    const errorEvent: ChatEvent = {
-      id: `error-${Date.now()}`,
-      source: "agent",
-      event: { type: "error", message: msg },
-      timestamp: Date.now(),
-    };
-    setEvents((prev) => [...prev, errorEvent]);
-  }, []);
+  }, [adapter, events, startPolling, usage, worktreePath]);
 
   const sendInput = useCallback(
     async (message: string) => {
-      // Add user message to events
-      const userEvent: ChatEvent = {
-        id: `user-${Date.now()}`,
-        source: "user",
-        event: { type: "message", content: message },
-        timestamp: Date.now(),
-      };
-      setEvents((prev) => [...prev, userEvent]);
+      appendEvents((prev) => [
+        ...prev,
+        {
+          id: `user-${Date.now()}`,
+          source: "user",
+          event: { type: "message", content: message },
+          timestamp: Date.now(),
+        },
+      ]);
 
       let id = sessionId;
       if (!id) {
@@ -255,11 +244,13 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
         addErrorEvent(String(err));
       }
     },
-    [addErrorEvent, sessionId, startPolling, startSession],
+    [addErrorEvent, appendEvents, sessionId, startPolling, startSession],
   );
 
   const stopSession = useCallback(async () => {
-    if (!sessionId) return;
+    if (!sessionId) {
+      return;
+    }
     try {
       await invoke("stop_agent_session", { id: sessionId });
       stopPolling();
@@ -269,38 +260,22 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
     }
   }, [sessionId, stopPolling]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => stopPolling();
   }, [stopPolling]);
 
-  // Reset or hydrate when workspace changes — setState calls are intentional batch updates
+  // Reset stream state when the selected workspace changes.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    const previous = previousWorktreePathRef.current;
-    if (previous === worktreePath) {
-      return;
-    }
-
     stopPolling();
-
-    const snapshot = worktreePath ? workspaceChatSnapshots.get(worktreePath) : undefined;
-    if (snapshot) {
-      setEvents(snapshot.events);
-      setSessionId(snapshot.sessionId);
-      setUsage(snapshot.usage);
-      nextSeqRef.current = snapshot.nextSeq;
-      notifiedStatusRef.current = snapshot.notifiedStatus;
-      setIsRunning(false);
-      setError(null);
-      previousWorktreePathRef.current = worktreePath;
-      return;
-    }
-
-    // On first workspace selection (null -> workspace), keep current state to avoid
-    // clobbering a just-submitted first message while effects settle.
-    if (previous === null && worktreePath !== null) {
-      previousWorktreePathRef.current = worktreePath;
+    const restored = getSnapshot(worktreePath);
+    if (restored) {
+      setEvents(restored.events);
+      setSessionId(restored.sessionId);
+      setIsRunning(restored.isRunning);
+      setUsage(restored.usage);
+      setError(restored.error);
+      nextSeqRef.current = restored.nextSeq;
       return;
     }
 
@@ -310,19 +285,23 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
     setUsage(null);
     setError(null);
     nextSeqRef.current = 0;
-    notifiedStatusRef.current = null;
-    previousWorktreePathRef.current = worktreePath;
   }, [worktreePath, stopPolling]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // Sync to global agent store for StatusBar
+  useEffect(() => {
+    setSnapshot(worktreePath, {
+      events,
+      sessionId,
+      nextSeq: nextSeqRef.current,
+      usage,
+      isRunning,
+      error,
+    });
+  }, [error, events, isRunning, sessionId, usage, worktreePath]);
+
   useEffect(() => {
     useAgentStore.getState().setRunning(isRunning);
   }, [isRunning]);
-
-  useEffect(() => {
-    persistSnapshot(events, sessionId, usage, nextSeqRef.current, notifiedStatusRef.current);
-  }, [events, persistSnapshot, sessionId, usage]);
 
   useEffect(() => {
     useAgentStore.getState().setUsage(
