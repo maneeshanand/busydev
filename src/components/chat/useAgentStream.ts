@@ -81,6 +81,16 @@ function setSnapshot(path: string | null, snapshot: StreamSnapshot): void {
   streamSnapshots.set(path, snapshot);
 }
 
+function getLastStatusEvent(events: ChatEvent[]): AgentStatus | null {
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const event = events[i];
+    if (event.event.type === "status" && event.event.status) {
+      return event.event.status;
+    }
+  }
+  return null;
+}
+
 export function useAgentStream(worktreePath: string | null, adapter: string | null) {
   const snapshot = getSnapshot(worktreePath);
   const [events, setEvents] = useState<ChatEvent[]>(snapshot?.events ?? EMPTY_EVENTS);
@@ -90,6 +100,7 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
   const [error, setError] = useState<string | null>(snapshot?.error ?? null);
   const nextSeqRef = useRef<number>(snapshot?.nextSeq ?? 0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastStatusRef = useRef<AgentStatus | null>(getLastStatusEvent(snapshot?.events ?? EMPTY_EVENTS));
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -152,6 +163,19 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
 
         nextSeqRef.current = batch.nextSeq;
         setUsage(batch.usage);
+
+        if (batch.session.status !== lastStatusRef.current) {
+          lastStatusRef.current = batch.session.status;
+          appendEvents((prev) => [
+            ...prev,
+            {
+              id: `status-${id}-${batch.nextSeq}-${Date.now()}`,
+              source: "agent",
+              event: { type: "status", status: batch.session.status },
+              timestamp: Date.now(),
+            },
+          ]);
+        }
 
         const running = batch.session.status === "Working";
         setIsRunning(running);
@@ -275,6 +299,7 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
       setUsage(restored.usage);
       setError(restored.error);
       nextSeqRef.current = restored.nextSeq;
+      lastStatusRef.current = getLastStatusEvent(restored.events);
       return;
     }
 
@@ -284,6 +309,7 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
     setUsage(null);
     setError(null);
     nextSeqRef.current = 0;
+    lastStatusRef.current = null;
   }, [worktreePath, stopPolling]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
