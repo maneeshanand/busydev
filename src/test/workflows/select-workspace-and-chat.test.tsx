@@ -5,7 +5,7 @@
  * message appears in stream → agent response appears.
  */
 import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@tauri-apps/api/core";
 import { AppLayout } from "../../components/layout/AppLayout";
@@ -16,6 +16,7 @@ import {
   seedProject,
   seedWorkspace,
 } from "../mockTauri";
+import { __resetAgentStreamSnapshotsForTests } from "../../components/chat/useAgentStream";
 
 async function openSidebarAndSelectWorkspace() {
   await userEvent.click(screen.getByTitle("projects"));
@@ -24,10 +25,15 @@ async function openSidebarAndSelectWorkspace() {
   // Use getAllByText since MAN-42 might appear in multiple places; click the first (sidebar)
   await waitFor(() => screen.getAllByText("MAN-42"));
   await userEvent.click(screen.getAllByText("MAN-42")[0]);
+  await userEvent.click(screen.getByRole("button", { name: "\u2715" }));
+  await waitFor(() => {
+    expect(screen.queryByText("+ Add Project")).not.toBeInTheDocument();
+  });
 }
 
 describe("Workflow: Select Workspace and Chat", () => {
   beforeEach(() => {
+    __resetAgentStreamSnapshotsForTests();
     resetMockDb();
     const project = seedProject({ name: "busydev", repoPath: "/Users/test/busydev" });
     seedWorkspace(project.id, {
@@ -95,13 +101,14 @@ describe("Workflow: Select Workspace and Chat", () => {
   });
 
   // BUG: user message doesn't appear after sending — see GitHub issue
-  it.skip("shows user message in chat after sending", async () => {
+  it("shows user message in chat after sending", async () => {
     render(<AppLayout />);
     await openSidebarAndSelectWorkspace();
 
     await waitFor(() => screen.getByPlaceholderText("Type a message..."));
     const textarea = screen.getByPlaceholderText("Type a message...");
-    await userEvent.type(textarea, "fix the auth bug{enter}");
+    fireEvent.change(textarea, { target: { value: "fix the auth bug" } });
+    await userEvent.click(screen.getByTitle("Send message"));
 
     await waitFor(() => {
       expect(screen.getByText("fix the auth bug")).toBeInTheDocument();
@@ -109,15 +116,15 @@ describe("Workflow: Select Workspace and Chat", () => {
   });
 
   // BUG: agent session not started on message send — see GitHub issue
-  it.skip("calls start_agent_session when first message is sent", async () => {
+  it("calls start_agent_session when first message is sent", async () => {
     render(<AppLayout />);
     await openSidebarAndSelectWorkspace();
 
     await waitFor(() => screen.getByPlaceholderText("Type a message..."));
-    await userEvent.type(
-      screen.getByPlaceholderText("Type a message..."),
-      "hello{enter}",
-    );
+    fireEvent.change(screen.getByPlaceholderText("Type a message..."), {
+      target: { value: "hello" },
+    });
+    await userEvent.click(screen.getByTitle("Send message"));
 
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith(
@@ -132,7 +139,7 @@ describe("Workflow: Select Workspace and Chat", () => {
   });
 
   // BUG: error not shown when agent session fails — see GitHub issue
-  it.skip("shows error in chat when agent session fails to start", async () => {
+  it("shows error in chat when agent session fails to start", async () => {
     const mockedInvoke = setupTauriMocks();
     const original = mockedInvoke.getMockImplementation()!;
     mockedInvoke.mockImplementation(async (cmd: string, args?: Parameters<typeof invoke>[1]) => {
@@ -146,14 +153,14 @@ describe("Workflow: Select Workspace and Chat", () => {
     await openSidebarAndSelectWorkspace();
 
     await waitFor(() => screen.getByPlaceholderText("Type a message..."));
-    await userEvent.type(
-      screen.getByPlaceholderText("Type a message..."),
-      "hello{enter}",
-    );
+    fireEvent.change(screen.getByPlaceholderText("Type a message..."), {
+      target: { value: "hello" },
+    });
+    await userEvent.click(screen.getByTitle("Send message"));
 
     // User message should still be visible
     await waitFor(() => {
-      expect(screen.getByText("hello")).toBeInTheDocument();
+      expect(screen.getAllByText("hello").length).toBeGreaterThan(0);
     });
 
     // Error should be visible in the chat

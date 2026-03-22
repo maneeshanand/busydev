@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { useAgentStream } from "./useAgentStream";
+import { __resetAgentStreamSnapshotsForTests, useAgentStream } from "./useAgentStream";
 
 const mockInvoke = vi.mocked(invoke);
 
@@ -42,6 +42,7 @@ function installAgentMocks() {
 
 describe("useAgentStream", () => {
   beforeEach(() => {
+    __resetAgentStreamSnapshotsForTests();
     vi.clearAllMocks();
     installAgentMocks();
   });
