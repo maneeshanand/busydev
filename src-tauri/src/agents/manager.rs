@@ -575,7 +575,7 @@ fn update_session_status(runtime: &Arc<Mutex<SessionRuntime>>, status: AgentStat
 }
 
 fn should_close_stdin_after_first_input(adapter_name: &str) -> bool {
-    matches!(adapter_name, "Claude Code")
+    matches!(adapter_name, "Codex" | "Claude Code")
 }
 
 fn now_ms() -> u128 {

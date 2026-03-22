@@ -21,6 +21,9 @@ impl AgentAdapter for CodexAdapter {
             "-s".to_string(),
             "workspace-write".to_string(),
             "--skip-git-repo-check".to_string(),
+            "exec".to_string(),
+            "--json".to_string(),
+            "-".to_string(),
         ];
         if let Some(model) = &config.model {
             codex_args.push("--model".to_string());
