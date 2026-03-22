@@ -196,6 +196,14 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
         const running = batch.session.status === "Working";
         setIsRunning(running);
 
+        if (
+          batch.session.status === "Done" ||
+          batch.session.status === "Error" ||
+          batch.session.status === "Idle"
+        ) {
+          setSessionId(null);
+        }
+
         if (!running) {
           stopPolling();
         }
