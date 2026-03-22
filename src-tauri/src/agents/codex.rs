@@ -15,7 +15,16 @@ impl AgentAdapter for CodexAdapter {
     }
 
     fn build_command(&self, workspace_path: &str, config: &AgentConfig) -> AgentCommand {
-        let mut args = vec!["exec".to_string(), "--json".to_string(), "-".to_string()];
+        let mut args = vec![
+            "-a".to_string(),
+            "never".to_string(),
+            "-s".to_string(),
+            "workspace-write".to_string(),
+            "--skip-git-repo-check".to_string(),
+            "exec".to_string(),
+            "--json".to_string(),
+            "-".to_string(),
+        ];
         if let Some(model) = &config.model {
             args.push("--model".to_string());
             args.push(model.clone());
