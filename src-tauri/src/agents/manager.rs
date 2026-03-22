@@ -421,6 +421,10 @@ fn spawn_exit_watcher(child: Arc<Mutex<Child>>, runtime: Arc<Mutex<SessionRuntim
 fn push_runtime_event(runtime: &Arc<Mutex<SessionRuntime>>, event: AgentEvent) {
     let event = sanitize_runtime_event(event);
     if let Ok(mut locked) = runtime.lock() {
+        if let AgentEvent::Status { status } = &event {
+            locked.info.status = status.clone();
+        }
+
         let envelope = AgentEventEnvelope {
             seq: locked.next_seq,
             timestamp_ms: now_ms(),

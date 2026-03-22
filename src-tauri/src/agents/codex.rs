@@ -15,36 +15,15 @@ impl AgentAdapter for CodexAdapter {
     }
 
     fn build_command(&self, workspace_path: &str, config: &AgentConfig) -> AgentCommand {
-        let mut codex_args = Vec::new();
+        let mut args = vec!["exec".to_string(), "--json".to_string(), "-".to_string()];
         if let Some(model) = &config.model {
-            codex_args.push("--model".to_string());
-            codex_args.push(model.clone());
-        }
-
-        if cfg!(target_os = "macos") {
-            let mut args = vec![
-                "-q".to_string(),
-                "/dev/null".to_string(),
-                "codex".to_string(),
-            ];
-            args.extend(codex_args);
-
-            return AgentCommand {
-                program: "script".to_string(),
-                args,
-                cwd: workspace_path.to_string(),
-                env: HashMap::new(),
-            };
+            args.push("--model".to_string());
+            args.push(model.clone());
         }
 
         AgentCommand {
-            // Run Codex through util-linux `script` to provide a PTY on Linux.
-            program: "script".to_string(),
-            args: vec![
-                "-qefc".to_string(),
-                shell_command("codex", &codex_args),
-                "/dev/null".to_string(),
-            ],
+            program: "codex".to_string(),
+            args,
             cwd: workspace_path.to_string(),
             env: HashMap::new(),
         }
@@ -137,30 +116,6 @@ impl AgentAdapter for CodexAdapter {
                 .collect::<Vec<_>>()
         })
     }
-}
-
-fn shell_command(program: &str, args: &[String]) -> String {
-    let mut parts = Vec::with_capacity(args.len() + 1);
-    parts.push(shell_escape(program));
-    for arg in args {
-        parts.push(shell_escape(arg));
-    }
-    parts.join(" ")
-}
-
-fn shell_escape(value: &str) -> String {
-    if value.is_empty() {
-        return "''".to_string();
-    }
-    if value
-        .bytes()
-        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'.' | b'-' | b'_'))
-    {
-        return value.to_string();
-    }
-
-    let escaped = value.replace('\'', r"'\''");
-    format!("'{escaped}'")
 }
 
 fn event_from_json_payload(payload: &Value) -> Option<AgentEvent> {
