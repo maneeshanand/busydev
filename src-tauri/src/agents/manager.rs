@@ -204,8 +204,21 @@ impl AgentManager {
             .flush()
             .map_err(|err| format!("failed flushing agent stdin: {err}"))?;
 
+        push_runtime_event(
+            &managed.runtime,
+            AgentEvent::Message {
+                content: format!("[io stdin] {}", redact_text_secrets(input)),
+            },
+        );
+
         if should_close_stdin_after_first_input(managed.adapter.name()) {
             let _ = stdin_guard.take();
+            push_runtime_event(
+                &managed.runtime,
+                AgentEvent::Message {
+                    content: "[io stdin] <closed>".to_string(),
+                },
+            );
         }
 
         append_runtime_log(
@@ -374,6 +387,14 @@ fn spawn_stdout_loop(
         for line_result in reader.lines() {
             match line_result {
                 Ok(line) => {
+                    if !line.trim().is_empty() {
+                        push_runtime_event(
+                            &runtime,
+                            AgentEvent::Message {
+                                content: format!("[io stdout] {}", redact_text_secrets(&line)),
+                            },
+                        );
+                    }
                     if let Some(event) = adapter.parse_output(&line) {
                         push_runtime_event(&runtime, event);
                     } else if !line.trim().is_empty() {
@@ -411,6 +432,12 @@ fn spawn_stderr_loop(
                     if line.trim().is_empty() {
                         continue;
                     }
+                    push_runtime_event(
+                        &runtime,
+                        AgentEvent::Message {
+                            content: format!("[io stderr] {}", redact_text_secrets(&line)),
+                        },
+                    );
                     push_runtime_event(
                         &runtime,
                         AgentEvent::Error {
