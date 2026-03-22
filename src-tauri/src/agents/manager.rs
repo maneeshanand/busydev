@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::env;
 use std::ffi::OsString;
 use std::fs::{self, OpenOptions};
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -317,7 +317,7 @@ fn spawn_agent_command(command: &AgentCommand) -> Result<Child, String> {
         .or_else(|| env::var_os("PATH"));
     let augmented_path = augment_path(path_seed);
 
-    let mut last_error: Option<String> = None;
+    let mut errors: Vec<String> = Vec::new();
     for program in candidates {
         let mut cmd = Command::new(&program);
         cmd.args(&command.args)
@@ -334,12 +334,26 @@ fn spawn_agent_command(command: &AgentCommand) -> Result<Child, String> {
         match cmd.spawn() {
             Ok(child) => return Ok(child),
             Err(err) => {
-                last_error = Some(format!("failed to spawn agent process '{}': {err}", program));
+                let error_line = format!("failed to spawn agent process '{}': {err}", program);
+                errors.push(error_line);
+
+                if err.kind() == std::io::ErrorKind::NotFound
+                    && is_node_launcher_script(Path::new(&program))
+                {
+                    match spawn_via_node(command, &program, &augmented_path) {
+                        Ok(child) => return Ok(child),
+                        Err(node_err) => errors.push(node_err),
+                    }
+                }
             }
         }
     }
 
-    Err(last_error.unwrap_or_else(|| "failed to spawn agent process".to_string()))
+    if errors.is_empty() {
+        Err("failed to spawn agent process".to_string())
+    } else {
+        Err(errors.join(" | "))
+    }
 }
 
 fn spawn_stdout_loop(
@@ -557,6 +571,63 @@ fn augment_path(seed: Option<OsString>) -> OsString {
     }
 
     env::join_paths(dirs).unwrap_or_else(|_| OsString::from("/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin"))
+}
+
+fn spawn_via_node(command: &AgentCommand, script_path: &str, augmented_path: &OsString) -> Result<Child, String> {
+    let node_candidates = resolve_program_candidates("node");
+    if node_candidates.is_empty() {
+        return Err("failed to spawn via node: no node binary found".to_string());
+    }
+
+    for node in node_candidates {
+        let mut node_args = Vec::with_capacity(command.args.len() + 1);
+        node_args.push(script_path.to_string());
+        node_args.extend(command.args.clone());
+
+        let mut cmd = Command::new(&node);
+        cmd.args(&node_args)
+            .current_dir(&command.cwd)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .env("PATH", augmented_path);
+
+        if !command.env.is_empty() {
+            cmd.envs(&command.env);
+        }
+
+        if let Ok(child) = cmd.spawn() {
+            return Ok(child);
+        }
+    }
+
+    Err(format!(
+        "failed to spawn via node for launcher '{}'",
+        script_path
+    ))
+}
+
+fn is_node_launcher_script(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+
+    let mut file = match fs::File::open(path) {
+        Ok(file) => file,
+        Err(_) => return false,
+    };
+
+    let mut buf = [0u8; 256];
+    let n = match file.read(&mut buf) {
+        Ok(n) => n,
+        Err(_) => return false,
+    };
+    if n == 0 {
+        return false;
+    }
+
+    let header = String::from_utf8_lossy(&buf[..n]);
+    header.starts_with("#!/usr/bin/env node") || header.starts_with("#!/usr/bin/node")
 }
 
 fn create_session_log_file(session_id: &str) -> Result<PathBuf, String> {
