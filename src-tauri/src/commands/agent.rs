@@ -19,17 +19,26 @@ pub fn start_agent_session(
 }
 
 #[tauri::command]
-pub fn stop_agent_session(id: String, agent_manager: State<'_, AgentManager>) -> Result<(), String> {
+pub fn stop_agent_session(
+    id: String,
+    agent_manager: State<'_, AgentManager>,
+) -> Result<(), String> {
     agent_manager.stop_session(&id)
 }
 
 #[tauri::command]
-pub fn send_agent_input(id: String, input: String, agent_manager: State<'_, AgentManager>) -> Result<(), String> {
+pub fn send_agent_input(
+    id: String,
+    input: String,
+    agent_manager: State<'_, AgentManager>,
+) -> Result<(), String> {
     agent_manager.send_input(&id, &input)
 }
 
 #[tauri::command]
-pub fn list_agent_sessions(agent_manager: State<'_, AgentManager>) -> Result<Vec<AgentSessionInfo>, String> {
+pub fn list_agent_sessions(
+    agent_manager: State<'_, AgentManager>,
+) -> Result<Vec<AgentSessionInfo>, String> {
     agent_manager.list_sessions()
 }
 
@@ -40,4 +49,13 @@ pub fn stream_agent_events(
     agent_manager: State<'_, AgentManager>,
 ) -> Result<AgentEventBatch, String> {
     agent_manager.stream_events(&id, since_seq)
+}
+
+#[tauri::command]
+pub fn read_agent_session_log(
+    id: String,
+    max_lines: Option<usize>,
+    agent_manager: State<'_, AgentManager>,
+) -> Result<String, String> {
+    agent_manager.read_session_log(&id, max_lines)
 }

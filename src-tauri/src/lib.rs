@@ -14,8 +14,8 @@ use agents::codex::CodexAdapter;
 use agents::manager::AgentManager;
 use agents::AgentRegistry;
 use commands::agent::{
-    list_agent_sessions, send_agent_input, start_agent_session, stop_agent_session,
-    stream_agent_events,
+    list_agent_sessions, read_agent_session_log, send_agent_input, start_agent_session,
+    stop_agent_session, stream_agent_events,
 };
 use commands::git::{
     accept_file_changes, create_worktree, delete_worktree, generate_unified_diff, list_git_watches,
@@ -117,6 +117,7 @@ pub fn run() {
             send_agent_input,
             list_agent_sessions,
             stream_agent_events,
+            read_agent_session_log,
             publish_notification,
             update_tray_badge
         ])

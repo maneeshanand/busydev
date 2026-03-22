@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+use std::fs::{self, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
+use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -49,6 +51,7 @@ struct SessionRuntime {
     info: AgentSessionInfo,
     next_seq: u64,
     events: Vec<AgentEventEnvelope>,
+    log_path: PathBuf,
 }
 
 struct ManagedSession {
@@ -93,6 +96,7 @@ impl AgentManager {
 
         let session_id = Uuid::new_v4().to_string();
         let started_at_ms = now_ms();
+        let log_path = create_session_log_file(&session_id)?;
         let info = AgentSessionInfo {
             id: session_id.clone(),
             adapter: input.adapter,
@@ -100,10 +104,16 @@ impl AgentManager {
             status: AgentStatus::Working,
             started_at_ms,
         };
+        let launch_line = format!(
+            "session started adapter={} workspace={} command={} args={:?}",
+            info.adapter, command.cwd, command.program, command.args
+        );
+        append_log_line(&log_path, &launch_line);
         let runtime = Arc::new(Mutex::new(SessionRuntime {
             info: info.clone(),
             next_seq: 1,
             events: Vec::new(),
+            log_path,
         }));
 
         push_runtime_event(
@@ -188,6 +198,11 @@ impl AgentManager {
             .flush()
             .map_err(|err| format!("failed flushing agent stdin: {err}"))?;
 
+        append_runtime_log(
+            &managed.runtime,
+            &format!("input {}", redact_text_secrets(input)),
+        );
+
         Ok(())
     }
 
@@ -247,6 +262,37 @@ impl AgentManager {
             next_seq: runtime.next_seq,
             usage: managed.adapter.get_usage(&raw_events),
         })
+    }
+
+    pub fn read_session_log(&self, id: &str, max_lines: Option<usize>) -> Result<String, String> {
+        let sessions = self
+            .sessions
+            .lock()
+            .map_err(|_| "failed to lock agent sessions".to_string())?;
+        let managed = sessions
+            .get(id)
+            .ok_or_else(|| "agent session not found".to_string())?;
+        let runtime = managed
+            .runtime
+            .lock()
+            .map_err(|_| "failed to lock agent session runtime".to_string())?;
+        let log_path = runtime.log_path.clone();
+        drop(runtime);
+        drop(sessions);
+
+        let content = fs::read_to_string(&log_path)
+            .map_err(|err| format!("failed reading agent log '{}': {err}", log_path.display()))?;
+
+        if let Some(max_lines) = max_lines {
+            if max_lines == 0 {
+                return Ok(String::new());
+            }
+            let lines = content.lines().collect::<Vec<_>>();
+            let start = lines.len().saturating_sub(max_lines);
+            return Ok(lines[start..].join("\n"));
+        }
+
+        Ok(content)
     }
 }
 
@@ -378,7 +424,7 @@ fn push_runtime_event(runtime: &Arc<Mutex<SessionRuntime>>, event: AgentEvent) {
         let envelope = AgentEventEnvelope {
             seq: locked.next_seq,
             timestamp_ms: now_ms(),
-            event,
+            event: event.clone(),
         };
         locked.next_seq += 1;
         locked.events.push(envelope);
@@ -387,6 +433,14 @@ fn push_runtime_event(runtime: &Arc<Mutex<SessionRuntime>>, event: AgentEvent) {
             let excess = locked.events.len() - 500;
             locked.events.drain(0..excess);
         }
+
+        let log_line = format!(
+            "event seq={} ts={} {}",
+            locked.next_seq - 1,
+            now_ms(),
+            format_event_for_log(&event)
+        );
+        append_log_line(&locked.log_path, &log_line);
     }
 }
 
@@ -416,6 +470,43 @@ fn now_ms() -> u128 {
         .unwrap_or(0)
 }
 
+fn create_session_log_file(session_id: &str) -> Result<PathBuf, String> {
+    let dir = std::env::temp_dir().join("busydev-agent-logs");
+    fs::create_dir_all(&dir)
+        .map_err(|err| format!("failed creating log directory '{}': {err}", dir.display()))?;
+    let path = dir.join(format!("{session_id}.log"));
+    OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .map_err(|err| format!("failed creating agent log '{}': {err}", path.display()))?;
+    Ok(path)
+}
+
+fn append_runtime_log(runtime: &Arc<Mutex<SessionRuntime>>, line: &str) {
+    if let Ok(locked) = runtime.lock() {
+        append_log_line(&locked.log_path, line);
+    }
+}
+
+fn append_log_line(path: &Path, line: &str) {
+    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
+        let _ = writeln!(file, "{} {}", now_ms(), line);
+    }
+}
+
+fn format_event_for_log(event: &AgentEvent) -> String {
+    match event {
+        AgentEvent::Message { content } => format!("message {}", content),
+        AgentEvent::ToolCall { name, input } => format!("toolCall {} input={}", name, input),
+        AgentEvent::ToolResult { name, output } => {
+            format!("toolResult {} output={}", name, output)
+        }
+        AgentEvent::Error { message } => format!("error {}", message),
+        AgentEvent::Status { status } => format!("status {:?}", status),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -432,6 +523,7 @@ mod tests {
             },
             next_seq: 1,
             events: Vec::new(),
+            log_path: std::env::temp_dir().join("busydev-test-runtime-1.log"),
         }));
 
         push_runtime_event(
@@ -466,6 +558,7 @@ mod tests {
             },
             next_seq: 1,
             events: Vec::new(),
+            log_path: std::env::temp_dir().join("busydev-test-runtime-2.log"),
         }));
 
         update_session_status(&runtime, AgentStatus::Done);
