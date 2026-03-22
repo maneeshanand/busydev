@@ -292,7 +292,24 @@ export function useAgentStream(worktreePath: string | null, adapter: string | nu
           startPolling(id);
         }
       } catch (err) {
-        addErrorEvent(String(err));
+        const errMessage = String(err);
+        if (errMessage.includes("agent stdin is closed")) {
+          setSessionId(null);
+          try {
+            const nextId = await startSession();
+            await invoke("send_agent_input", { id: nextId, input: message });
+            if (!pollRef.current) {
+              setIsRunning(true);
+              startPolling(nextId);
+            }
+            return;
+          } catch (retryErr) {
+            addErrorEvent(String(retryErr));
+            return;
+          }
+        }
+
+        addErrorEvent(errMessage);
       }
     },
     [addErrorEvent, appendEvents, sessionId, startPolling, startSession],
