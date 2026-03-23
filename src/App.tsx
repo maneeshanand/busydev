@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
+import { openPath } from "@tauri-apps/plugin-opener";
 import { load as loadStore } from "@tauri-apps/plugin-store";
 import {
   CODEX_STREAM_EVENT,
   runCodexExec,
   stopCodexExec,
+  writeToAgent,
   type CodexExecOutput,
   type CodexStreamEvent,
 } from "./invoke";
@@ -123,46 +125,9 @@ function ChecklistIcon() {
   );
 }
 
-interface TurnUsage {
-  inputTokens: number;
-  outputTokens: number;
-}
 
-function extractTurnUsage(value: unknown): TurnUsage | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const obj = value as Record<string, unknown>;
-  if (obj.type !== "turn.completed") return null;
 
-  const usage = obj.usage;
-  if (!usage || typeof usage !== "object" || Array.isArray(usage)) return null;
-  const usageObj = usage as Record<string, unknown>;
 
-  const inputTokens = typeof usageObj.input_tokens === "number" ? usageObj.input_tokens : null;
-  const outputTokens = typeof usageObj.output_tokens === "number" ? usageObj.output_tokens : null;
-  if (inputTokens == null || outputTokens == null) return null;
-
-  return { inputTokens, outputTokens };
-}
-
-function formatTokenCount(value: number): string {
-  return new Intl.NumberFormat("en-US").format(value);
-}
-
-function inferModelType(modelName: string): string {
-  const lower = modelName.toLowerCase();
-  if (lower.includes("codex")) return "coding";
-  if (lower.includes("mini")) return "compact";
-  if (lower.includes("gpt")) return "general";
-  return "unknown";
-}
-
-function inferContextWindow(modelName: string): number | null {
-  const hint = modelName.match(/(\d+)\s*k/i);
-  if (!hint) return null;
-  const value = Number.parseInt(hint[1], 10);
-  if (!Number.isFinite(value) || value <= 0) return null;
-  return value * 1000;
-}
 
 function summarizePrompt(prompt: string): string {
   const compact = prompt.trim().replace(/\s+/g, " ");
@@ -267,16 +232,39 @@ function classifyEvent(event: CodexStreamEvent): ClassifiedRow {
     if (type === "system") {
       const subtype = typeof obj.subtype === "string" ? obj.subtype : "";
       if (subtype === "init") {
-        const model = typeof obj.model === "string" ? obj.model : "";
-        return model
-          ? { category: "status", text: `Claude ${model}` }
-          : { category: "status", text: "", hidden: true };
+        return { category: "status", text: "", hidden: true };
       }
       return { category: "status", text: "", hidden: true };
     }
 
     if (type === "rate_limit_event") {
       return { category: "status", text: "", hidden: true };
+    }
+
+    // Claude: permission request via --permission-prompt-tool stdio
+    if (type === "control_request") {
+      const request = obj.request as Record<string, unknown> | undefined;
+      if (request?.subtype === "can_use_tool") {
+        const toolName = typeof request.tool_name === "string" ? request.tool_name : "unknown";
+        const input = request.input as Record<string, unknown> | undefined;
+        const requestId = typeof obj.request_id === "string" ? obj.request_id : "";
+
+        let summary = toolName;
+        if (toolName === "Bash" && input?.command) {
+          summary = `Bash: ${cleanCommand(String(input.command))}`;
+        } else if ((toolName === "Edit" || toolName === "Write" || toolName === "Read") && input?.file_path) {
+          summary = `${toolName}: ${shortenPath(String(input.file_path))}`;
+        }
+
+        return {
+          category: "approval",
+          text: summary,
+          toolName,
+          toolInput: input ?? {},
+          requestId,
+          approvalState: "pending" as const,
+        };
+      }
     }
 
     // Assistant messages — thinking, tool_use, text
@@ -450,10 +438,14 @@ function formatMessage(text: string): React.ReactNode {
   return elements;
 }
 
+function handleOpenPath(path: string) {
+  void openPath(path);
+}
+
 function formatInline(text: string): React.ReactNode {
-  // Process inline: **bold**, `code`, *italic*
+  // Process inline: **bold**, `code`, *italic*, /absolute/file/paths
   const parts: React.ReactNode[] = [];
-  const regex = /(\*\*(.+?)\*\*|`([^`]+)`|\*(.+?)\*)/g;
+  const regex = /(\*\*(.+?)\*\*|`([^`]+)`|\*(.+?)\*|(\/[\w./-]+\.\w+))/g;
   let lastIndex = 0;
   let match;
   let key = 0;
@@ -465,9 +457,26 @@ function formatInline(text: string): React.ReactNode {
     if (match[2]) {
       parts.push(<strong key={key++}>{match[2]}</strong>);
     } else if (match[3]) {
-      parts.push(<code key={key++} className="fmt-code">{match[3]}</code>);
+      // Code blocks — also check if content is a file path
+      const code = match[3];
+      if (/^\/[\w./-]+\.\w+$/.test(code)) {
+        parts.push(
+          <code key={key++} className="fmt-code fmt-path" onClick={() => handleOpenPath(code)} title="Open file">
+            {code}
+          </code>
+        );
+      } else {
+        parts.push(<code key={key++} className="fmt-code">{code}</code>);
+      }
     } else if (match[4]) {
       parts.push(<em key={key++}>{match[4]}</em>);
+    } else if (match[5]) {
+      // Bare file path
+      parts.push(
+        <span key={key++} className="fmt-path" onClick={() => handleOpenPath(match![5])} title="Open file">
+          {match[5]}
+        </span>
+      );
     }
     lastIndex = match.index + match[0].length;
   }
@@ -491,7 +500,11 @@ function highlightText(text: string, query: string): React.ReactNode {
   );
 }
 
-function renderStreamRow(row: StreamRow, searchQuery = "") {
+function renderStreamRow(
+  row: StreamRow,
+  searchQuery = "",
+  onApproval?: (requestId: string, decision: "allow" | "deny") => void,
+) {
   if (row.hidden) return null;
 
   const hl = (text: string) => highlightText(text, searchQuery);
@@ -529,6 +542,39 @@ function renderStreamRow(row: StreamRow, searchQuery = "") {
     case "error":
       return (
         <div key={row.id} className="ev-error">{hl(row.text)}</div>
+      );
+    case "approval":
+      return (
+        <div key={row.id} className="ev-approval">
+          <div className="ev-approval-header">
+            <span className="ev-approval-icon">?</span>
+            <span className="ev-approval-text">{row.text}</span>
+          </div>
+          {row.approvalState === "pending" && onApproval && row.requestId && (
+            <div className="ev-approval-actions">
+              <button
+                type="button"
+                className="ev-approval-allow"
+                onClick={() => onApproval(row.requestId!, "allow")}
+              >
+                Allow
+              </button>
+              <button
+                type="button"
+                className="ev-approval-deny"
+                onClick={() => onApproval(row.requestId!, "deny")}
+              >
+                Deny
+              </button>
+            </div>
+          )}
+          {row.approvalState === "approved" && (
+            <span className="ev-approval-badge ev-approval-approved">Allowed</span>
+          )}
+          {row.approvalState === "denied" && (
+            <span className="ev-approval-badge ev-approval-denied">Denied</span>
+          )}
+        </div>
       );
     default:
       return null;
@@ -635,7 +681,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [splashFading, setSplashFading] = useState(false);
   const [agent, setAgent] = useState("codex");
-  const [approvalPolicy, setApprovalPolicy] = useState("never");
+  const [approvalPolicy, setApprovalPolicy] = useState("full-auto");
   const [sandboxMode, setSandboxMode] = useState("read-only");
   const [model, setModel] = useState("");
   const [colorMode, setColorMode] = useState<"light" | "dark">("light");
@@ -651,7 +697,6 @@ function App() {
   const [inFlightRuns, setInFlightRuns] = useState<Record<string, InFlightRun>>({});
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [lastUsage, setLastUsage] = useState<TurnUsage | null>(null);
 
   // Todo and panel state
   const [todos, setTodos] = useState<TodoItem[]>([]);
@@ -677,15 +722,6 @@ function App() {
   const anyRunning = Object.keys(inFlightRuns).length > 0;
   const activeInFlightRun = activeTabId ? inFlightRuns[activeTabId] ?? null : null;
   const canRun = workingDirectory.length > 0 && prompt.length > 0;
-  const displayModel = model.trim() || "default";
-  const modelType = inferModelType(displayModel);
-  const contextWindow = inferContextWindow(displayModel);
-  const remainingContext = contextWindow != null && lastUsage
-    ? Math.max(0, contextWindow - lastUsage.inputTokens)
-    : null;
-  const remainingUsage = contextWindow != null && lastUsage
-    ? Math.max(0, contextWindow - (lastUsage.inputTokens + lastUsage.outputTokens))
-    : null;
 
 
   // Load persisted state on mount
@@ -781,9 +817,6 @@ function App() {
 
       // Only process events for runs we're tracking
       if (!streamRowsMapRef.current[rid]) return;
-
-      const usage = extractTurnUsage(payload.parsedJson);
-      if (usage) setLastUsage(usage);
 
       const classified = classifyEvent(payload);
       if (classified.hidden) return;
@@ -913,6 +946,45 @@ function App() {
     // Save triggers via the effect dependency on rightPanelWidth
   }
 
+  async function handleApproval(runId: string, requestId: string, decision: "allow" | "deny") {
+    const response = JSON.stringify({
+      type: "control_response",
+      request_id: requestId,
+      permission_decision: decision === "allow"
+        ? { type: "allow", tool_name: "", updated_input: null }
+        : { type: "deny", message: "User denied permission" },
+    });
+    try {
+      await writeToAgent(runId, response);
+    } catch {
+      // Process may have exited
+    }
+    // Update the approval row state
+    setInFlightRuns((prev) => {
+      const run = prev[runId];
+      if (!run) return prev;
+      return {
+        ...prev,
+        [runId]: {
+          ...run,
+          streamRows: run.streamRows.map((r) =>
+            r.requestId === requestId
+              ? { ...r, approvalState: decision === "allow" ? "approved" as const : "denied" as const }
+              : r
+          ),
+        },
+      };
+    });
+    // Also update the ref
+    if (streamRowsMapRef.current[runId]) {
+      streamRowsMapRef.current[runId] = streamRowsMapRef.current[runId].map((r) =>
+        r.requestId === requestId
+          ? { ...r, approvalState: decision === "allow" ? "approved" as const : "denied" as const }
+          : r
+      );
+    }
+  }
+
   async function handleBrowse() {
     const dir = await open({ directory: true, multiple: false });
     if (dir) setWorkingDirectory(dir as string);
@@ -929,7 +1001,6 @@ function App() {
 
     setPrompt("");
     setError(null);
-    setLastUsage(null);
 
     // Initialize per-run tracking
     streamRowsMapRef.current[runId] = [];
@@ -961,7 +1032,10 @@ function App() {
         skipGitRepoCheck,
       });
 
-      const finalStreamRows = [...(streamRowsMapRef.current[runId] || [])];
+      // Mark any remaining "running" commands as "done" — the agent exited without explicit completion events
+      const finalStreamRows = (streamRowsMapRef.current[runId] || []).map((r) =>
+        r.category === "command" && r.status === "running" ? { ...r, status: "done" as const } : r
+      );
       const wasStopped = stoppedMapRef.current[runId] || false;
       setRuns((prev) => [
         ...prev,
@@ -1285,7 +1359,11 @@ function App() {
                       <div className="chat-bubble chat-bubble-user">{activeInFlightRun.prompt}</div>
                     </div>
                     <div className="stream-events">
-                      {activeInFlightRun.streamRows.filter((r) => !r.hidden).map((r) => renderStreamRow(r, searchQuery))}
+                      {activeInFlightRun.streamRows.filter((r) => !r.hidden).map((r) =>
+                        renderStreamRow(r, searchQuery, (requestId, decision) =>
+                          handleApproval(activeInFlightRun.runId, requestId, decision)
+                        )
+                      )}
                       {activeInFlightRun.streamRows.filter((r) => !r.hidden).length === 0 && (
                         <div className="ev-thinking">
                           <span className="ev-thinking-dot" />
@@ -1349,16 +1427,53 @@ function App() {
               placeholder="Get Busy..."
             />
             <div className="composer-meta">
-              <span className="meta-label">Approval Policy: {approvalPolicy}</span>
-              <span className="meta-label">Agent: {agent === "claude" ? "Claude Code" : "Codex"}</span>
-              <span className="meta-label">Model: {displayModel}</span>
-              <span className="meta-label">Type: {modelType}</span>
-              <span className="meta-label">
-                Remaining Context: {remainingContext != null ? formatTokenCount(remainingContext) : "N/A"}
-              </span>
-              <span className="meta-label">
-                Remaining Usage: {remainingUsage != null ? formatTokenCount(remainingUsage) : "N/A"}
-              </span>
+              <select
+                className="meta-select"
+                value={agent}
+                onChange={(e) => setAgent(e.target.value)}
+              >
+                <option value="codex">Codex</option>
+                <option value="claude">Claude Code</option>
+              </select>
+              <select
+                className="meta-select"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+              >
+                {agent === "claude" ? (
+                  <>
+                    <option value="">claude-sonnet-4-6</option>
+                    <option value="claude-opus-4-6">claude-opus-4-6</option>
+                    <option value="claude-haiku-4-5">claude-haiku-4-5</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="">codex-mini</option>
+                    <option value="o3">o3</option>
+                    <option value="o4-mini">o4-mini</option>
+                  </>
+                )}
+              </select>
+              <select
+                className="meta-select"
+                value={approvalPolicy}
+                onChange={(e) => setApprovalPolicy(e.target.value)}
+              >
+                <option value="full-auto">full-auto</option>
+                <option value="unless-allow-listed">allow-listed</option>
+                <option value="never">manual</option>
+              </select>
+              {agent === "codex" && (
+                <select
+                  className="meta-select"
+                  value={sandboxMode}
+                  onChange={(e) => setSandboxMode(e.target.value)}
+                >
+                  <option value="read-only">read-only</option>
+                  <option value="workspace-write">workspace-write</option>
+                  <option value="danger-full-access">full-access</option>
+                </select>
+              )}
               {todoMode && todos.length > 0 && (
                 <span className="meta-label">Todos: {todos.filter((t) => !t.done).length} remaining</span>
               )}
@@ -1439,33 +1554,6 @@ function App() {
               <button type="button" className="settings-close" onClick={() => setSettingsOpen(false)}>✕</button>
             </div>
             <div className="settings-grid">
-              <label>
-                Agent
-                <select value={agent} onChange={(e) => setAgent(e.target.value)}>
-                  <option value="codex">Codex</option>
-                  <option value="claude">Claude Code</option>
-                </select>
-              </label>
-              <label>
-                Approval Policy
-                <select value={approvalPolicy} onChange={(e) => setApprovalPolicy(e.target.value)}>
-                  <option value="never">never</option>
-                  <option value="unless-allow-listed">unless-allow-listed</option>
-                  <option value="full-auto">full-auto</option>
-                </select>
-              </label>
-              <label>
-                Sandbox Mode
-                <select value={sandboxMode} onChange={(e) => setSandboxMode(e.target.value)}>
-                  <option value="read-only">read-only</option>
-                  <option value="workspace-write">workspace-write</option>
-                  <option value="danger-full-access">danger-full-access</option>
-                </select>
-              </label>
-              <label>
-                Model
-                <input type="text" value={model} onChange={(e) => setModel(e.target.value)} placeholder="(default)" />
-              </label>
               <label className="checkbox">
                 <input
                   type="checkbox"

@@ -4,7 +4,7 @@ use std::process::Stdio;
 use std::sync::Mutex;
 use std::time::Instant;
 use tauri::{AppHandle, Emitter};
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 
 /// Holds PIDs of running agent processes so they can be killed.
@@ -16,6 +16,19 @@ impl RunningProcesses {
     pub fn new() -> Self {
         Self {
             processes: Mutex::new(HashMap::new()),
+        }
+    }
+}
+
+/// Holds stdin writers for running processes that support interactive input.
+pub struct ProcessWriters {
+    pub writers: tokio::sync::Mutex<HashMap<String, tokio::process::ChildStdin>>,
+}
+
+impl ProcessWriters {
+    pub fn new() -> Self {
+        Self {
+            writers: tokio::sync::Mutex::new(HashMap::new()),
         }
     }
 }
@@ -40,17 +53,11 @@ fn build_agent_command(input: &CodexExecInput) -> (String, Vec<String>) {
         "claude" => {
             let mut args = vec![
                 "-p".to_string(),
-                "--continue".to_string(),
+                "--dangerously-skip-permissions".to_string(),
                 "--verbose".to_string(),
                 "--output-format".to_string(),
                 "stream-json".to_string(),
             ];
-            match input.approval_policy.as_str() {
-                "full-auto" => {
-                    args.push("--dangerously-skip-permissions".to_string());
-                }
-                _ => {}
-            }
             if let Some(ref model) = input.model {
                 if !model.is_empty() {
                     args.push("--model".to_string());
@@ -61,9 +68,16 @@ fn build_agent_command(input: &CodexExecInput) -> (String, Vec<String>) {
             ("claude".to_string(), args)
         }
         _ => {
+            // Map busydev policy names to Codex CLI values
+            let codex_policy = match input.approval_policy.as_str() {
+                "full-auto" | "interactive" => "never",
+                "unless-allow-listed" => "untrusted",
+                "never" | "manual" => "on-request",
+                _ => "never",
+            };
             let mut args = vec![
                 "-a".to_string(),
-                input.approval_policy.clone(),
+                codex_policy.to_string(),
                 "-s".to_string(),
                 input.sandbox_mode.clone(),
             ];
@@ -110,6 +124,29 @@ fn emit_stream_event(app: &AppHandle, payload: CodexStreamEvent) {
 }
 
 #[tauri::command]
+pub async fn write_to_agent(
+    writers: tauri::State<'_, ProcessWriters>,
+    run_id: String,
+    data: String,
+) -> Result<(), String> {
+    let mut map = writers.writers.lock().await;
+    let writer = map
+        .get_mut(&run_id)
+        .ok_or_else(|| format!("No stdin writer for run {run_id}"))?;
+
+    let bytes = format!("{data}\n");
+    writer
+        .write_all(bytes.as_bytes())
+        .await
+        .map_err(|e| format!("Failed to write to agent stdin: {e}"))?;
+    writer
+        .flush()
+        .await
+        .map_err(|e| format!("Failed to flush agent stdin: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn stop_codex_exec(
     state: tauri::State<'_, RunningProcesses>,
     run_id: Option<String>,
@@ -133,6 +170,7 @@ pub async fn stop_codex_exec(
 pub async fn run_codex_exec(
     app: AppHandle,
     state: tauri::State<'_, RunningProcesses>,
+    writers: tauri::State<'_, ProcessWriters>,
     input: CodexExecInput,
 ) -> Result<CodexExecOutput, String> {
     let (program, args) = build_agent_command(&input);
@@ -153,9 +191,13 @@ pub async fn run_codex_exec(
         },
     );
 
+    // TODO: MAN-138 interactive approval needs stdin piping
+    let needs_stdin = false;
+
     let mut child = Command::new(&program)
         .args(&args)
         .current_dir(&input.working_directory)
+        .stdin(if needs_stdin { Stdio::piped() } else { Stdio::null() })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -181,6 +223,13 @@ pub async fn run_codex_exec(
     // Store PID so it can be killed via stop_codex_exec
     if let Some(pid) = child.id() {
         state.processes.lock().unwrap().insert(run_id.clone(), pid);
+    }
+
+    // Store stdin writer for interactive approval
+    if needs_stdin {
+        if let Some(stdin) = child.stdin.take() {
+            writers.writers.lock().await.insert(run_id.clone(), stdin);
+        }
     }
 
     let stdout = child
@@ -297,6 +346,7 @@ pub async fn run_codex_exec(
         .await
         .map_err(|e| format!("Failed waiting for process: {e}"))?;
     state.processes.lock().unwrap().remove(&run_id);
+    writers.writers.lock().await.remove(&run_id);
     let exit_code = status.code();
     let duration_ms = start.elapsed().as_millis() as u64;
 
