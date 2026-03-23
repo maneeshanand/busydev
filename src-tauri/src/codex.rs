@@ -59,15 +59,16 @@ fn build_agent_command(input: &CodexExecInput) -> (String, Vec<String>) {
                 "stream-json".to_string(),
             ];
             match input.approval_policy.as_str() {
-                "full-auto" => {
-                    args.push("--dangerously-skip-permissions".to_string());
-                }
-                _ => {
-                    // Enable interactive permission prompts via stdin/stdout JSON
+                "interactive" => {
+                    // Interactive permission prompts via stdin/stdout JSON
                     args.push("--permission-prompt-tool".to_string());
                     args.push("stdio".to_string());
                     args.push("--input-format".to_string());
                     args.push("stream-json".to_string());
+                }
+                _ => {
+                    // Default: auto-approve everything for Claude
+                    args.push("--dangerously-skip-permissions".to_string());
                 }
             }
             if let Some(ref model) = input.model {
@@ -196,7 +197,7 @@ pub async fn run_codex_exec(
         },
     );
 
-    let needs_stdin = agent_name == "claude" && input.approval_policy != "full-auto";
+    let needs_stdin = agent_name == "claude" && input.approval_policy == "interactive";
 
     let mut child = Command::new(&program)
         .args(&args)

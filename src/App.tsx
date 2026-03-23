@@ -699,7 +699,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [splashFading, setSplashFading] = useState(false);
   const [agent, setAgent] = useState("codex");
-  const [approvalPolicy, setApprovalPolicy] = useState("never");
+  const [approvalPolicy, setApprovalPolicy] = useState("full-auto");
   const [sandboxMode, setSandboxMode] = useState("read-only");
   const [model, setModel] = useState("");
   const [colorMode, setColorMode] = useState<"light" | "dark">("light");
@@ -1556,9 +1556,10 @@ function App() {
               <label>
                 Approval Policy
                 <select value={approvalPolicy} onChange={(e) => setApprovalPolicy(e.target.value)}>
-                  <option value="never">never</option>
-                  <option value="unless-allow-listed">unless-allow-listed</option>
                   <option value="full-auto">full-auto</option>
+                  <option value="interactive">interactive (Claude only)</option>
+                  <option value="unless-allow-listed">unless-allow-listed</option>
+                  <option value="never">never</option>
                 </select>
               </label>
               <label>
