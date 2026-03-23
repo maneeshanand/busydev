@@ -34,6 +34,18 @@ fn build_agent_command(input: &CodexExecInput) -> (String, Vec<String>) {
                 "--output-format".to_string(),
                 "stream-json".to_string(),
             ];
+            // Map approval policy to Claude permission flags
+            match input.approval_policy.as_str() {
+                "full-auto" => {
+                    args.push("--allowedTools".to_string());
+                    args.push("Edit,Write,Bash,Read,Glob,Grep,WebFetch,WebSearch".to_string());
+                }
+                "unless-allow-listed" => {
+                    args.push("--allowedTools".to_string());
+                    args.push("Edit,Write,Read,Glob,Grep".to_string());
+                }
+                _ => {} // "never" — default restricted mode
+            }
             if let Some(ref model) = input.model {
                 if !model.is_empty() {
                     args.push("--model".to_string());
