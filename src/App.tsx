@@ -1407,12 +1407,13 @@ function App() {
           )}
         </div>
 
-        {terminalOpen && workingDirectory && (
-          <div className="terminal-panel">
+        {workingDirectory && (terminalOpen || terminalSessionId) && (
+          <div className="terminal-panel" style={terminalOpen ? undefined : { display: "none" }}>
             <TerminalPanel
               sessionId={terminalSessionId}
               onSessionCreated={setTerminalSessionId}
               cwd={workingDirectory}
+              visible={terminalOpen}
             />
           </div>
         )}
