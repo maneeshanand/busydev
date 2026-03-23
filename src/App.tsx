@@ -593,6 +593,8 @@ function App() {
   const [workingDirectory, setWorkingDirectory] = useState("");
   const [skipGitRepoCheck, setSkipGitRepoCheck] = useState(true);
   const [prompt, setPrompt] = useState("");
+  const [promptHistory, setPromptHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
   const [running, setRunning] = useState(false);
   const [restoredRuns, setRestoredRuns] = useState<PersistedRun[]>([]);
   const [runs, setRuns] = useState<RunEntry[]>([]);
@@ -861,6 +863,10 @@ function App() {
 
   async function handleRun(overridePrompt?: string) {
     const submittedPrompt = overridePrompt ?? prompt;
+    if (submittedPrompt.trim()) {
+      setPromptHistory((prev) => [...prev, submittedPrompt]);
+      setHistoryIndex(-1);
+    }
     const runNumber = runs.length + 1;
     const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -957,10 +963,31 @@ function App() {
   }
 
   function handlePromptKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key !== "Enter" || event.shiftKey) return;
-    event.preventDefault();
-    if (canRun) {
-      void handleRun();
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      if (canRun) void handleRun();
+      return;
+    }
+    if (event.key === "ArrowUp" && promptHistory.length > 0) {
+      // Only navigate history when cursor is at the start of the text
+      const el = event.currentTarget;
+      if (el.selectionStart !== 0 || el.selectionEnd !== 0) return;
+      event.preventDefault();
+      const newIndex = historyIndex === -1 ? promptHistory.length - 1 : Math.max(0, historyIndex - 1);
+      setHistoryIndex(newIndex);
+      setPrompt(promptHistory[newIndex]);
+      return;
+    }
+    if (event.key === "ArrowDown" && historyIndex !== -1) {
+      event.preventDefault();
+      if (historyIndex >= promptHistory.length - 1) {
+        setHistoryIndex(-1);
+        setPrompt("");
+      } else {
+        const newIndex = historyIndex + 1;
+        setHistoryIndex(newIndex);
+        setPrompt(promptHistory[newIndex]);
+      }
     }
   }
 
