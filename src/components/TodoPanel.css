@@ -109,43 +109,33 @@
   opacity: 1;
 }
 
-.todo-reorder {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
+.todo-drag-handle {
   flex-shrink: 0;
+  cursor: grab;
+  color: var(--vp-c-text-3);
+  font-size: 0.7rem;
+  line-height: 1;
   opacity: 0;
   transition: opacity 0.1s;
+  user-select: none;
 }
 
-.todo-item:hover .todo-reorder {
-  opacity: 1;
+.todo-item:hover .todo-drag-handle {
+  opacity: 0.5;
 }
 
-.todo-reorder-btn {
-  width: 14px;
-  height: 10px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--vp-c-text-3);
-  cursor: pointer;
-  font-size: 0.5rem;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 1px;
+.todo-drag-handle:hover {
+  opacity: 1 !important;
+  color: var(--vp-c-text-1);
 }
 
-.todo-reorder-btn:hover:not(:disabled) {
-  color: var(--vp-c-brand-1);
-  background: var(--vp-c-bg-mute);
+.todo-item-dragging {
+  opacity: 0.4;
 }
 
-.todo-reorder-btn:disabled {
-  opacity: 0.2;
-  cursor: default;
+.todo-item-dragover {
+  border-top: 2px solid var(--vp-c-brand-1);
+  padding-top: 4px;
 }
 
 .todo-checkbox {

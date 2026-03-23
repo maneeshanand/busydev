@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import type { TodoItem } from "../types";
 import "./TodoPanel.css";
 
@@ -116,6 +116,8 @@ export function TodoPanel({
   const [editText, setEditText] = useState("");
   const [goalInput, setGoalInput] = useState("");
   const [showGoalInput, setShowGoalInput] = useState(false);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const dragIdRef = useRef<string | null>(null);
 
   const doneCount = todos.filter((t) => t.done).length;
   const pending = todos.filter((t) => !t.done);
@@ -258,28 +260,42 @@ export function TodoPanel({
           </div>
         )}
         {todos.map((item, index) => (
-          <div key={item.id} className={`todo-item ${item.done ? "todo-item-done" : ""}`}>
-            {!readonly && onReorder && !item.done && (
-              <div className="todo-reorder">
-                <button
-                  type="button"
-                  className="todo-reorder-btn"
-                  disabled={index === 0}
-                  onClick={() => { if (index > 0) onReorder(index, index - 1); }}
-                  title="Move up"
-                >
-                  ▲
-                </button>
-                <button
-                  type="button"
-                  className="todo-reorder-btn"
-                  disabled={index >= todos.length - 1}
-                  onClick={() => { if (index < todos.length - 1) onReorder(index, index + 1); }}
-                  title="Move down"
-                >
-                  ▼
-                </button>
-              </div>
+          <div
+            key={item.id}
+            className={`todo-item ${item.done ? "todo-item-done" : ""} ${dragOverId === item.id ? "todo-item-dragover" : ""}`}
+            draggable={!readonly && !item.done}
+            onDragStart={(e) => {
+              dragIdRef.current = item.id;
+              e.dataTransfer.effectAllowed = "move";
+              (e.currentTarget as HTMLElement).classList.add("todo-item-dragging");
+            }}
+            onDragEnd={(e) => {
+              dragIdRef.current = null;
+              setDragOverId(null);
+              (e.currentTarget as HTMLElement).classList.remove("todo-item-dragging");
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              if (dragIdRef.current && dragIdRef.current !== item.id) {
+                setDragOverId(item.id);
+              }
+            }}
+            onDragLeave={() => {
+              if (dragOverId === item.id) setDragOverId(null);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOverId(null);
+              if (!dragIdRef.current || dragIdRef.current === item.id || !onReorder) return;
+              const fromIdx = todos.findIndex((t) => t.id === dragIdRef.current);
+              const toIdx = index;
+              if (fromIdx !== -1 && toIdx !== -1) onReorder(fromIdx, toIdx);
+              dragIdRef.current = null;
+            }}
+          >
+            {!readonly && !item.done && (
+              <span className="todo-drag-handle" title="Drag to reorder">⠿</span>
             )}
             {!readonly && (
               <input
