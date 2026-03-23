@@ -54,3 +54,25 @@ export interface TodoItem {
   createdAt: number;
   completedAt?: number;
 }
+
+export interface Session {
+  id: string;
+  projectId: string;
+  name: string;
+  createdAt: number;
+  runs: PersistedRun[];
+  todos: TodoItem[];
+  agent?: string;
+  model?: string;
+  approvalPolicy?: string;
+  sandboxMode?: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  path: string;
+  createdAt: number;
+  sessions: Session[];
+  activeSessionId: string | null;
+}
