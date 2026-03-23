@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import type { TodoItem } from "../types";
 import "./TodoPanel.css";
 
@@ -116,8 +116,8 @@ export function TodoPanel({
   const [editText, setEditText] = useState("");
   const [goalInput, setGoalInput] = useState("");
   const [showGoalInput, setShowGoalInput] = useState(false);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
-  const dragIdRef = useRef<string | null>(null);
+  const [dragFromIndex, setDragFromIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   const doneCount = todos.filter((t) => t.done).length;
   const pending = todos.filter((t) => !t.done);
@@ -240,7 +240,7 @@ export function TodoPanel({
           </button>
         </div>
       )}
-      <div className="todo-list" onDragOver={(e) => e.preventDefault()}>
+      <div className="todo-list">
         {todos.length === 0 && onGenerateTodos && (
           <div className="todo-empty">
             <div className="todo-empty-text">What do you want to build?</div>
@@ -262,39 +262,37 @@ export function TodoPanel({
         {todos.map((item, index) => (
           <div
             key={item.id}
-            className={`todo-item ${item.done ? "todo-item-done" : ""} ${dragOverId === item.id ? "todo-item-dragover" : ""}`}
-            draggable={!readonly && !item.done}
-            onDragStart={(e) => {
-              dragIdRef.current = item.id;
-              e.dataTransfer.setData("text/plain", String(index));
-              e.dataTransfer.effectAllowed = "move";
-            }}
-            onDragEnd={() => {
-              dragIdRef.current = null;
-              setDragOverId(null);
-            }}
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.dataTransfer.dropEffect = "move";
-              if (dragIdRef.current && dragIdRef.current !== item.id) {
-                setDragOverId(item.id);
+            className={`todo-item ${item.done ? "todo-item-done" : ""} ${dragOverIndex === index ? "todo-item-dragover" : ""} ${dragFromIndex === index ? "todo-item-dragging" : ""}`}
+            onMouseEnter={() => {
+              if (dragFromIndex !== null && dragFromIndex !== index && !item.done) {
+                setDragOverIndex(index);
               }
             }}
-            onDragLeave={() => {
-              setDragOverId(null);
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setDragOverId(null);
-              const fromIdx = parseInt(e.dataTransfer.getData("text/plain"), 10);
-              if (Number.isNaN(fromIdx) || fromIdx === index || !onReorder) return;
-              onReorder(fromIdx, index);
-              dragIdRef.current = null;
+            onMouseUp={() => {
+              if (dragFromIndex !== null && dragFromIndex !== index && onReorder && !item.done) {
+                onReorder(dragFromIndex, index);
+              }
+              setDragFromIndex(null);
+              setDragOverIndex(null);
             }}
           >
             {!readonly && !item.done && (
-              <span className="todo-drag-handle" title="Drag to reorder">⠿</span>
+              <span
+                className="todo-drag-handle"
+                title="Drag to reorder"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setDragFromIndex(index);
+                  const handleUp = () => {
+                    setDragFromIndex(null);
+                    setDragOverIndex(null);
+                    window.removeEventListener("mouseup", handleUp);
+                  };
+                  window.addEventListener("mouseup", handleUp);
+                }}
+              >
+                ⠿
+              </span>
             )}
             {!readonly && (
               <input
