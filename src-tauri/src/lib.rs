@@ -9,6 +9,7 @@ pub fn run() {
         .manage(terminal::TerminalManager::new())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             codex::run_codex_exec,
             codex::stop_codex_exec,

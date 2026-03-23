@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
+import { openPath } from "@tauri-apps/plugin-opener";
 import { load as loadStore } from "@tauri-apps/plugin-store";
 import {
   CODEX_STREAM_EVENT,
@@ -437,10 +438,14 @@ function formatMessage(text: string): React.ReactNode {
   return elements;
 }
 
+function handleOpenPath(path: string) {
+  void openPath(path);
+}
+
 function formatInline(text: string): React.ReactNode {
-  // Process inline: **bold**, `code`, *italic*
+  // Process inline: **bold**, `code`, *italic*, /absolute/file/paths
   const parts: React.ReactNode[] = [];
-  const regex = /(\*\*(.+?)\*\*|`([^`]+)`|\*(.+?)\*)/g;
+  const regex = /(\*\*(.+?)\*\*|`([^`]+)`|\*(.+?)\*|(\/[\w./-]+\.\w+))/g;
   let lastIndex = 0;
   let match;
   let key = 0;
@@ -452,9 +457,26 @@ function formatInline(text: string): React.ReactNode {
     if (match[2]) {
       parts.push(<strong key={key++}>{match[2]}</strong>);
     } else if (match[3]) {
-      parts.push(<code key={key++} className="fmt-code">{match[3]}</code>);
+      // Code blocks — also check if content is a file path
+      const code = match[3];
+      if (/^\/[\w./-]+\.\w+$/.test(code)) {
+        parts.push(
+          <code key={key++} className="fmt-code fmt-path" onClick={() => handleOpenPath(code)} title="Open file">
+            {code}
+          </code>
+        );
+      } else {
+        parts.push(<code key={key++} className="fmt-code">{code}</code>);
+      }
     } else if (match[4]) {
       parts.push(<em key={key++}>{match[4]}</em>);
+    } else if (match[5]) {
+      // Bare file path
+      parts.push(
+        <span key={key++} className="fmt-path" onClick={() => handleOpenPath(match![5])} title="Open file">
+          {match[5]}
+        </span>
+      );
     }
     lastIndex = match.index + match[0].length;
   }

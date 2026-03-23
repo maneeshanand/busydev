@@ -680,6 +680,18 @@ body.body-dark .search-highlight {
   padding: 1px 4px;
 }
 
+.fmt-path {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--vp-c-brand-3);
+  text-underline-offset: 2px;
+  color: var(--vp-c-brand-1);
+}
+
+.fmt-path:hover {
+  text-decoration-color: var(--vp-c-brand-1);
+}
+
 .fmt-bullet {
   display: flex;
   align-items: baseline;
