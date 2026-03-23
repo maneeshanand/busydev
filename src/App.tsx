@@ -668,7 +668,7 @@ function parseTodoAdditions(output: CodexExecOutput): string[] {
   return newTodos;
 }
 
-function SessionTabs({ sessions, activeSessionId, sessionRunCounts, projectId, onSelect, onNew, onRename }: {
+function SessionTabs({ sessions, activeSessionId, sessionRunCounts, projectId, onSelect, onNew, onRename, onDelete }: {
   sessions: Session[];
   activeSessionId: string | null;
   sessionRunCounts: Record<string, number>;
@@ -676,43 +676,81 @@ function SessionTabs({ sessions, activeSessionId, sessionRunCounts, projectId, o
   onSelect: (id: string) => void;
   onNew: () => void;
   onRename: (id: string, name: string) => void;
+  onDelete: (id: string) => void;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const sessionToDelete = confirmDeleteId ? sessions.find((s) => s.id === confirmDeleteId) : null;
 
   return (
-    <div className="session-bar">
-      {sessions.map((s) => (
-        editingId === s.id ? (
-          <input
-            key={s.id}
-            className="session-tab-edit"
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-            onBlur={() => { onRename(s.id, editName); setEditingId(null); }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") { onRename(s.id, editName); setEditingId(null); }
-              if (e.key === "Escape") setEditingId(null);
-            }}
-            autoFocus
-          />
-        ) : (
-          <button
-            key={s.id}
-            type="button"
-            className={`session-tab ${s.id === activeSessionId ? "session-tab-active" : ""}`}
-            onClick={() => onSelect(s.id)}
-            onDoubleClick={() => { setEditingId(s.id); setEditName(s.name); }}
-          >
-            {s.name}
-            {(sessionRunCounts[`${projectId}:${s.id}`] ?? 0) > 0 && (
-              <span className="session-tab-spinner" />
-            )}
-          </button>
-        )
-      ))}
-      <button type="button" className="session-tab-add" onClick={onNew}>+</button>
-    </div>
+    <>
+      <div className="session-bar">
+        {sessions.map((s) => (
+          editingId === s.id ? (
+            <input
+              key={s.id}
+              className="session-tab-edit"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              onBlur={() => { onRename(s.id, editName); setEditingId(null); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { onRename(s.id, editName); setEditingId(null); }
+                if (e.key === "Escape") setEditingId(null);
+              }}
+              autoFocus
+            />
+          ) : (
+            <div key={s.id} className={`session-tab ${s.id === activeSessionId ? "session-tab-active" : ""}`}>
+              <span
+                className="session-tab-label"
+                onClick={() => onSelect(s.id)}
+                onDoubleClick={() => { setEditingId(s.id); setEditName(s.name); }}
+              >
+                {s.name}
+              </span>
+              {(sessionRunCounts[`${projectId}:${s.id}`] ?? 0) > 0 && (
+                <span className="session-tab-spinner" />
+              )}
+              {sessions.length > 1 && (
+                <button
+                  type="button"
+                  className="session-tab-close"
+                  onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(s.id); }}
+                  title="Close session"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          )
+        ))}
+        <button type="button" className="session-tab-add" onClick={onNew}>+</button>
+      </div>
+
+      {confirmDeleteId && sessionToDelete && (
+        <div className="confirm-overlay" onClick={() => setConfirmDeleteId(null)}>
+          <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="confirm-title">Delete "{sessionToDelete.name}"?</div>
+            <div className="confirm-body">
+              This will permanently delete {sessionToDelete.runs.length} run{sessionToDelete.runs.length !== 1 ? "s" : ""} and {sessionToDelete.todos.length} todo{sessionToDelete.todos.length !== 1 ? "s" : ""} in this session. This cannot be undone.
+            </div>
+            <div className="confirm-actions">
+              <button type="button" className="confirm-cancel" onClick={() => setConfirmDeleteId(null)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="confirm-delete"
+                onClick={() => { onDelete(confirmDeleteId); setConfirmDeleteId(null); }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1219,6 +1257,24 @@ function App() {
     loadSession(session);
   }
 
+  function handleDeleteSession(sessionId: string) {
+    if (!activeProjectId) return;
+    setProjects((prev) => prev.map((p) => {
+      if (p.id !== activeProjectId) return p;
+      const remaining = p.sessions.filter((s) => s.id !== sessionId);
+      if (remaining.length === 0) return p; // Don't delete last session
+      const newActiveId = p.activeSessionId === sessionId ? remaining[0].id : p.activeSessionId;
+      return { ...p, sessions: remaining, activeSessionId: newActiveId };
+    }));
+    // If we deleted the active session, load another
+    if (activeProject?.activeSessionId === sessionId) {
+      const remaining = activeProject.sessions.filter((s) => s.id !== sessionId);
+      if (remaining.length > 0) {
+        loadSession(remaining[0]);
+      }
+    }
+  }
+
   function handleRenameSession(sessionId: string, name: string) {
     if (!activeProjectId || !name.trim()) return;
     setProjects((prev) => prev.map((p) => {
@@ -1587,6 +1643,7 @@ function App() {
             onSelect={(sid) => switchSession(activeProject.id, sid)}
             onNew={handleNewSession}
             onRename={handleRenameSession}
+            onDelete={handleDeleteSession}
           />
         )}
 

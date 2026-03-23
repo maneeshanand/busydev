@@ -291,6 +291,112 @@ button:disabled {
   animation: runSpinner 0.7s linear infinite;
 }
 
+.session-tab-label {
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-tab-close {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.7rem;
+  border-radius: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.session-tab:hover .session-tab-close {
+  opacity: 0.5;
+}
+
+.session-tab-close:hover {
+  opacity: 1 !important;
+  color: var(--ev-error-accent);
+}
+
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.confirm-modal {
+  width: min(380px, calc(100vw - 32px));
+  border-radius: 4px;
+  border: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg);
+  box-shadow: var(--vp-shadow);
+  padding: 16px;
+}
+
+.confirm-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--vp-c-text-1);
+  margin-bottom: 8px;
+}
+
+.confirm-body {
+  font-size: 0.8rem;
+  color: var(--vp-c-text-2);
+  line-height: 1.5;
+  margin-bottom: 14px;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.confirm-cancel {
+  padding: 5px 12px;
+  font-size: 0.76rem;
+  border-radius: 3px;
+  border: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-2);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.confirm-cancel:hover {
+  border-color: var(--vp-c-brand-3);
+  color: var(--vp-c-text-1);
+}
+
+.confirm-delete {
+  padding: 5px 12px;
+  font-size: 0.76rem;
+  border-radius: 3px;
+  border: 1px solid var(--ev-error-accent);
+  background: var(--ev-error-accent);
+  color: #fff;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 500;
+}
+
+.confirm-delete:hover {
+  opacity: 0.85;
+  color: #fff;
+}
+
 .session-tab-edit {
   padding: 4px 8px;
   font-size: 0.72rem;
