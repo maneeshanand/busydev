@@ -34,8 +34,16 @@ jobs:
         run: npm run build
 
   rust-check:
-    name: Rust (macOS ARM)
-    runs-on: macos-latest
+    name: Rust (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            name: macOS ARM
+          - os: macos-13
+            name: macOS Intel
     steps:
       - name: Checkout
         uses: actions/checkout@v4
