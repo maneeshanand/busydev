@@ -1,12 +1,24 @@
 import { invoke } from "@tauri-apps/api/core";
 
+export const CODEX_STREAM_EVENT = "codex://stream";
+
 export interface CodexExecInput {
+  runId: string;
   prompt: string;
   approvalPolicy: string;
   sandboxMode: string;
   workingDirectory: string;
   model?: string;
   skipGitRepoCheck: boolean;
+}
+
+export interface CodexStreamEvent {
+  runId: string;
+  kind: "started" | "stdout" | "stderr" | "completed" | "spawn_error";
+  line?: string;
+  parsedJson?: unknown | null;
+  exitCode?: number | null;
+  durationMs?: number;
 }
 
 export interface CodexExecOutput {
@@ -19,4 +31,8 @@ export interface CodexExecOutput {
 
 export function runCodexExec(input: CodexExecInput): Promise<CodexExecOutput> {
   return invoke<CodexExecOutput>("run_codex_exec", { input });
+}
+
+export function stopCodexExec(): Promise<void> {
+  return invoke<void>("stop_codex_exec");
 }
