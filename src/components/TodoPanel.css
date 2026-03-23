@@ -63,6 +63,10 @@
   background: var(--vp-c-bg-mute);
 }
 
+.todo-header-danger:hover {
+  color: var(--ev-error-accent);
+}
+
 .panel-collapse-btn svg {
   width: 15px;
   height: 15px;

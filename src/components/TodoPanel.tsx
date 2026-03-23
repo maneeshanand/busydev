@@ -194,6 +194,16 @@ export function TodoPanel({
           {todos.length > 0 && (
             <span className="todo-progress">{doneCount}/{todos.length}</span>
           )}
+          {onSaveTodos && todos.length > 0 && (
+            <button type="button" className="panel-collapse-btn" onClick={onSaveTodos} title="Save as JSON">
+              <SaveIcon />
+            </button>
+          )}
+          {onClearTodos && todos.length > 0 && !running && (
+            <button type="button" className="panel-collapse-btn todo-header-danger" onClick={onClearTodos} title="Clear all">
+              <ClearIcon />
+            </button>
+          )}
           {onGenerateTodos && !running && (
             <button
               type="button"
@@ -329,20 +339,6 @@ export function TodoPanel({
               <span className="todo-player-status">
                 {running ? "Running..." : `${pending.length} left`}
               </span>
-            </div>
-          )}
-          {todos.length > 0 && (
-            <div className="todo-actions">
-              {onSaveTodos && (
-                <button type="button" className="todo-action-btn" onClick={onSaveTodos} title="Save as JSON">
-                  <SaveIcon /> Save
-                </button>
-              )}
-              {onClearTodos && !running && (
-                <button type="button" className="todo-action-btn todo-action-danger" onClick={onClearTodos} title="Clear all todos">
-                  <ClearIcon /> Clear
-                </button>
-              )}
             </div>
           )}
         </div>
