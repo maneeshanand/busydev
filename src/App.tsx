@@ -422,6 +422,62 @@ function classifyEvent(event: CodexStreamEvent): ClassifiedRow {
   return { category: "status", text: "", hidden: true };
 }
 
+function formatMessage(text: string): React.ReactNode {
+  // Split into lines for block-level formatting
+  const lines = text.split("\n");
+  const elements: React.ReactNode[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (i > 0) elements.push(<br key={`br-${i}`} />);
+
+    // Bullet points
+    const bulletMatch = line.match(/^(\s*)[*-]\s+(.*)/);
+    if (bulletMatch) {
+      elements.push(
+        <span key={`line-${i}`} className="fmt-bullet">
+          <span className="fmt-bullet-dot" />
+          {formatInline(bulletMatch[2])}
+        </span>
+      );
+      continue;
+    }
+
+    elements.push(<span key={`line-${i}`}>{formatInline(line)}</span>);
+  }
+
+  return elements;
+}
+
+function formatInline(text: string): React.ReactNode {
+  // Process inline: **bold**, `code`, *italic*
+  const parts: React.ReactNode[] = [];
+  const regex = /(\*\*(.+?)\*\*|`([^`]+)`|\*(.+?)\*)/g;
+  let lastIndex = 0;
+  let match;
+  let key = 0;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    if (match[2]) {
+      parts.push(<strong key={key++}>{match[2]}</strong>);
+    } else if (match[3]) {
+      parts.push(<code key={key++} className="fmt-code">{match[3]}</code>);
+    } else if (match[4]) {
+      parts.push(<em key={key++}>{match[4]}</em>);
+    }
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts.length === 0 ? text : parts;
+}
+
 function highlightText(text: string, query: string): React.ReactNode {
   if (!query || !text) return text;
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -443,7 +499,7 @@ function renderStreamRow(row: StreamRow, searchQuery = "") {
     case "message":
       return (
         <div key={row.id} className="chat-row chat-row-agent">
-          <div className={`ev-message ${row.isTodoSummary ? "ev-message-todo" : ""}`}>{hl(row.text)}</div>
+          <div className={`ev-message ${row.isTodoSummary ? "ev-message-todo" : ""}`}>{searchQuery ? hl(row.text) : formatMessage(row.text)}</div>
         </div>
       );
     case "command":
@@ -494,7 +550,7 @@ function renderPersistedRun(run: PersistedRun, debugMode: boolean, searchQuery =
         )}
 
         <div className="chat-row chat-row-agent chat-row-final">
-          <div className="ev-message ev-message-final">{hl(run.finalSummary)}</div>
+          <div className="ev-message ev-message-final">{searchQuery ? hl(run.finalSummary) : formatMessage(run.finalSummary)}</div>
         </div>
       </div>
 
@@ -1156,7 +1212,7 @@ function App() {
 
                       {showFinalSummary && (
                         <div className="chat-row chat-row-agent chat-row-final">
-                          <div className="ev-message ev-message-final">{highlightText(finalSummary, searchQuery)}</div>
+                          <div className="ev-message ev-message-final">{searchQuery ? highlightText(finalSummary, searchQuery) : formatMessage(finalSummary)}</div>
                         </div>
                       )}
                     </div>

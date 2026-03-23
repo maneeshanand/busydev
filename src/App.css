@@ -569,6 +569,35 @@ body.body-dark .search-highlight {
 
 .ev-message-final {
   border-color: var(--vp-c-brand-3);
+  border-left: 3px solid var(--vp-c-brand-1);
+  background: color-mix(in srgb, var(--vp-c-brand-1) 4%, var(--vp-c-bg-soft));
+  max-width: 100%;
+  font-size: 0.86rem;
+  line-height: 1.6;
+}
+
+.fmt-code {
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.82em;
+  background: var(--vp-c-bg-mute);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 2px;
+  padding: 1px 4px;
+}
+
+.fmt-bullet {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.fmt-bullet-dot {
+  flex-shrink: 0;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--vp-c-text-3);
+  margin-top: 0.55em;
 }
 
 .ev-message-todo {
