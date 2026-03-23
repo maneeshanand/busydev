@@ -187,12 +187,6 @@ function extractLastAgentMessage(parsedJson: unknown): string | null {
       }
     }
 
-    // Claude: type === "result" with result field
-    if (obj.type === "result" && typeof obj.result === "string") {
-      const text = obj.result.trim();
-      if (text) lastMessage = text;
-    }
-
     // Claude: type === "assistant" with text content blocks
     if (obj.type === "assistant") {
       const message = obj.message as Record<string, unknown> | undefined;
@@ -1145,8 +1139,8 @@ function App() {
               {runs.map((run) => {
                 const finalSummary = buildFinalSummary(run);
                 const visibleRows = run.streamRows.filter((r) => !r.hidden);
-                const lastVisibleText = visibleRows.length > 0 ? visibleRows[visibleRows.length - 1].text : "";
-                const showFinalSummary = finalSummary !== lastVisibleText;
+                const showFinalSummary = finalSummary !== "" &&
+                  !visibleRows.some((r) => r.category === "message" && r.text === finalSummary);
                 return (
                   <div key={run.id} className="output-section">
                     <div className="chat-thread">
