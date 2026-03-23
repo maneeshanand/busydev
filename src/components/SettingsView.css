@@ -1,0 +1,191 @@
+.settings-page-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: color-mix(in srgb, var(--vp-c-bg) 72%, transparent);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 20px;
+}
+
+.settings-page {
+  width: min(1400px, 100%);
+  height: 100%;
+  background: var(--vp-c-bg);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 10px;
+  box-shadow: var(--vp-shadow);
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 240px 1fr;
+}
+
+.settings-rail {
+  border-right: 1px solid var(--vp-c-divider);
+  background: color-mix(in srgb, var(--vp-c-bg-soft) 80%, var(--vp-c-bg));
+  padding: 20px 14px;
+}
+
+.settings-rail-title {
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vp-c-text-3);
+  margin-bottom: 12px;
+}
+
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-nav-item {
+  width: 100%;
+  justify-content: flex-start;
+  font-size: 0.86rem;
+  padding: 9px 12px;
+  border-radius: 10px;
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.settings-nav-item.is-active {
+  border-color: var(--vp-c-brand-3);
+  background: color-mix(in srgb, var(--vp-c-brand-1) 14%, var(--vp-c-bg-soft));
+  color: var(--vp-c-text-1);
+}
+
+.settings-main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.settings-main-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--vp-c-divider);
+  padding: 18px 22px;
+  background: color-mix(in srgb, var(--vp-c-bg-soft) 54%, transparent);
+}
+
+.settings-main-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: var(--vp-c-text-1);
+}
+
+.settings-close-button {
+  width: 30px;
+  height: 30px;
+  font-size: 0.92rem;
+}
+
+.settings-section {
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow: auto;
+  align-items: flex-start;
+}
+
+.settings-helper {
+  color: var(--vp-c-text-2);
+  font-size: 0.82rem;
+  margin-bottom: 4px;
+}
+
+.settings-section label {
+  display: grid;
+  gap: 7px;
+  font-size: 0.76rem;
+  letter-spacing: 0.01em;
+  font-weight: 500;
+  color: var(--vp-c-text-2);
+  width: min(420px, 100%);
+}
+
+.settings-section input:not([type="checkbox"]):not([type="range"]),
+.settings-section select {
+  height: 42px;
+  border: 1px solid color-mix(in srgb, var(--vp-c-divider) 82%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--vp-c-bg-soft) 85%, var(--vp-c-bg));
+  color: var(--vp-c-text-1);
+  padding: 0 12px;
+  font-size: 0.84rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
+}
+
+.settings-section input:not([type="checkbox"]):not([type="range"]):hover,
+.settings-section select:hover {
+  border-color: color-mix(in srgb, var(--vp-c-brand-3) 54%, var(--vp-c-divider));
+}
+
+.settings-section input:not([type="checkbox"]):not([type="range"]):focus,
+.settings-section select:focus {
+  border-color: color-mix(in srgb, var(--vp-c-brand-1) 65%, var(--vp-c-divider));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--vp-c-brand-1) 40%, transparent),
+    0 0 0 4px color-mix(in srgb, var(--vp-c-brand-1) 18%, transparent);
+  background: color-mix(in srgb, var(--vp-c-bg-soft) 72%, var(--vp-c-bg));
+}
+
+.settings-section select {
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--vp-c-text-3) 50%),
+    linear-gradient(135deg, var(--vp-c-text-3) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% - 2px),
+    calc(100% - 13px) calc(50% - 2px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 34px;
+}
+
+.settings-section input[type="range"] {
+  padding: 0;
+  height: 26px;
+  background: transparent;
+  border: none;
+}
+
+.settings-checkbox {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--vp-c-text-1);
+}
+
+.settings-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .settings-page {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-rail {
+    border-right: none;
+    border-bottom: 1px solid var(--vp-c-divider);
+  }
+
+  .settings-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
