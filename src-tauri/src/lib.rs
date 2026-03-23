@@ -1,5 +1,7 @@
 mod codex;
+mod settings;
 mod terminal;
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -7,6 +9,11 @@ pub fn run() {
         .manage(codex::RunningProcesses::new())
         .manage(codex::ProcessWriters::new())
         .manage(terminal::TerminalManager::new())
+        .setup(|app| {
+            let db = settings::SettingsDb::new(app.handle())?;
+            app.manage(db);
+            Ok(())
+        })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
@@ -15,6 +22,11 @@ pub fn run() {
             codex::run_codex_exec,
             codex::stop_codex_exec,
             codex::write_to_agent,
+            settings::get_settings,
+            settings::save_settings,
+            settings::reset_settings,
+            settings::export_settings,
+            settings::import_settings,
             terminal::create_terminal_session,
             terminal::write_terminal,
             terminal::resize_terminal,

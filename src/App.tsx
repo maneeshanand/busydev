@@ -18,7 +18,8 @@ import { ProjectNavigator } from "./components/ProjectNavigator";
 import { TodoPanel } from "./components/TodoPanel";
 import { ResizeHandle } from "./components/ResizeHandle";
 import { SettingsView, type SectionId } from "./components/SettingsView";
-import { SETTINGS_VERSION, migrateStoredSettings } from "./lib/settings";
+import { SETTINGS_VERSION, migrateStoredSettings, type StoredSettings } from "./lib/settings";
+import { getSettings, saveSettings } from "./settingsInvoke";
 // Terminal hidden — MAN-157
 // import { TerminalPanel } from "./components/Terminal";
 import { TabBar, type Tab } from "./components/TabBar";
@@ -799,6 +800,7 @@ function App() {
   const startTimeMapRef = useRef<Record<string, number>>({});
   const [elapsed, setElapsed] = useState(0);
   const storeReadyRef = useRef(false);
+  const [windowSize, setWindowSize] = useState<{ windowWidth?: number; windowHeight?: number }>({});
 
   const anyRunning = Object.keys(inFlightRuns).length > 0;
   const activeInFlightRun = activeTabId ? inFlightRuns[activeTabId] ?? null : null;
@@ -824,6 +826,29 @@ function App() {
     setSettingsOpen(true);
   }
 
+  const buildSettingsSnapshot = useCallback((): StoredSettings => ({
+    settingsVersion: SETTINGS_VERSION,
+    colorMode,
+    debugMode,
+    projects,
+    activeProjectId,
+    skipGitRepoCheck,
+    todoMode,
+    rightPanelWidth,
+    windowWidth: windowSize.windowWidth,
+    windowHeight: windowSize.windowHeight,
+  }), [
+    colorMode,
+    debugMode,
+    projects,
+    activeProjectId,
+    skipGitRepoCheck,
+    todoMode,
+    rightPanelWidth,
+    windowSize.windowWidth,
+    windowSize.windowHeight,
+  ]);
+
   // Count in-flight runs per session for spinner indicators
   const sessionRunCounts: Record<string, number> = {};
   const runningProjectIds = new Set<string>();
@@ -841,9 +866,20 @@ function App() {
   useEffect(() => {
     (async () => {
       try {
-        const store = await loadStore("session.json");
-        const saved = await store.get<unknown>("session");
-        const migrated = migrateStoredSettings(saved);
+        // Primary source: backend SQLite settings.
+        const backendSettings = await getSettings();
+        let migrated = migrateStoredSettings(backendSettings);
+
+        // Fallback path: one-time migration from legacy session.json.
+        if (!migrated) {
+          const store = await loadStore("session.json");
+          const saved = await store.get<unknown>("session");
+          migrated = migrateStoredSettings(saved);
+          if (migrated) {
+            await saveSettings(migrated);
+          }
+        }
+
         if (migrated) {
           // Restore window size
           if (migrated.windowWidth && migrated.windowHeight) {
@@ -857,10 +893,10 @@ function App() {
           setTodoMode(migrated.todoMode);
           setRightCollapsed(!migrated.todoMode);
           setRightPanelWidth(migrated.rightPanelWidth);
-
-          // Backfill migrated shape to disk so subsequent loads skip legacy handling.
-          await store.set("session", migrated);
-          await store.save();
+          setWindowSize({
+            windowWidth: migrated.windowWidth,
+            windowHeight: migrated.windowHeight,
+          });
         }
       } catch {
         // First launch or corrupted store — start fresh
@@ -873,24 +909,11 @@ function App() {
   const saveSession = useCallback(async () => {
     if (!storeReadyRef.current) return;
     try {
-      const store = await loadStore("session.json");
-      // Projects contain all session data directly — no flush needed
-      await store.set("session", {
-        settingsVersion: SETTINGS_VERSION,
-        // agent, model, approvalPolicy, sandboxMode are per-session
-        colorMode,
-        debugMode,
-        projects,
-        activeProjectId,
-        skipGitRepoCheck,
-        todoMode,
-        rightPanelWidth,
-      });
-      await store.save();
+      await saveSettings(buildSettingsSnapshot());
     } catch {
       // Silently ignore save errors
     }
-  }, [colorMode, debugMode, projects, activeProjectId, skipGitRepoCheck, todoMode, rightPanelWidth]);
+  }, [buildSettingsSnapshot]);
 
   useEffect(() => {
     void saveSession();
@@ -904,10 +927,7 @@ function App() {
       timeout = setTimeout(async () => {
         try {
           const size = await getCurrentWindow().innerSize();
-          const store = await loadStore("session.json");
-          const saved = await store.get<Record<string, unknown>>("session") ?? {};
-          await store.set("session", { ...saved, windowWidth: size.width, windowHeight: size.height });
-          await store.save();
+          setWindowSize({ windowWidth: size.width, windowHeight: size.height });
         } catch { /* ignore */ }
       }, 500);
     };
