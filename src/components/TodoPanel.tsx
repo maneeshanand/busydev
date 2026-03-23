@@ -15,7 +15,7 @@ interface TodoPanelProps {
   onCollapse: () => void;
   onRunTodos?: () => void;
   onStopTodos?: () => void;
-  onGenerateTodos?: () => void;
+  onGenerateTodos?: (goal: string) => void;
 }
 
 function PlayIcon() {
@@ -78,9 +78,29 @@ export function TodoPanel({
   const [newText, setNewText] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
+  const [goalInput, setGoalInput] = useState("");
+  const [showGoalInput, setShowGoalInput] = useState(false);
 
   const doneCount = todos.filter((t) => t.done).length;
   const pending = todos.filter((t) => !t.done);
+
+  function handleGenerate() {
+    if (!goalInput.trim() || !onGenerateTodos) return;
+    onGenerateTodos(goalInput.trim());
+    setGoalInput("");
+    setShowGoalInput(false);
+  }
+
+  function handleGoalKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleGenerate();
+    }
+    if (e.key === "Escape") {
+      setShowGoalInput(false);
+      setGoalInput("");
+    }
+  }
 
   function handleAdd() {
     const trimmed = newText.trim();
@@ -144,9 +164,9 @@ export function TodoPanel({
             <button
               type="button"
               className="panel-collapse-btn"
-              onClick={onGenerateTodos}
+              onClick={() => setShowGoalInput((prev) => !prev)}
               disabled={!canRun}
-              title="Generate todos from codebase"
+              title="Break down a goal into todos"
             >
               +AI
             </button>
@@ -156,18 +176,39 @@ export function TodoPanel({
           </button>
         </div>
       </div>
+      {showGoalInput && todos.length > 0 && (
+        <div className="todo-goal-bar">
+          <input
+            type="text"
+            value={goalInput}
+            onChange={(e) => setGoalInput(e.target.value)}
+            onKeyDown={handleGoalKeyDown}
+            placeholder="Break down a goal..."
+            className="todo-goal-field"
+            autoFocus
+          />
+          <button type="button" className="todo-goal-go" onClick={handleGenerate} disabled={!goalInput.trim() || !canRun}>
+            Go
+          </button>
+        </div>
+      )}
       <div className="todo-list">
         {todos.length === 0 && onGenerateTodos && (
           <div className="todo-empty">
-            <div className="todo-empty-text">No todos yet</div>
-            <button
-              type="button"
-              className="todo-generate-button"
-              onClick={onGenerateTodos}
-              disabled={!canRun}
-            >
-              Generate from codebase
-            </button>
+            <div className="todo-empty-text">What do you want to build?</div>
+            <div className="todo-goal-input">
+              <input
+                type="text"
+                value={goalInput}
+                onChange={(e) => setGoalInput(e.target.value)}
+                onKeyDown={handleGoalKeyDown}
+                placeholder="e.g., add auth with JWT..."
+                className="todo-goal-field"
+              />
+              <button type="button" className="todo-goal-go" onClick={handleGenerate} disabled={!goalInput.trim() || !canRun}>
+                Generate
+              </button>
+            </div>
           </div>
         )}
         {todos.map((item) => (

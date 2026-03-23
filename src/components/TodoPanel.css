@@ -156,13 +156,72 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   padding: 24px 12px;
 }
 
 .todo-empty-text {
+  font-size: 0.82rem;
+  color: var(--vp-c-text-2);
+  font-weight: 500;
+}
+
+.todo-goal-input {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+
+.todo-goal-field {
+  flex: 1;
+  min-width: 0;
   font-size: 0.78rem;
+  padding: 6px 8px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 3px;
+  background: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-1);
+  font-family: inherit;
+}
+
+.todo-goal-field::placeholder {
   color: var(--vp-c-text-3);
+}
+
+.todo-goal-field:focus {
+  outline: none;
+  border-color: var(--vp-c-brand-3);
+}
+
+.todo-goal-go {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  padding: 4px 10px;
+  border-radius: 3px;
+  background: var(--vp-c-brand-1);
+  border: 1px solid var(--vp-c-brand-2);
+  color: #fff;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 500;
+}
+
+.todo-goal-go:hover:not(:disabled) {
+  background: var(--vp-c-brand-2);
+  color: #fff;
+}
+
+.todo-goal-go:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.todo-goal-bar {
+  display: flex;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--vp-c-divider);
+  flex-shrink: 0;
 }
 
 .todo-generate-button {

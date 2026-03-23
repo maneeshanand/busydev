@@ -1571,8 +1571,8 @@ function App() {
               void handleRun("Work through my remaining todos");
             }}
             onStopTodos={handleStop}
-            onGenerateTodos={() => {
-              void handleRun("Look at the codebase and generate a practical todo list of things that need to be done. Use ADD_TODO: for each item.");
+            onGenerateTodos={(goal) => {
+              void handleRun(`Break down this goal into a practical, ordered todo list. Each item should be a concrete, actionable step a developer can complete in one sitting. Use ADD_TODO: for each item.\n\nGoal: ${goal}`);
             }}
           />
         </div>
