@@ -12,6 +12,7 @@ import {
 import type { StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem } from "./types";
 import { TodoPanel } from "./components/TodoPanel";
 import { ResizeHandle } from "./components/ResizeHandle";
+import { TerminalPanel } from "./components/Terminal";
 
 function SunIcon() {
   return (
@@ -69,6 +70,16 @@ function GearIcon() {
         strokeLinejoin="round"
       />
       <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  );
+}
+
+function TerminalIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M7 9l3 3-3 3" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      <line x1="13" y1="15" x2="17" y2="15" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
     </svg>
   );
 }
@@ -479,6 +490,8 @@ function App() {
   const [todoMode, setTodoMode] = useState(false);
   const [rightPanelWidth, setRightPanelWidth] = useState(280);
   const [rightCollapsed, setRightCollapsed] = useState(true);
+  const [terminalOpen, setTerminalOpen] = useState(false);
+  const [terminalSessionId, setTerminalSessionId] = useState<string | null>(null);
 
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -878,6 +891,14 @@ function App() {
           <div className="header-controls">
             <button
               type="button"
+              className={`todo-toggle ${terminalOpen ? "is-active" : ""}`}
+              onClick={() => setTerminalOpen((prev) => !prev)}
+              title={terminalOpen ? "Hide terminal" : "Show terminal"}
+            >
+              <TerminalIcon />
+            </button>
+            <button
+              type="button"
               className={`todo-toggle ${todoMode ? "is-active" : ""}`}
               onClick={() => {
                 setTodoMode((prev) => !prev);
@@ -1063,6 +1084,16 @@ function App() {
             </button>
           )}
         </div>
+
+        {terminalOpen && workingDirectory && (
+          <div className="terminal-panel">
+            <TerminalPanel
+              sessionId={terminalSessionId}
+              onSessionCreated={setTerminalSessionId}
+              cwd={workingDirectory}
+            />
+          </div>
+        )}
 
         <div className="bottom-panel">
           <div className="prompt-section">
