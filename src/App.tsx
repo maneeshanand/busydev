@@ -1324,12 +1324,22 @@ function App() {
     }));
     setActiveTabId(runId);
 
-    const effectivePrompt = todoMode && todos.length > 0
+    // Build session context from recent runs
+    const recentRuns = sessionRuns.slice(-5);
+    let sessionContext = "";
+    if (recentRuns.length > 0) {
+      const history = recentRuns.map((r, i) => {
+        const summary = r.finalSummary?.slice(0, 150) || "(no summary)";
+        return `${i + 1}. Prompt: "${r.prompt.slice(0, 100)}"\n   Result: ${summary}`;
+      }).join("\n");
+      sessionContext = `## Session History (last ${recentRuns.length} runs)\n\n${history}\n\n---\n\n`;
+    }
+
+    const basePrompt = todoMode && todos.length > 0
       ? buildTodoPrompt(submittedPrompt, todos)
       : submittedPrompt;
 
-    // Collect prompts from previous completed runs for session context
-    const previousPrompts = sessionRuns.map((r: PersistedRun) => r.prompt);
+    const effectivePrompt = sessionContext + basePrompt;
 
     try {
       const out = await runCodexExec({
@@ -1341,7 +1351,6 @@ function App() {
         workingDirectory,
         model: model || undefined,
         skipGitRepoCheck,
-        previousPrompts: previousPrompts.length > 0 ? previousPrompts.slice(-10) : undefined,
       });
 
       // Mark any remaining "running" commands as "done" — the agent exited without explicit completion events
