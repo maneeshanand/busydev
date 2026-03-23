@@ -13,12 +13,66 @@ pub struct RunningProcess(pub Mutex<Option<u32>>);
 #[serde(rename_all = "camelCase")]
 pub struct CodexExecInput {
     pub run_id: String,
+    pub agent: Option<String>, // "codex" (default) or "claude"
     pub prompt: String,
     pub approval_policy: String,
     pub sandbox_mode: String,
     pub working_directory: String,
     pub model: Option<String>,
     pub skip_git_repo_check: bool,
+}
+
+fn build_agent_command(input: &CodexExecInput) -> (String, Vec<String>) {
+    let agent = input.agent.as_deref().unwrap_or("codex");
+
+    match agent {
+        "claude" => {
+            let mut args = vec![
+                "-p".to_string(),
+                "--continue".to_string(),
+                "--verbose".to_string(),
+                "--output-format".to_string(),
+                "stream-json".to_string(),
+            ];
+            // Map approval policy to Claude permission mode
+            match input.approval_policy.as_str() {
+                "full-auto" => {
+                    args.push("--dangerously-skip-permissions".to_string());
+                }
+                _ => {} // "never" / "unless-allow-listed" — default mode
+            }
+            if let Some(ref model) = input.model {
+                if !model.is_empty() {
+                    args.push("--model".to_string());
+                    args.push(model.clone());
+                }
+            }
+            args.push(input.prompt.clone());
+            ("claude".to_string(), args)
+        }
+        _ => {
+            // Default: codex
+            let mut args = vec![
+                "-a".to_string(),
+                input.approval_policy.clone(),
+                "-s".to_string(),
+                input.sandbox_mode.clone(),
+            ];
+            if let Some(ref model) = input.model {
+                if !model.is_empty() {
+                    args.push("--model".to_string());
+                    args.push(model.clone());
+                }
+            }
+            args.push("exec".to_string());
+            if input.skip_git_repo_check {
+                args.push("--skip-git-repo-check".to_string());
+            }
+            args.push("--json".to_string());
+            args.push(input.prompt.clone());
+            ("codex".to_string(), args)
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -63,28 +117,8 @@ pub async fn run_codex_exec(
     state: tauri::State<'_, RunningProcess>,
     input: CodexExecInput,
 ) -> Result<CodexExecOutput, String> {
-    let mut args: Vec<String> = vec![
-        "-a".into(),
-        input.approval_policy.clone(),
-        "-s".into(),
-        input.sandbox_mode.clone(),
-    ];
-
-    if let Some(ref model) = input.model {
-        if !model.is_empty() {
-            args.push("--model".into());
-            args.push(model.clone());
-        }
-    }
-
-    args.push("exec".into());
-
-    if input.skip_git_repo_check {
-        args.push("--skip-git-repo-check".into());
-    }
-
-    args.push("--json".into());
-    args.push(input.prompt.clone());
+    let (program, args) = build_agent_command(&input);
+    let agent_name = input.agent.as_deref().unwrap_or("codex");
 
     let start = Instant::now();
 
@@ -100,7 +134,7 @@ pub async fn run_codex_exec(
         },
     );
 
-    let mut child = Command::new("codex")
+    let mut child = Command::new(&program)
         .args(&args)
         .current_dir(&input.working_directory)
         .stdout(Stdio::piped())
@@ -112,16 +146,16 @@ pub async fn run_codex_exec(
                 CodexStreamEvent {
                     run_id: input.run_id.clone(),
                     kind: "spawn_error".into(),
-                    line: Some(format!("Failed to spawn codex: {e}")),
+                    line: Some(format!("Failed to spawn {agent_name}: {e}")),
                     parsed_json: None,
                     exit_code: None,
                     duration_ms: None,
                 },
             );
             if e.kind() == std::io::ErrorKind::NotFound {
-                "codex not found on PATH. Install it with: npm i -g @openai/codex".to_string()
+                format!("{agent_name} not found on PATH")
             } else {
-                format!("Failed to spawn codex: {e}")
+                format!("Failed to spawn {agent_name}: {e}")
             }
         })?;
 

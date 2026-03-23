@@ -176,12 +176,32 @@ function extractLastAgentMessage(parsedJson: unknown): string | null {
   for (const event of parsedJson) {
     if (!event || typeof event !== "object" || Array.isArray(event)) continue;
     const obj = event as Record<string, unknown>;
+
+    // Codex: item.type === "agent_message"
     const item = obj.item;
-    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
-    const eventItem = item as Record<string, unknown>;
-    if (eventItem.type !== "agent_message") continue;
-    const text = typeof eventItem.text === "string" ? eventItem.text.trim() : "";
-    if (text) lastMessage = text;
+    if (item && typeof item === "object" && !Array.isArray(item)) {
+      const eventItem = item as Record<string, unknown>;
+      if (eventItem.type === "agent_message") {
+        const text = typeof eventItem.text === "string" ? eventItem.text.trim() : "";
+        if (text) lastMessage = text;
+      }
+    }
+
+    // Claude: type === "assistant" with text content blocks
+    if (obj.type === "assistant") {
+      const message = obj.message as Record<string, unknown> | undefined;
+      const content = message?.content;
+      if (Array.isArray(content)) {
+        for (const block of content) {
+          if (block && typeof block === "object" && (block as Record<string, unknown>).type === "text") {
+            const text = typeof (block as Record<string, unknown>).text === "string"
+              ? ((block as Record<string, unknown>).text as string).trim()
+              : "";
+            if (text) lastMessage = text;
+          }
+        }
+      }
+    }
   }
 
   return lastMessage;
@@ -235,11 +255,99 @@ function classifyEvent(event: CodexStreamEvent): ClassifiedRow {
     return { category: "error", text };
   }
 
-  // Parse structured JSON events from codex stdout
+  // Parse structured JSON events from stdout
   const value = event.parsedJson;
   if (value && typeof value === "object" && !Array.isArray(value)) {
     const obj = value as Record<string, unknown>;
     const type = typeof obj.type === "string" ? obj.type : "";
+
+    // ── Claude Code events ──────────────────────────────────────
+    // System events (hooks, init) — hide
+    if (type === "system") {
+      const subtype = typeof obj.subtype === "string" ? obj.subtype : "";
+      if (subtype === "init") {
+        const model = typeof obj.model === "string" ? obj.model : "";
+        return model
+          ? { category: "status", text: `Claude ${model}` }
+          : { category: "status", text: "", hidden: true };
+      }
+      return { category: "status", text: "", hidden: true };
+    }
+
+    if (type === "rate_limit_event") {
+      return { category: "status", text: "", hidden: true };
+    }
+
+    // Assistant messages — thinking, tool_use, text
+    if (type === "assistant") {
+      const message = obj.message as Record<string, unknown> | undefined;
+      const content = message?.content;
+      if (Array.isArray(content) && content.length > 0) {
+        const block = content[content.length - 1] as Record<string, unknown>;
+        const blockType = typeof block.type === "string" ? block.type : "";
+
+        if (blockType === "thinking") {
+          const thinking = typeof block.thinking === "string" ? block.thinking.trim() : "";
+          if (!thinking) return { category: "status", text: "", hidden: true };
+          const display = thinking.length > 200 ? `${thinking.slice(0, 200)}...` : thinking;
+          return { category: "message", text: display };
+        }
+
+        if (blockType === "tool_use") {
+          const toolName = typeof block.name === "string" ? block.name : "tool";
+          const input = block.input as Record<string, unknown> | undefined;
+          let summary = toolName;
+          if (toolName === "Read" && input?.file_path) {
+            summary = `Read ${shortenPath(String(input.file_path))}`;
+          } else if (toolName === "Edit" && input?.file_path) {
+            summary = `Edit ${shortenPath(String(input.file_path))}`;
+          } else if (toolName === "Write" && input?.file_path) {
+            summary = `Write ${shortenPath(String(input.file_path))}`;
+          } else if (toolName === "Bash" && input?.command) {
+            summary = cleanCommand(String(input.command));
+          } else if (toolName === "Glob" && input?.pattern) {
+            summary = `Glob ${String(input.pattern)}`;
+          } else if (toolName === "Grep" && input?.pattern) {
+            summary = `Grep ${String(input.pattern)}`;
+          } else if (toolName === "WebSearch" && input?.query) {
+            summary = `Search: ${String(input.query)}`;
+          } else if (toolName === "WebFetch" && input?.url) {
+            summary = `Fetch ${String(input.url)}`;
+          }
+          return { category: "command", text: summary, command: summary, status: "running" };
+        }
+
+        if (blockType === "text") {
+          const raw = typeof block.text === "string" ? block.text.trim() : "";
+          const text = stripTodoMarkers(raw);
+          if (!text) return { category: "status", text: "", hidden: true };
+          const isTodoSummary = /working on #\d/i.test(text) || (/todo/i.test(text) && /#\d/.test(text));
+          return { category: "message", text, isTodoSummary };
+        }
+      }
+      return { category: "status", text: "", hidden: true };
+    }
+
+    // Tool results — mark the corresponding tool_use as done
+    if (type === "user") {
+      const toolResult = obj.tool_use_result as Record<string, unknown> | undefined;
+      if (toolResult) {
+        // This is a tool result — we want to merge into the running command row
+        // Return as a completed command so the listener merges it
+        return { category: "command", text: "", command: "", status: "done" };
+      }
+      return { category: "status", text: "", hidden: true };
+    }
+
+    // Final result — show cost/duration
+    if (type === "result") {
+      const cost = typeof obj.total_cost_usd === "number" ? `$${obj.total_cost_usd.toFixed(4)}` : "";
+      const turns = typeof obj.num_turns === "number" ? `${obj.num_turns} turns` : "";
+      const parts = [turns, cost].filter(Boolean).join(" · ");
+      return { category: "status", text: parts || "Done" };
+    }
+
+    // ── Codex events ────────────────────────────────────────────
     const item = obj.item && typeof obj.item === "object" && !Array.isArray(obj.item)
       ? (obj.item as Record<string, unknown>)
       : null;
@@ -259,7 +367,7 @@ function classifyEvent(event: CodexStreamEvent): ClassifiedRow {
       if (itemType === "agent_message") {
         const raw = typeof item.text === "string" ? item.text.trim() : "";
         const text = stripTodoMarkers(raw);
-        const isTodoSummary = /working on #\d/i.test(text) || /todo/i.test(text) && /#\d/.test(text);
+        const isTodoSummary = /working on #\d/i.test(text) || (/todo/i.test(text) && /#\d/.test(text));
         return { category: "message", text: text || "Thinking...", isTodoSummary };
       }
 
@@ -314,6 +422,62 @@ function classifyEvent(event: CodexStreamEvent): ClassifiedRow {
   return { category: "status", text: "", hidden: true };
 }
 
+function formatMessage(text: string): React.ReactNode {
+  // Split into lines for block-level formatting
+  const lines = text.split("\n");
+  const elements: React.ReactNode[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (i > 0) elements.push(<br key={`br-${i}`} />);
+
+    // Bullet points
+    const bulletMatch = line.match(/^(\s*)[*-]\s+(.*)/);
+    if (bulletMatch) {
+      elements.push(
+        <span key={`line-${i}`} className="fmt-bullet">
+          <span className="fmt-bullet-dot" />
+          {formatInline(bulletMatch[2])}
+        </span>
+      );
+      continue;
+    }
+
+    elements.push(<span key={`line-${i}`}>{formatInline(line)}</span>);
+  }
+
+  return elements;
+}
+
+function formatInline(text: string): React.ReactNode {
+  // Process inline: **bold**, `code`, *italic*
+  const parts: React.ReactNode[] = [];
+  const regex = /(\*\*(.+?)\*\*|`([^`]+)`|\*(.+?)\*)/g;
+  let lastIndex = 0;
+  let match;
+  let key = 0;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    if (match[2]) {
+      parts.push(<strong key={key++}>{match[2]}</strong>);
+    } else if (match[3]) {
+      parts.push(<code key={key++} className="fmt-code">{match[3]}</code>);
+    } else if (match[4]) {
+      parts.push(<em key={key++}>{match[4]}</em>);
+    }
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts.length === 0 ? text : parts;
+}
+
 function highlightText(text: string, query: string): React.ReactNode {
   if (!query || !text) return text;
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -335,7 +499,7 @@ function renderStreamRow(row: StreamRow, searchQuery = "") {
     case "message":
       return (
         <div key={row.id} className="chat-row chat-row-agent">
-          <div className={`ev-message ${row.isTodoSummary ? "ev-message-todo" : ""}`}>{hl(row.text)}</div>
+          <div className={`ev-message ${row.isTodoSummary ? "ev-message-todo" : ""}`}>{searchQuery ? hl(row.text) : formatMessage(row.text)}</div>
         </div>
       );
     case "command":
@@ -386,7 +550,7 @@ function renderPersistedRun(run: PersistedRun, debugMode: boolean, searchQuery =
         )}
 
         <div className="chat-row chat-row-agent chat-row-final">
-          <div className="ev-message ev-message-final">{hl(run.finalSummary)}</div>
+          <div className="ev-message ev-message-final">{searchQuery ? hl(run.finalSummary) : formatMessage(run.finalSummary)}</div>
         </div>
       </div>
 
@@ -469,6 +633,7 @@ function parseTodoAdditions(output: CodexExecOutput): string[] {
 function App() {
   const [loading, setLoading] = useState(true);
   const [splashFading, setSplashFading] = useState(false);
+  const [agent, setAgent] = useState("codex");
   const [approvalPolicy, setApprovalPolicy] = useState("never");
   const [sandboxMode, setSandboxMode] = useState("read-only");
   const [model, setModel] = useState("");
@@ -478,6 +643,8 @@ function App() {
   const [workingDirectory, setWorkingDirectory] = useState("");
   const [skipGitRepoCheck, setSkipGitRepoCheck] = useState(true);
   const [prompt, setPrompt] = useState("");
+  const [promptHistory, setPromptHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
   const [running, setRunning] = useState(false);
   const [restoredRuns, setRestoredRuns] = useState<PersistedRun[]>([]);
   const [runs, setRuns] = useState<RunEntry[]>([]);
@@ -525,6 +692,7 @@ function App() {
       try {
         const store = await loadStore("session.json");
         const saved = await store.get<{
+          agent?: string;
           approvalPolicy?: string;
           sandboxMode?: string;
           model?: string;
@@ -538,6 +706,7 @@ function App() {
           rightPanelWidth?: number;
         }>("session");
         if (saved) {
+          if (saved.agent) setAgent(saved.agent);
           if (saved.approvalPolicy) setApprovalPolicy(saved.approvalPolicy);
           if (saved.sandboxMode) setSandboxMode(saved.sandboxMode);
           if (saved.model != null) setModel(saved.model);
@@ -576,6 +745,7 @@ function App() {
       }));
       const allPersisted = [...restoredRuns, ...currentRunsPersisted];
       await store.set("session", {
+        agent,
         approvalPolicy,
         sandboxMode,
         model,
@@ -592,7 +762,7 @@ function App() {
     } catch {
       // Silently ignore save errors
     }
-  }, [approvalPolicy, sandboxMode, model, colorMode, debugMode, workingDirectory, skipGitRepoCheck, restoredRuns, runs, todos, todoMode, rightPanelWidth]);
+  }, [agent, approvalPolicy, sandboxMode, model, colorMode, debugMode, workingDirectory, skipGitRepoCheck, restoredRuns, runs, todos, todoMode, rightPanelWidth]);
 
   useEffect(() => {
     void saveSession();
@@ -617,15 +787,31 @@ function App() {
         (classified.status === "done" || classified.status === "failed");
 
       if (isCommandDone) {
-        const updateRow = (r: StreamRow): StreamRow =>
-          r.category === "command" && r.command === classified.command && r.status === "running"
-            ? { ...r, status: classified.status, exitCode: classified.exitCode }
-            : r;
+        // Mark matching running command as done.
+        // For Codex: match by command string. For Claude tool results (empty command): mark last running command.
+        const markDone = (rows: StreamRow[]): StreamRow[] => {
+          if (classified.command) {
+            return rows.map((r) =>
+              r.category === "command" && r.command === classified.command && r.status === "running"
+                ? { ...r, status: classified.status, exitCode: classified.exitCode }
+                : r
+            );
+          }
+          // Empty command (Claude) — find last running command from the end
+          let idx = -1;
+          for (let i = rows.length - 1; i >= 0; i--) {
+            if (rows[i].category === "command" && rows[i].status === "running") { idx = i; break; }
+          }
+          if (idx === -1) return rows;
+          return rows.map((r, i) =>
+            i === idx ? { ...r, status: classified.status ?? "done", exitCode: classified.exitCode } : r
+          );
+        };
 
-        streamRowsRef.current = streamRowsRef.current.map(updateRow);
+        streamRowsRef.current = markDone(streamRowsRef.current);
         setInFlightRun((prev) => {
           if (!prev || prev.runId !== payload.runId) return prev;
-          return { ...prev, streamRows: prev.streamRows.map(updateRow) };
+          return { ...prev, streamRows: markDone(prev.streamRows) };
         });
       } else {
         const row: StreamRow = { ...classified, id: nextStreamRowIdRef.current++ };
@@ -727,6 +913,10 @@ function App() {
 
   async function handleRun(overridePrompt?: string) {
     const submittedPrompt = overridePrompt ?? prompt;
+    if (submittedPrompt.trim()) {
+      setPromptHistory((prev) => [...prev, submittedPrompt]);
+      setHistoryIndex(-1);
+    }
     const runNumber = runs.length + 1;
     const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -755,6 +945,7 @@ function App() {
     try {
       const out = await runCodexExec({
         runId,
+        agent,
         prompt: effectivePrompt,
         approvalPolicy,
         sandboxMode,
@@ -822,10 +1013,31 @@ function App() {
   }
 
   function handlePromptKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key !== "Enter" || event.shiftKey) return;
-    event.preventDefault();
-    if (canRun) {
-      void handleRun();
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      if (canRun) void handleRun();
+      return;
+    }
+    if (event.key === "ArrowUp" && promptHistory.length > 0) {
+      // Only navigate history when cursor is at the start of the text
+      const el = event.currentTarget;
+      if (el.selectionStart !== 0 || el.selectionEnd !== 0) return;
+      event.preventDefault();
+      const newIndex = historyIndex === -1 ? promptHistory.length - 1 : Math.max(0, historyIndex - 1);
+      setHistoryIndex(newIndex);
+      setPrompt(promptHistory[newIndex]);
+      return;
+    }
+    if (event.key === "ArrowDown" && historyIndex !== -1) {
+      event.preventDefault();
+      if (historyIndex >= promptHistory.length - 1) {
+        setHistoryIndex(-1);
+        setPrompt("");
+      } else {
+        const newIndex = historyIndex + 1;
+        setHistoryIndex(newIndex);
+        setPrompt(promptHistory[newIndex]);
+      }
     }
   }
 
@@ -983,8 +1195,8 @@ function App() {
               {runs.map((run) => {
                 const finalSummary = buildFinalSummary(run);
                 const visibleRows = run.streamRows.filter((r) => !r.hidden);
-                const lastVisibleText = visibleRows.length > 0 ? visibleRows[visibleRows.length - 1].text : "";
-                const showFinalSummary = finalSummary !== lastVisibleText;
+                const showFinalSummary = finalSummary !== "" &&
+                  !visibleRows.some((r) => r.category === "message" && r.text === finalSummary);
                 return (
                   <div key={run.id} className="output-section">
                     <div className="chat-thread">
@@ -1000,7 +1212,7 @@ function App() {
 
                       {showFinalSummary && (
                         <div className="chat-row chat-row-agent chat-row-final">
-                          <div className="ev-message ev-message-final">{highlightText(finalSummary, searchQuery)}</div>
+                          <div className="ev-message ev-message-final">{searchQuery ? highlightText(finalSummary, searchQuery) : formatMessage(finalSummary)}</div>
                         </div>
                       )}
                     </div>
@@ -1106,7 +1318,7 @@ function App() {
             />
             <div className="composer-meta">
               <span className="meta-label">Approval Policy: {approvalPolicy}</span>
-              <span className="meta-label">Agent: Codex</span>
+              <span className="meta-label">Agent: {agent === "claude" ? "Claude Code" : "Codex"}</span>
               <span className="meta-label">Model: {displayModel}</span>
               <span className="meta-label">Type: {modelType}</span>
               <span className="meta-label">
@@ -1195,6 +1407,13 @@ function App() {
               <button type="button" className="settings-close" onClick={() => setSettingsOpen(false)}>✕</button>
             </div>
             <div className="settings-grid">
+              <label>
+                Agent
+                <select value={agent} onChange={(e) => setAgent(e.target.value)}>
+                  <option value="codex">Codex</option>
+                  <option value="claude">Claude Code</option>
+                </select>
+              </label>
               <label>
                 Approval Policy
                 <select value={approvalPolicy} onChange={(e) => setApprovalPolicy(e.target.value)}>
