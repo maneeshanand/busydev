@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Project, Session } from "../types";
 import "./SettingsView.css";
 
-type SectionId =
+export type SectionId =
   | "general"
   | "session"
   | "execution"
@@ -12,6 +12,7 @@ type SectionId =
 interface SettingsViewProps {
   open: boolean;
   onClose: () => void;
+  initialSection?: SectionId;
   colorMode: "light" | "dark";
   setColorMode: (mode: "light" | "dark") => void;
   debugMode: boolean;
@@ -44,6 +45,11 @@ const SECTION_LABELS: Record<SectionId, string> = {
 
 export function SettingsView(props: SettingsViewProps) {
   const [activeSection, setActiveSection] = useState<SectionId>("general");
+
+  useEffect(() => {
+    if (!props.open) return;
+    if (props.initialSection) setActiveSection(props.initialSection);
+  }, [props.open, props.initialSection]);
 
   const modelOptions = useMemo(() => {
     if (props.agent === "claude") {
@@ -216,4 +222,3 @@ export function SettingsView(props: SettingsViewProps) {
     </div>
   );
 }
-
