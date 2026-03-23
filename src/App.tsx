@@ -1572,7 +1572,16 @@ function App() {
             }}
             onStopTodos={handleStop}
             onGenerateTodos={(goal) => {
-              void handleRun(`Break down this goal into a practical, ordered todo list. Each item should be a concrete, actionable step a developer can complete in one sitting. Use ADD_TODO: for each item.\n\nGoal: ${goal}`);
+              void handleRun(`IMPORTANT: Do NOT ask questions, do NOT use skills, do NOT brainstorm. Just output a todo list immediately.
+
+Look at this codebase and break the following goal into 5-15 concrete, ordered steps. Output ONLY ADD_TODO: lines, nothing else. No explanation, no questions, no preamble.
+
+Goal: ${goal}
+
+Example output format:
+ADD_TODO: step one description
+ADD_TODO: step two description
+ADD_TODO: step three description`);
             }}
           />
         </div>
