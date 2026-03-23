@@ -9,8 +9,7 @@ import {
   type CodexExecOutput,
   type CodexStreamEvent,
 } from "./invoke";
-import type { StreamRow, RunEntry, PersistedRun, InFlightRun, Session, TodoItem } from "./types";
-import { SessionPanel } from "./components/SessionPanel";
+import type { StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem } from "./types";
 import { TodoPanel } from "./components/TodoPanel";
 import { ResizeHandle } from "./components/ResizeHandle";
 
@@ -177,13 +176,17 @@ function extractLastAgentMessage(parsedJson: unknown): string | null {
   return lastMessage;
 }
 
+function stripTodoMarkers(text: string): string {
+  return text.replace(/^DONE:\s*\d+\s*$/gm, "").replace(/^ADD_TODO:\s*.+\s*$/gm, "").trim();
+}
+
 function buildFinalSummary(run: RunEntry): string {
   if (run.stopped) {
     return "Stopped. What should I do instead?";
   }
 
   const lastAgentMessage = extractLastAgentMessage(run.output.parsedJson);
-  if (lastAgentMessage) return lastAgentMessage;
+  if (lastAgentMessage) return stripTodoMarkers(lastAgentMessage);
 
   if ((run.output.exitCode ?? 1) === 0) {
     return `You asked me to ${summarizePrompt(run.prompt)}, and I finished it.`;
@@ -243,8 +246,10 @@ function classifyEvent(event: CodexStreamEvent): ClassifiedRow {
       const itemType = typeof item.type === "string" ? item.type : "";
 
       if (itemType === "agent_message") {
-        const text = typeof item.text === "string" ? item.text.trim() : "";
-        return { category: "message", text: text || "Thinking..." };
+        const raw = typeof item.text === "string" ? item.text.trim() : "";
+        const text = stripTodoMarkers(raw);
+        const isTodoSummary = /working on #\d/i.test(text) || /todo/i.test(text) && /#\d/.test(text);
+        return { category: "message", text: text || "Thinking...", isTodoSummary };
       }
 
       if (itemType === "command_execution") {
@@ -298,21 +303,35 @@ function classifyEvent(event: CodexStreamEvent): ClassifiedRow {
   return { category: "status", text: "", hidden: true };
 }
 
-function renderStreamRow(row: StreamRow) {
+function highlightText(text: string, query: string): React.ReactNode {
+  if (!query || !text) return text;
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const parts = text.split(new RegExp(`(${escaped})`, "gi"));
+  if (parts.length === 1) return text;
+  return parts.map((part, i) =>
+    part.toLowerCase() === query.toLowerCase()
+      ? <mark key={i} className="search-highlight">{part}</mark>
+      : part
+  );
+}
+
+function renderStreamRow(row: StreamRow, searchQuery = "") {
   if (row.hidden) return null;
+
+  const hl = (text: string) => highlightText(text, searchQuery);
 
   switch (row.category) {
     case "message":
       return (
         <div key={row.id} className="chat-row chat-row-agent">
-          <div className="ev-message">{row.text}</div>
+          <div className={`ev-message ${row.isTodoSummary ? "ev-message-todo" : ""}`}>{hl(row.text)}</div>
         </div>
       );
     case "command":
       return (
         <div key={row.id} className="ev-command">
           <span className="ev-command-prefix">$</span>
-          <span className="ev-command-text">{row.command}</span>
+          <span className="ev-command-text">{hl(row.command ?? row.text)}</span>
           <span className={`ev-command-status is-${row.status}`}>
             {row.status === "running" && <span className="ev-spinner" />}
             {row.status === "done" && "done"}
@@ -324,38 +343,39 @@ function renderStreamRow(row: StreamRow) {
       return (
         <div key={row.id} className="ev-file-change">
           <span className="ev-file-label">edited</span>
-          <span className="ev-file-paths">{row.text}</span>
+          <span className="ev-file-paths">{hl(row.text)}</span>
         </div>
       );
     case "status":
       return (
-        <div key={row.id} className="ev-status">{row.text}</div>
+        <div key={row.id} className="ev-status">{hl(row.text)}</div>
       );
     case "error":
       return (
-        <div key={row.id} className="ev-error">{row.text}</div>
+        <div key={row.id} className="ev-error">{hl(row.text)}</div>
       );
     default:
       return null;
   }
 }
 
-function renderPersistedRun(run: PersistedRun, debugMode: boolean) {
+function renderPersistedRun(run: PersistedRun, debugMode: boolean, searchQuery = "") {
+  const hl = (text: string) => highlightText(text, searchQuery);
   return (
     <div key={`persisted-${run.id}`} className="output-section">
       <div className="chat-thread">
         <div className="chat-row chat-row-user">
-          <div className="chat-bubble chat-bubble-user">{run.prompt}</div>
+          <div className="chat-bubble chat-bubble-user">{hl(run.prompt)}</div>
         </div>
 
         {run.streamRows.length > 0 && (
           <div className="stream-events">
-            {run.streamRows.filter((r) => !r.hidden).map(renderStreamRow)}
+            {run.streamRows.filter((r) => !r.hidden).map((r) => renderStreamRow(r, searchQuery))}
           </div>
         )}
 
         <div className="chat-row chat-row-agent chat-row-final">
-          <div className="ev-message ev-message-final">{run.finalSummary}</div>
+          <div className="ev-message ev-message-final">{hl(run.finalSummary)}</div>
         </div>
       </div>
 
@@ -375,22 +395,32 @@ function buildTodoPrompt(userPrompt: string, todos: TodoItem[]): string {
     `${i + 1}. [${t.done ? "x" : " "}] ${t.text}`
   ).join("\n");
 
-  return `## Active Todo List
+  const pending = todos.filter((t) => !t.done);
+  const done = todos.filter((t) => t.done);
+
+  return `## Active Todo List (${done.length}/${todos.length} complete)
 
 ${todoLines}
 
-## Instructions
+## Todo Mode Instructions
 
-You have a todo list above. As you work, if you complete or make progress on any item, include a line at the END of your final message in this exact format:
+You are working in todo mode. Start your response by briefly acknowledging which todo item(s) you'll be working on from the list above (e.g., "Working on #3: fix the login bug").
 
+As you work, use these markers at the END of your final message:
+
+To mark items complete:
 DONE: <number>
-(where <number> is the item number you completed, e.g., "DONE: 3")
 
-You can mark multiple items:
+To suggest new todos:
+ADD_TODO: <description>
+
+Examples:
 DONE: 1
 DONE: 3
+ADD_TODO: write unit tests for the new auth module
+ADD_TODO: update README with setup instructions
 
-Only mark items you actually completed in this run. Do not mark items you didn't work on.
+Only mark items you actually completed. Only suggest todos that are concrete next steps.${pending.length === 0 ? "\n\nAll todos are complete! Focus on the user's prompt below." : ""}
 
 ---
 
@@ -412,6 +442,19 @@ function parseTodoCompletions(output: CodexExecOutput, todos: TodoItem[]): strin
   return completedIds;
 }
 
+function parseTodoAdditions(output: CodexExecOutput): string[] {
+  const lastMessage = extractLastAgentMessage(output.parsedJson);
+  if (!lastMessage) return [];
+
+  const newTodos: string[] = [];
+  const matches = lastMessage.matchAll(/^ADD_TODO:\s*(.+)\s*$/gm);
+  for (const m of matches) {
+    const text = m[1].trim();
+    if (text) newTodos.push(text);
+  }
+  return newTodos;
+}
+
 function App() {
   const [loading, setLoading] = useState(true);
   const [splashFading, setSplashFading] = useState(false);
@@ -425,22 +468,22 @@ function App() {
   const [skipGitRepoCheck, setSkipGitRepoCheck] = useState(true);
   const [prompt, setPrompt] = useState("");
   const [running, setRunning] = useState(false);
+  const [restoredRuns, setRestoredRuns] = useState<PersistedRun[]>([]);
   const [runs, setRuns] = useState<RunEntry[]>([]);
   const [inFlightRun, setInFlightRun] = useState<InFlightRun | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastUsage, setLastUsage] = useState<TurnUsage | null>(null);
 
-  // Session and panel state
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [activeSessionId, setActiveSessionId] = useState<string>("");
+  // Todo and panel state
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [todoMode, setTodoMode] = useState(false);
-  const [leftPanelWidth, setLeftPanelWidth] = useState(220);
   const [rightPanelWidth, setRightPanelWidth] = useState(280);
-  const [leftCollapsed, setLeftCollapsed] = useState(true);
   const [rightCollapsed, setRightCollapsed] = useState(true);
-  const [viewingSessionId, setViewingSessionId] = useState<string | null>(null);
 
+  const [showScrollDown, setShowScrollDown] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const streamPanelRef = useRef<HTMLDivElement | null>(null);
   const streamBottomRef = useRef<HTMLDivElement | null>(null);
   const activeRunIdRef = useRef<string | null>(null);
@@ -448,7 +491,6 @@ function App() {
   const nextStreamRowIdRef = useRef(1);
   const stoppedRef = useRef(false);
   const runStartTimeRef = useRef<number>(0);
-  const sessionStartedAtRef = useRef(Date.now());
   const [elapsed, setElapsed] = useState(0);
   const storeReadyRef = useRef(false);
 
@@ -463,13 +505,8 @@ function App() {
     ? Math.max(0, contextWindow - (lastUsage.inputTokens + lastUsage.outputTokens))
     : null;
 
-  // Determine if we are viewing a past session
-  const isViewingPast = viewingSessionId != null && viewingSessionId !== activeSessionId;
-  const viewingSession = isViewingPast
-    ? sessions.find((s) => s.id === viewingSessionId) ?? null
-    : null;
 
-  // Load persisted session on mount
+  // Load persisted state on mount
   useEffect(() => {
     (async () => {
       try {
@@ -482,9 +519,9 @@ function App() {
           debugMode?: boolean;
           workingDirectory?: string;
           skipGitRepoCheck?: boolean;
-          sessions?: Session[];
+          persistedRuns?: PersistedRun[];
+          todos?: TodoItem[];
           todoMode?: boolean;
-          leftPanelWidth?: number;
           rightPanelWidth?: number;
         }>("session");
         if (saved) {
@@ -495,23 +532,22 @@ function App() {
           if (saved.debugMode != null) setDebugMode(saved.debugMode);
           if (saved.workingDirectory) setWorkingDirectory(saved.workingDirectory);
           if (saved.skipGitRepoCheck != null) setSkipGitRepoCheck(saved.skipGitRepoCheck);
-          if (saved.sessions) setSessions(saved.sessions);
-          if (saved.todoMode != null) setTodoMode(saved.todoMode);
-          if (saved.leftPanelWidth) setLeftPanelWidth(saved.leftPanelWidth);
+          if (saved.persistedRuns) setRestoredRuns(saved.persistedRuns);
+          if (saved.todos) setTodos(saved.todos);
+          if (saved.todoMode != null) {
+            setTodoMode(saved.todoMode);
+            setRightCollapsed(!saved.todoMode);
+          }
           if (saved.rightPanelWidth) setRightPanelWidth(saved.rightPanelWidth);
         }
       } catch {
         // First launch or corrupted store — start fresh
       }
-
-      const newSessionId = crypto.randomUUID();
-      setActiveSessionId(newSessionId);
-      sessionStartedAtRef.current = Date.now();
       storeReadyRef.current = true;
     })();
   }, []);
 
-  // Save session whenever persisted state changes
+  // Save state whenever persisted values change
   const saveSession = useCallback(async () => {
     if (!storeReadyRef.current) return;
     try {
@@ -525,16 +561,7 @@ function App() {
         finalSummary: buildFinalSummary(r),
         stopped: r.stopped,
       }));
-      const currentSession: Session = {
-        id: activeSessionId,
-        startedAt: sessionStartedAtRef.current,
-        runs: currentRunsPersisted,
-        todos,
-      };
-      const allSessions = [
-        ...sessions.filter((s) => s.id !== activeSessionId),
-        currentSession,
-      ];
+      const allPersisted = [...restoredRuns, ...currentRunsPersisted];
       await store.set("session", {
         approvalPolicy,
         sandboxMode,
@@ -543,16 +570,16 @@ function App() {
         debugMode,
         workingDirectory,
         skipGitRepoCheck,
-        sessions: allSessions,
+        persistedRuns: allPersisted,
+        todos,
         todoMode,
-        leftPanelWidth,
         rightPanelWidth,
       });
       await store.save();
     } catch {
       // Silently ignore save errors
     }
-  }, [approvalPolicy, sandboxMode, model, colorMode, debugMode, workingDirectory, skipGitRepoCheck, sessions, runs, activeSessionId, todos, todoMode, leftPanelWidth, rightPanelWidth]);
+  }, [approvalPolicy, sandboxMode, model, colorMode, debugMode, workingDirectory, skipGitRepoCheck, restoredRuns, runs, todos, todoMode, rightPanelWidth]);
 
   useEffect(() => {
     void saveSession();
@@ -616,6 +643,18 @@ function App() {
   }, [loading, runs, inFlightRun, running, error]);
 
   useEffect(() => {
+    const panel = streamPanelRef.current;
+    if (!panel) return;
+    function handleScroll() {
+      if (!panel) return;
+      const distFromBottom = panel.scrollHeight - panel.scrollTop - panel.clientHeight;
+      setShowScrollDown(distFromBottom > 100);
+    }
+    panel.addEventListener("scroll", handleScroll);
+    return () => panel.removeEventListener("scroll", handleScroll);
+  }, [loading]);
+
+  useEffect(() => {
     const fadeTimer = setTimeout(() => setSplashFading(true), 3000);
     const removeTimer = setTimeout(() => setLoading(false), 3600);
     return () => {
@@ -660,24 +699,12 @@ function App() {
     setTodos((prev) => prev.map((t) => t.id === id ? { ...t, text } : t));
   }
 
-  // Resize handlers
-  function handleLeftResize(delta: number) {
-    setLeftPanelWidth((prev) => Math.max(180, Math.min(400, prev + delta)));
-  }
+  // Resize handler
   function handleRightResize(delta: number) {
     setRightPanelWidth((prev) => Math.max(220, Math.min(500, prev - delta)));
   }
   function handleResizeEnd() {
-    // Save triggers via the effect dependency on leftPanelWidth/rightPanelWidth
-  }
-
-  // Session selection
-  function handleSelectSession(id: string) {
-    if (id === activeSessionId) {
-      setViewingSessionId(null); // Back to live
-    } else {
-      setViewingSessionId(id);
-    }
+    // Save triggers via the effect dependency on rightPanelWidth
   }
 
   async function handleBrowse() {
@@ -685,8 +712,8 @@ function App() {
     if (dir) setWorkingDirectory(dir as string);
   }
 
-  async function handleRun() {
-    const submittedPrompt = prompt;
+  async function handleRun(overridePrompt?: string) {
+    const submittedPrompt = overridePrompt ?? prompt;
     const runNumber = runs.length + 1;
     const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -707,8 +734,6 @@ function App() {
       streamRows: [],
     });
 
-    // Clear viewing past session when starting a new run
-    setViewingSessionId(null);
 
     const effectivePrompt = todoMode && todos.length > 0
       ? buildTodoPrompt(submittedPrompt, todos)
@@ -748,6 +773,20 @@ function App() {
               : t
           ));
         }
+
+        const newTodoTexts = parseTodoAdditions(out);
+        if (newTodoTexts.length > 0) {
+          setTodos((prev) => [
+            ...prev,
+            ...newTodoTexts.map((text) => ({
+              id: crypto.randomUUID(),
+              text,
+              done: false,
+              source: "agent" as const,
+              createdAt: Date.now(),
+            })),
+          ]);
+        }
       }
     } catch (e) {
       setError(String(e));
@@ -779,8 +818,30 @@ function App() {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (!running) return;
-      if (e.key === "Escape" || (e.ctrlKey && e.key === "c")) {
+      // Cmd/Ctrl+F to toggle search
+      if ((e.metaKey || e.ctrlKey) && e.key === "f") {
+        e.preventDefault();
+        setSearchOpen((prev) => {
+          if (prev) { setSearchQuery(""); return false; }
+          setTimeout(() => searchInputRef.current?.focus(), 0);
+          return true;
+        });
+        return;
+      }
+      // Escape closes search or stops run
+      if (e.key === "Escape") {
+        if (searchOpen) {
+          setSearchOpen(false);
+          setSearchQuery("");
+          return;
+        }
+        if (running) {
+          e.preventDefault();
+          void handleStop();
+        }
+        return;
+      }
+      if (running && e.ctrlKey && e.key === "c") {
         e.preventDefault();
         void handleStop();
       }
@@ -811,26 +872,6 @@ function App() {
 
   return (
     <div className={`container theme-${colorMode}`}>
-      <div
-        className={`side-panel-left ${leftCollapsed ? "is-collapsed" : ""}`}
-        style={leftCollapsed ? undefined : { width: leftPanelWidth }}
-        onClick={() => leftCollapsed && setLeftCollapsed(false)}
-      >
-        <div className="side-panel-spacer" />
-        <div className="side-panel-content">
-          <SessionPanel
-            sessions={sessions}
-            activeSessionId={viewingSessionId ?? activeSessionId}
-            collapsed={leftCollapsed}
-            onSelectSession={handleSelectSession}
-            onCollapse={() => setLeftCollapsed(true)}
-          />
-        </div>
-      </div>
-      {!leftCollapsed && (
-        <ResizeHandle side="left" onResize={handleLeftResize} onResizeEnd={handleResizeEnd} />
-      )}
-
       <div className="main-column">
         <div className="app-header">
           <h1>busydev</h1>
@@ -882,6 +923,28 @@ function App() {
           <div className="directory-path">{workingDirectory || "No working directory selected"}</div>
         </div>
 
+        {searchOpen && (
+          <div className="search-bar">
+            <svg viewBox="0 0 24 24" aria-hidden="true" className="search-icon">
+              <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" strokeWidth="1.7" />
+              <path d="m16 16 4 4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+            </svg>
+            <input
+              ref={searchInputRef}
+              type="text"
+              className="search-input"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search agent log..."
+            />
+            {searchQuery && (
+              <button type="button" className="search-clear" onClick={() => setSearchQuery("")}>
+                ×
+              </button>
+            )}
+          </div>
+        )}
+
         <div className="stream-panel" ref={streamPanelRef}>
           {error && (
             <div className="output-section">
@@ -890,37 +953,35 @@ function App() {
             </div>
           )}
 
-          {viewingSession ? (
-            <>
-              {viewingSession.runs.length === 0 && (
-                <div className="empty-stream">This session has no runs.</div>
-              )}
-              {viewingSession.runs.map((run) => renderPersistedRun(run, debugMode))}
-            </>
-          ) : (
-            <>
-              {runs.length === 0 && !inFlightRun && (
-                <div className="empty-stream">Run results will appear here as a single scrollable thread.</div>
-              )}
+          {restoredRuns.length === 0 && runs.length === 0 && !inFlightRun && (
+            <div className="empty-stream">Run results will appear here as a single scrollable thread.</div>
+          )}
+
+          {restoredRuns.map((run) => renderPersistedRun(run, debugMode, searchQuery))}
 
               {runs.map((run) => {
                 const finalSummary = buildFinalSummary(run);
+                const visibleRows = run.streamRows.filter((r) => !r.hidden);
+                const lastVisibleText = visibleRows.length > 0 ? visibleRows[visibleRows.length - 1].text : "";
+                const showFinalSummary = finalSummary !== lastVisibleText;
                 return (
                   <div key={run.id} className="output-section">
                     <div className="chat-thread">
                       <div className="chat-row chat-row-user">
-                        <div className="chat-bubble chat-bubble-user">{run.prompt}</div>
+                        <div className="chat-bubble chat-bubble-user">{highlightText(run.prompt, searchQuery)}</div>
                       </div>
 
-                      {run.streamRows.length > 0 && (
+                      {visibleRows.length > 0 && (
                         <div className="stream-events">
-                          {run.streamRows.filter((r) => !r.hidden).map(renderStreamRow)}
+                          {visibleRows.map((r) => renderStreamRow(r, searchQuery))}
                         </div>
                       )}
 
-                      <div className="chat-row chat-row-agent chat-row-final">
-                        <div className="ev-message ev-message-final">{finalSummary}</div>
-                      </div>
+                      {showFinalSummary && (
+                        <div className="chat-row chat-row-agent chat-row-final">
+                          <div className="ev-message ev-message-final">{highlightText(finalSummary, searchQuery)}</div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="run-footer">
@@ -949,12 +1010,17 @@ function App() {
 
               {inFlightRun && (
                 <div className="output-section output-section-live">
+                  {todoMode && todos.length > 0 && (
+                    <div className="todo-mode-banner">
+                      Working through {todos.filter((t) => !t.done).length} of {todos.length} todos
+                    </div>
+                  )}
                   <div className="chat-thread">
                     <div className="chat-row chat-row-user">
                       <div className="chat-bubble chat-bubble-user">{inFlightRun.prompt}</div>
                     </div>
                     <div className="stream-events">
-                      {inFlightRun.streamRows.filter((r) => !r.hidden).map(renderStreamRow)}
+                      {inFlightRun.streamRows.filter((r) => !r.hidden).map((r) => renderStreamRow(r, searchQuery))}
                       {inFlightRun.streamRows.filter((r) => !r.hidden).length === 0 && (
                         <div className="ev-thinking">
                           <span className="ev-thinking-dot" />
@@ -983,9 +1049,19 @@ function App() {
                   </div>
                 </div>
               )}
-            </>
-          )}
           <div ref={streamBottomRef} />
+          {showScrollDown && (
+            <button
+              type="button"
+              className="scroll-to-bottom"
+              onClick={() => streamBottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })}
+              title="Jump to bottom"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          )}
         </div>
 
         <div className="bottom-panel">
@@ -1026,7 +1102,7 @@ function App() {
               ) : (
                 <button
                   type="button"
-                  onClick={handleRun}
+                  onClick={() => handleRun()}
                   disabled={!canRun}
                   className="prompt-action prompt-action-run"
                   title="Run"
@@ -1046,14 +1122,20 @@ function App() {
       <div
         className={`side-panel-right ${rightCollapsed ? "is-collapsed" : ""}`}
         style={rightCollapsed ? undefined : { width: rightPanelWidth }}
-        onClick={() => rightCollapsed && setRightCollapsed(false)}
+        onClick={() => {
+          if (rightCollapsed) {
+            setRightCollapsed(false);
+            setTodoMode(true);
+          }
+        }}
       >
         <div className="side-panel-spacer" />
         <div className="side-panel-content">
           <TodoPanel
-            todos={viewingSession ? viewingSession.todos : todos}
+            todos={todos}
             collapsed={rightCollapsed}
-            readonly={isViewingPast}
+            canRun={!running && workingDirectory.length > 0}
+            running={running}
             onAdd={handleAddTodo}
             onToggle={handleToggleTodo}
             onDelete={handleDeleteTodo}
@@ -1061,6 +1143,14 @@ function App() {
             onCollapse={() => {
               setRightCollapsed(true);
               setTodoMode(false);
+            }}
+            onRunTodos={() => {
+              if (todos.filter((t) => !t.done).length === 0) return;
+              void handleRun("Work through my remaining todos");
+            }}
+            onStopTodos={handleStop}
+            onGenerateTodos={() => {
+              void handleRun("Look at the codebase and generate a practical todo list of things that need to be done. Use ADD_TODO: for each item.");
             }}
           />
         </div>

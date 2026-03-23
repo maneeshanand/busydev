@@ -6,11 +6,33 @@ interface TodoPanelProps {
   todos: TodoItem[];
   collapsed: boolean;
   readonly?: boolean;
+  canRun?: boolean;
+  running?: boolean;
   onAdd: (text: string) => void;
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
   onEdit: (id: string, text: string) => void;
   onCollapse: () => void;
+  onRunTodos?: () => void;
+  onStopTodos?: () => void;
+  onGenerateTodos?: () => void;
+}
+
+function PlayIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M8 5.5v13l11-6.5z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function PauseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" />
+      <rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" />
+    </svg>
+  );
 }
 
 function CollapseRightIcon() {
@@ -47,12 +69,18 @@ export function TodoPanel({
   onDelete,
   onEdit,
   onCollapse,
+  onRunTodos,
+  onStopTodos,
+  onGenerateTodos,
+  canRun,
+  running,
 }: TodoPanelProps) {
   const [newText, setNewText] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
 
   const doneCount = todos.filter((t) => t.done).length;
+  const pending = todos.filter((t) => !t.done);
 
   function handleAdd() {
     const trimmed = newText.trim();
@@ -112,12 +140,36 @@ export function TodoPanel({
           {todos.length > 0 && (
             <span className="todo-progress">{doneCount}/{todos.length}</span>
           )}
+          {onGenerateTodos && !running && (
+            <button
+              type="button"
+              className="panel-collapse-btn"
+              onClick={onGenerateTodos}
+              disabled={!canRun}
+              title="Generate todos from codebase"
+            >
+              +AI
+            </button>
+          )}
           <button type="button" className="panel-collapse-btn" onClick={onCollapse} title="Collapse panel">
             <CollapseRightIcon />
           </button>
         </div>
       </div>
       <div className="todo-list">
+        {todos.length === 0 && onGenerateTodos && (
+          <div className="todo-empty">
+            <div className="todo-empty-text">No todos yet</div>
+            <button
+              type="button"
+              className="todo-generate-button"
+              onClick={onGenerateTodos}
+              disabled={!canRun}
+            >
+              Generate from codebase
+            </button>
+          </div>
+        )}
         {todos.map((item) => (
           <div key={item.id} className={`todo-item ${item.done ? "todo-item-done" : ""}`}>
             {!readonly && (
@@ -166,18 +218,42 @@ export function TodoPanel({
         ))}
       </div>
       {!readonly && (
-        <div className="todo-add">
-          <input
-            type="text"
-            value={newText}
-            onChange={(e) => setNewText(e.target.value)}
-            onKeyDown={handleAddKeyDown}
-            placeholder="Add a todo..."
-            className="todo-add-input"
-          />
-          <button type="button" onClick={handleAdd} disabled={!newText.trim()} className="todo-add-button">
-            +
-          </button>
+        <div className="todo-footer">
+          <div className="todo-add">
+            <input
+              type="text"
+              value={newText}
+              onChange={(e) => setNewText(e.target.value)}
+              onKeyDown={handleAddKeyDown}
+              placeholder="Add a todo..."
+              className="todo-add-input"
+            />
+            <button type="button" onClick={handleAdd} disabled={!newText.trim()} className="todo-add-button">
+              +
+            </button>
+          </div>
+          {pending.length > 0 && (
+            running ? (
+              <button
+                type="button"
+                className="todo-run-button todo-run-stop"
+                onClick={onStopTodos}
+              >
+                <PauseIcon />
+                Stop
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="todo-run-button"
+                onClick={onRunTodos}
+                disabled={!canRun}
+              >
+                <PlayIcon />
+                Run {pending.length} todo{pending.length !== 1 ? "s" : ""}
+              </button>
+            )
+          )}
         </div>
       )}
     </div>

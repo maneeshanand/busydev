@@ -11,6 +11,7 @@ export interface StreamRow {
   status?: "running" | "done" | "failed";
   filePaths?: string[];
   hidden?: boolean;
+  isTodoSummary?: boolean;
 }
 
 export interface RunEntry {
@@ -45,11 +46,4 @@ export interface TodoItem {
   source: "user" | "agent";
   createdAt: number;
   completedAt?: number;
-}
-
-export interface Session {
-  id: string;
-  startedAt: number;
-  runs: PersistedRun[];
-  todos: TodoItem[];
 }
