@@ -12,7 +12,9 @@
     "version:sync": "node scripts/versioning.mjs sync",
     "release:prepare": "node scripts/versioning.mjs prepare",
     "release:tag": "node scripts/versioning.mjs tag",
-    "release:cut": "node scripts/versioning.mjs cut"
+    "release:cut": "node scripts/versioning.mjs cut",
+    "docs:dev": "vitepress dev site/docs",
+    "docs:build": "vitepress build site/docs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
@@ -30,6 +32,7 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "~5.6.2",
-    "vite": "^6.0.3"
+    "vite": "^6.0.3",
+    "vitepress": "^1.6.4"
   }
 }
