@@ -1557,7 +1557,6 @@ function App() {
                 Approval Policy
                 <select value={approvalPolicy} onChange={(e) => setApprovalPolicy(e.target.value)}>
                   <option value="full-auto">full-auto</option>
-                  <option value="interactive">interactive (Claude only)</option>
                   <option value="unless-allow-listed">unless-allow-listed</option>
                   <option value="never">never</option>
                 </select>

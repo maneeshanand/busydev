@@ -58,17 +58,9 @@ fn build_agent_command(input: &CodexExecInput) -> (String, Vec<String>) {
                 "--output-format".to_string(),
                 "stream-json".to_string(),
             ];
-            match input.approval_policy.as_str() {
-                "interactive" => {
-                    // Interactive permission prompts via stdin/stdout JSON
-                    args.push("--permission-prompt-tool".to_string());
-                    args.push("stdio".to_string());
-                }
-                _ => {
-                    // Default: auto-approve everything for Claude
-                    args.push("--dangerously-skip-permissions".to_string());
-                }
-            }
+            // TODO: MAN-138 interactive approval via --permission-prompt-tool stdio
+            // needs protocol investigation. For now, always auto-approve.
+            args.push("--dangerously-skip-permissions".to_string());
             if let Some(ref model) = input.model {
                 if !model.is_empty() {
                     args.push("--model".to_string());
@@ -195,7 +187,8 @@ pub async fn run_codex_exec(
         },
     );
 
-    let needs_stdin = agent_name == "claude" && input.approval_policy == "interactive";
+    // TODO: MAN-138 interactive approval needs stdin piping
+    let needs_stdin = false;
 
     let mut child = Command::new(&program)
         .args(&args)
