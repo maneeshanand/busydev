@@ -13,6 +13,7 @@ import type { StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem } from ".
 import { TodoPanel } from "./components/TodoPanel";
 import { ResizeHandle } from "./components/ResizeHandle";
 import { TerminalPanel } from "./components/Terminal";
+import { TabBar, type Tab } from "./components/TabBar";
 
 function SunIcon() {
   return (
@@ -645,10 +646,10 @@ function App() {
   const [prompt, setPrompt] = useState("");
   const [promptHistory, setPromptHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
-  const [running, setRunning] = useState(false);
   const [restoredRuns, setRestoredRuns] = useState<PersistedRun[]>([]);
   const [runs, setRuns] = useState<RunEntry[]>([]);
-  const [inFlightRun, setInFlightRun] = useState<InFlightRun | null>(null);
+  const [inFlightRuns, setInFlightRuns] = useState<Record<string, InFlightRun>>({});
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastUsage, setLastUsage] = useState<TurnUsage | null>(null);
 
@@ -666,15 +667,16 @@ function App() {
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const streamPanelRef = useRef<HTMLDivElement | null>(null);
   const streamBottomRef = useRef<HTMLDivElement | null>(null);
-  const activeRunIdRef = useRef<string | null>(null);
-  const streamRowsRef = useRef<StreamRow[]>([]);
-  const nextStreamRowIdRef = useRef(1);
-  const stoppedRef = useRef(false);
-  const runStartTimeRef = useRef<number>(0);
+  const streamRowsMapRef = useRef<Record<string, StreamRow[]>>({});
+  const nextRowIdRef = useRef<Record<string, number>>({});
+  const stoppedMapRef = useRef<Record<string, boolean>>({});
+  const startTimeMapRef = useRef<Record<string, number>>({});
   const [elapsed, setElapsed] = useState(0);
   const storeReadyRef = useRef(false);
 
-  const canRun = !running && workingDirectory.length > 0 && prompt.length > 0;
+  const anyRunning = Object.keys(inFlightRuns).length > 0;
+  const activeInFlightRun = activeTabId ? inFlightRuns[activeTabId] ?? null : null;
+  const canRun = workingDirectory.length > 0 && prompt.length > 0;
   const displayModel = model.trim() || "default";
   const modelType = inferModelType(displayModel);
   const contextWindow = inferContextWindow(displayModel);
@@ -774,7 +776,11 @@ function App() {
 
     void listen<CodexStreamEvent>(CODEX_STREAM_EVENT, (event) => {
       const payload = event.payload;
-      if (!payload || payload.runId !== activeRunIdRef.current) return;
+      if (!payload) return;
+      const rid = payload.runId;
+
+      // Only process events for runs we're tracking
+      if (!streamRowsMapRef.current[rid]) return;
 
       const usage = extractTurnUsage(payload.parsedJson);
       if (usage) setLastUsage(usage);
@@ -782,13 +788,10 @@ function App() {
       const classified = classifyEvent(payload);
       if (classified.hidden) return;
 
-      // Merge command completion into existing running row
       const isCommandDone = classified.category === "command" &&
         (classified.status === "done" || classified.status === "failed");
 
       if (isCommandDone) {
-        // Mark matching running command as done.
-        // For Codex: match by command string. For Claude tool results (empty command): mark last running command.
         const markDone = (rows: StreamRow[]): StreamRow[] => {
           if (classified.command) {
             return rows.map((r) =>
@@ -797,7 +800,6 @@ function App() {
                 : r
             );
           }
-          // Empty command (Claude) — find last running command from the end
           let idx = -1;
           for (let i = rows.length - 1; i >= 0; i--) {
             if (rows[i].category === "command" && rows[i].status === "running") { idx = i; break; }
@@ -808,17 +810,20 @@ function App() {
           );
         };
 
-        streamRowsRef.current = markDone(streamRowsRef.current);
-        setInFlightRun((prev) => {
-          if (!prev || prev.runId !== payload.runId) return prev;
-          return { ...prev, streamRows: markDone(prev.streamRows) };
+        streamRowsMapRef.current[rid] = markDone(streamRowsMapRef.current[rid]);
+        setInFlightRuns((prev) => {
+          const run = prev[rid];
+          if (!run) return prev;
+          return { ...prev, [rid]: { ...run, streamRows: markDone(run.streamRows) } };
         });
       } else {
-        const row: StreamRow = { ...classified, id: nextStreamRowIdRef.current++ };
-        streamRowsRef.current = [...streamRowsRef.current, row];
-        setInFlightRun((prev) => {
-          if (!prev || prev.runId !== payload.runId) return prev;
-          return { ...prev, streamRows: [...prev.streamRows, row] };
+        if (!nextRowIdRef.current[rid]) nextRowIdRef.current[rid] = 1;
+        const row: StreamRow = { ...classified, id: nextRowIdRef.current[rid]++ };
+        streamRowsMapRef.current[rid] = [...(streamRowsMapRef.current[rid] || []), row];
+        setInFlightRuns((prev) => {
+          const run = prev[rid];
+          if (!run) return prev;
+          return { ...prev, [rid]: { ...run, streamRows: [...run.streamRows, row] } };
         });
       }
     }).then((fn) => {
@@ -839,7 +844,7 @@ function App() {
     requestAnimationFrame(() => {
       streamBottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
     });
-  }, [loading, runs, inFlightRun, running, error]);
+  }, [loading, runs, activeInFlightRun, anyRunning, error]);
 
   useEffect(() => {
     const panel = streamPanelRef.current;
@@ -863,12 +868,14 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!running) return;
+    if (!anyRunning || !activeTabId) return;
+    const startTime = startTimeMapRef.current[activeTabId];
+    if (!startTime) return;
     const interval = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - runStartTimeRef.current) / 10) / 100);
+      setElapsed(Math.floor((Date.now() - startTime) / 10) / 100);
     }, 10);
     return () => clearInterval(interval);
-  }, [running]);
+  }, [anyRunning, activeTabId]);
 
   useEffect(() => {
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -917,26 +924,26 @@ function App() {
       setPromptHistory((prev) => [...prev, submittedPrompt]);
       setHistoryIndex(-1);
     }
-    const runNumber = runs.length + 1;
+    const runNumber = runs.length + Object.keys(inFlightRuns).length + 1;
     const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     setPrompt("");
-    setRunning(true);
     setError(null);
     setLastUsage(null);
-    activeRunIdRef.current = runId;
-    streamRowsRef.current = [];
-    nextStreamRowIdRef.current = 1;
-    stoppedRef.current = false;
-    runStartTimeRef.current = Date.now();
-    setElapsed(0);
-    setInFlightRun({
-      id: runNumber,
-      runId,
-      prompt: submittedPrompt,
-      streamRows: [],
-    });
 
+    // Initialize per-run tracking
+    streamRowsMapRef.current[runId] = [];
+    nextRowIdRef.current[runId] = 1;
+    stoppedMapRef.current[runId] = false;
+    startTimeMapRef.current[runId] = Date.now();
+    setElapsed(0);
+
+    // Add to in-flight runs and switch to this tab
+    setInFlightRuns((prev) => ({
+      ...prev,
+      [runId]: { id: runNumber, runId, prompt: submittedPrompt, streamRows: [] },
+    }));
+    setActiveTabId(runId);
 
     const effectivePrompt = todoMode && todos.length > 0
       ? buildTodoPrompt(submittedPrompt, todos)
@@ -954,8 +961,8 @@ function App() {
         skipGitRepoCheck,
       });
 
-      const finalStreamRows = [...streamRowsRef.current];
-      const wasStopped = stoppedRef.current;
+      const finalStreamRows = [...(streamRowsMapRef.current[runId] || [])];
+      const wasStopped = stoppedMapRef.current[runId] || false;
       setRuns((prev) => [
         ...prev,
         {
@@ -995,18 +1002,26 @@ function App() {
     } catch (e) {
       setError(String(e));
     } finally {
-      setRunning(false);
-      setInFlightRun(null);
-      activeRunIdRef.current = null;
-      streamRowsRef.current = [];
+      // Clean up per-run state
+      delete streamRowsMapRef.current[runId];
+      delete nextRowIdRef.current[runId];
+      delete stoppedMapRef.current[runId];
+      delete startTimeMapRef.current[runId];
+      setInFlightRuns((prev) => {
+        const next = { ...prev };
+        delete next[runId];
+        return next;
+      });
+      // If this was the active tab, clear it
+      setActiveTabId((prev) => prev === runId ? null : prev);
     }
   }
 
   async function handleStop() {
-    if (!running) return;
-    stoppedRef.current = true;
+    if (!activeTabId) return;
+    stoppedMapRef.current[activeTabId] = true;
     try {
-      await stopCodexExec();
+      await stopCodexExec(activeTabId);
     } catch {
       // Process may have already exited
     }
@@ -1060,13 +1075,13 @@ function App() {
           setSearchQuery("");
           return;
         }
-        if (running) {
+        if (anyRunning && activeTabId) {
           e.preventDefault();
           void handleStop();
         }
         return;
       }
-      if (running && e.ctrlKey && e.key === "c") {
+      if (anyRunning && activeTabId && e.ctrlKey && e.key === "c") {
         e.preventDefault();
         void handleStop();
       }
@@ -1178,6 +1193,23 @@ function App() {
           </div>
         )}
 
+        {Object.keys(inFlightRuns).length > 0 && (
+          <TabBar
+            tabs={Object.values(inFlightRuns).map((r): Tab => ({
+              id: r.runId,
+              label: r.prompt.length > 30 ? r.prompt.slice(0, 30) + "..." : r.prompt,
+              agent,
+              running: true,
+            }))}
+            activeTabId={activeTabId}
+            onSelectTab={setActiveTabId}
+            onCloseTab={(id) => {
+              stoppedMapRef.current[id] = true;
+              void stopCodexExec(id);
+            }}
+          />
+        )}
+
         <div className="stream-panel" ref={streamPanelRef}>
           {error && (
             <div className="output-section">
@@ -1186,7 +1218,7 @@ function App() {
             </div>
           )}
 
-          {restoredRuns.length === 0 && runs.length === 0 && !inFlightRun && (
+          {restoredRuns.length === 0 && runs.length === 0 && !activeInFlightRun && (
             <div className="empty-stream">Run results will appear here as a single scrollable thread.</div>
           )}
 
@@ -1241,7 +1273,7 @@ function App() {
                 );
               })}
 
-              {inFlightRun && (
+              {activeInFlightRun && (
                 <div className="output-section output-section-live">
                   {todoMode && todos.length > 0 && (
                     <div className="todo-mode-banner">
@@ -1250,11 +1282,11 @@ function App() {
                   )}
                   <div className="chat-thread">
                     <div className="chat-row chat-row-user">
-                      <div className="chat-bubble chat-bubble-user">{inFlightRun.prompt}</div>
+                      <div className="chat-bubble chat-bubble-user">{activeInFlightRun.prompt}</div>
                     </div>
                     <div className="stream-events">
-                      {inFlightRun.streamRows.filter((r) => !r.hidden).map((r) => renderStreamRow(r, searchQuery))}
-                      {inFlightRun.streamRows.filter((r) => !r.hidden).length === 0 && (
+                      {activeInFlightRun.streamRows.filter((r) => !r.hidden).map((r) => renderStreamRow(r, searchQuery))}
+                      {activeInFlightRun.streamRows.filter((r) => !r.hidden).length === 0 && (
                         <div className="ev-thinking">
                           <span className="ev-thinking-dot" />
                           Thinking...
@@ -1266,12 +1298,12 @@ function App() {
                     <details className="raw-details">
                       <summary>Show live raw stream events</summary>
                       <pre className="stdout">
-                        {inFlightRun.streamRows.map((row) => `${row.category}: ${row.text}`).join("\n") || "(no events yet)"}
+                        {activeInFlightRun.streamRows.map((row) => `${row.category}: ${row.text}`).join("\n") || "(no events yet)"}
                       </pre>
                     </details>
                   )}
                   <div className="run-footer">
-                    {debugMode && <div>Run #{inFlightRun.id}</div>}
+                    {debugMode && <div>Run #{activeInFlightRun.id}</div>}
                     <div className="run-footer-running">
                       <span className="running-label">Running <span className="elapsed-timer">{elapsed.toFixed(2)}s</span></span>
                       <button type="button" className="stop-button" onClick={handleStop}>
@@ -1332,12 +1364,12 @@ function App() {
               )}
             </div>
             <div className="prompt-actions">
-              {running ? (
+              {activeInFlightRun ? (
                 <button
                   type="button"
                   onClick={handleStop}
                   className="prompt-action prompt-action-stop"
-                  title="Stop (Esc)"
+                  title="Stop active run (Esc)"
                   aria-label="Stop"
                 >
                   <StopIcon />
@@ -1377,8 +1409,8 @@ function App() {
           <TodoPanel
             todos={todos}
             collapsed={rightCollapsed}
-            canRun={!running && workingDirectory.length > 0}
-            running={running}
+            canRun={workingDirectory.length > 0}
+            running={anyRunning}
             onAdd={handleAddTodo}
             onToggle={handleToggleTodo}
             onDelete={handleDeleteTodo}

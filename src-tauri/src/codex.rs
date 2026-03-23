@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::process::Stdio;
 use std::sync::Mutex;
 use std::time::Instant;
@@ -6,14 +7,24 @@ use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-/// Holds the PID of the currently running codex process so it can be killed.
-pub struct RunningProcess(pub Mutex<Option<u32>>);
+/// Holds PIDs of running agent processes so they can be killed.
+pub struct RunningProcesses {
+    pub processes: Mutex<HashMap<String, u32>>, // runId -> PID
+}
+
+impl RunningProcesses {
+    pub fn new() -> Self {
+        Self {
+            processes: Mutex::new(HashMap::new()),
+        }
+    }
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CodexExecInput {
     pub run_id: String,
-    pub agent: Option<String>, // "codex" (default) or "claude"
+    pub agent: Option<String>,
     pub prompt: String,
     pub approval_policy: String,
     pub sandbox_mode: String,
@@ -34,12 +45,11 @@ fn build_agent_command(input: &CodexExecInput) -> (String, Vec<String>) {
                 "--output-format".to_string(),
                 "stream-json".to_string(),
             ];
-            // Map approval policy to Claude permission mode
             match input.approval_policy.as_str() {
                 "full-auto" => {
                     args.push("--dangerously-skip-permissions".to_string());
                 }
-                _ => {} // "never" / "unless-allow-listed" — default mode
+                _ => {}
             }
             if let Some(ref model) = input.model {
                 if !model.is_empty() {
@@ -51,7 +61,6 @@ fn build_agent_command(input: &CodexExecInput) -> (String, Vec<String>) {
             ("claude".to_string(), args)
         }
         _ => {
-            // Default: codex
             let mut args = vec![
                 "-a".to_string(),
                 input.approval_policy.clone(),
@@ -101,11 +110,20 @@ fn emit_stream_event(app: &AppHandle, payload: CodexStreamEvent) {
 }
 
 #[tauri::command]
-pub async fn stop_codex_exec(state: tauri::State<'_, RunningProcess>) -> Result<(), String> {
-    let pid = state.0.lock().unwrap().take();
-    if let Some(pid) = pid {
-        unsafe {
-            libc::kill(pid as i32, libc::SIGTERM);
+pub async fn stop_codex_exec(
+    state: tauri::State<'_, RunningProcesses>,
+    run_id: Option<String>,
+) -> Result<(), String> {
+    let mut processes = state.processes.lock().unwrap();
+    if let Some(run_id) = run_id {
+        // Stop a specific run
+        if let Some(pid) = processes.remove(&run_id) {
+            unsafe { libc::kill(pid as i32, libc::SIGTERM); }
+        }
+    } else {
+        // Stop all running processes
+        for (_, pid) in processes.drain() {
+            unsafe { libc::kill(pid as i32, libc::SIGTERM); }
         }
     }
     Ok(())
@@ -114,18 +132,19 @@ pub async fn stop_codex_exec(state: tauri::State<'_, RunningProcess>) -> Result<
 #[tauri::command]
 pub async fn run_codex_exec(
     app: AppHandle,
-    state: tauri::State<'_, RunningProcess>,
+    state: tauri::State<'_, RunningProcesses>,
     input: CodexExecInput,
 ) -> Result<CodexExecOutput, String> {
     let (program, args) = build_agent_command(&input);
     let agent_name = input.agent.as_deref().unwrap_or("codex");
+    let run_id = input.run_id.clone();
 
     let start = Instant::now();
 
     emit_stream_event(
         &app,
         CodexStreamEvent {
-            run_id: input.run_id.clone(),
+            run_id: run_id.clone(),
             kind: "started".into(),
             line: None,
             parsed_json: None,
@@ -144,7 +163,7 @@ pub async fn run_codex_exec(
             emit_stream_event(
                 &app,
                 CodexStreamEvent {
-                    run_id: input.run_id.clone(),
+                    run_id: run_id.clone(),
                     kind: "spawn_error".into(),
                     line: Some(format!("Failed to spawn {agent_name}: {e}")),
                     parsed_json: None,
@@ -161,20 +180,20 @@ pub async fn run_codex_exec(
 
     // Store PID so it can be killed via stop_codex_exec
     if let Some(pid) = child.id() {
-        *state.0.lock().unwrap() = Some(pid);
+        state.processes.lock().unwrap().insert(run_id.clone(), pid);
     }
 
     let stdout = child
         .stdout
         .take()
-        .ok_or_else(|| "Failed to capture codex stdout".to_string())?;
+        .ok_or_else(|| "Failed to capture stdout".to_string())?;
     let stderr = child
         .stderr
         .take()
-        .ok_or_else(|| "Failed to capture codex stderr".to_string())?;
+        .ok_or_else(|| "Failed to capture stderr".to_string())?;
 
     let app_stdout = app.clone();
-    let run_id_stdout = input.run_id.clone();
+    let run_id_stdout = run_id.clone();
     let stdout_task = tokio::spawn(async move {
         let mut stdout_raw = String::new();
         let mut parsed_lines: Vec<serde_json::Value> = Vec::new();
@@ -212,7 +231,7 @@ pub async fn run_codex_exec(
                         CodexStreamEvent {
                             run_id: run_id_stdout.clone(),
                             kind: "stderr".into(),
-                            line: Some(format!("Failed reading codex stdout: {err}")),
+                            line: Some(format!("Failed reading stdout: {err}")),
                             parsed_json: None,
                             exit_code: None,
                             duration_ms: None,
@@ -227,7 +246,7 @@ pub async fn run_codex_exec(
     });
 
     let app_stderr = app.clone();
-    let run_id_stderr = input.run_id.clone();
+    let run_id_stderr = run_id.clone();
     let stderr_task = tokio::spawn(async move {
         let mut stderr_raw = String::new();
         let mut lines = BufReader::new(stderr).lines();
@@ -259,7 +278,7 @@ pub async fn run_codex_exec(
                         CodexStreamEvent {
                             run_id: run_id_stderr.clone(),
                             kind: "stderr".into(),
-                            line: Some(format!("Failed reading codex stderr: {err}")),
+                            line: Some(format!("Failed reading stderr: {err}")),
                             parsed_json: None,
                             exit_code: None,
                             duration_ms: None,
@@ -276,8 +295,8 @@ pub async fn run_codex_exec(
     let status = child
         .wait()
         .await
-        .map_err(|e| format!("Failed waiting for codex process: {e}"))?;
-    *state.0.lock().unwrap() = None;
+        .map_err(|e| format!("Failed waiting for process: {e}"))?;
+    state.processes.lock().unwrap().remove(&run_id);
     let exit_code = status.code();
     let duration_ms = start.elapsed().as_millis() as u64;
 
@@ -291,7 +310,7 @@ pub async fn run_codex_exec(
     emit_stream_event(
         &app,
         CodexStreamEvent {
-            run_id: input.run_id.clone(),
+            run_id: run_id.clone(),
             kind: "completed".into(),
             line: None,
             parsed_json: None,
@@ -300,7 +319,6 @@ pub async fn run_codex_exec(
         },
     );
 
-    // Try parsing as a single JSON blob first
     let parsed_json = serde_json::from_str::<serde_json::Value>(&stdout_raw)
         .ok()
         .or_else(|| {
