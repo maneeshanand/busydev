@@ -738,7 +738,8 @@ function App() {
   const anyRunning = Object.keys(inFlightRuns).length > 0;
   const activeInFlightRun = activeTabId ? inFlightRuns[activeTabId] ?? null : null;
   const canRun = workingDirectory.length > 0 && prompt.length > 0;
-  const displayModel = model.trim() || "default";
+  const defaultModel = agent === "claude" ? "claude-sonnet-4-6" : "codex-mini";
+  const displayModel = model.trim() || defaultModel;
   const modelType = inferModelType(displayModel);
   const contextWindow = inferContextWindow(displayModel);
   const remainingContext = contextWindow != null && lastUsage
