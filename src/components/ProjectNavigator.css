@@ -1,0 +1,96 @@
+.project-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  min-height: 36px;
+  max-height: 80px;
+  overflow-y: auto;
+}
+
+.project-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 0.78rem;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 3px;
+  background: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-2);
+  cursor: pointer;
+  max-width: 180px;
+}
+
+.project-chip:hover {
+  border-color: var(--vp-c-brand-3);
+  color: var(--vp-c-text-1);
+}
+
+.project-chip-active {
+  background: var(--vp-c-brand-1);
+  border-color: var(--vp-c-brand-2);
+  color: #fff;
+}
+
+.project-chip-active:hover {
+  color: #fff;
+}
+
+.project-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-chip-remove {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.8rem;
+  border-radius: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.project-chip:hover .project-chip-remove {
+  opacity: 0.6;
+}
+
+.project-chip-remove:hover {
+  opacity: 1 !important;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.project-chip-active .project-chip-remove:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.project-add {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 1rem;
+  border-radius: 3px;
+  border: 1px dashed var(--vp-c-divider);
+  background: transparent;
+  color: var(--vp-c-text-3);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.project-add:hover {
+  border-color: var(--vp-c-brand-3);
+  color: var(--vp-c-brand-1);
+  border-style: solid;
+}

@@ -54,3 +54,10 @@ export interface TodoItem {
   createdAt: number;
   completedAt?: number;
 }
+
+export interface Project {
+  id: string;
+  name: string;
+  path: string;
+  createdAt: number;
+}

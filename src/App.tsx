@@ -13,7 +13,8 @@ import {
   type CodexExecOutput,
   type CodexStreamEvent,
 } from "./invoke";
-import type { StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem } from "./types";
+import type { StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project } from "./types";
+import { ProjectNavigator } from "./components/ProjectNavigator";
 import { TodoPanel } from "./components/TodoPanel";
 import { ResizeHandle } from "./components/ResizeHandle";
 import { TerminalPanel } from "./components/Terminal";
@@ -49,20 +50,6 @@ function MoonIcon() {
   );
 }
 
-function FolderIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-9Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 function GearIcon() {
   return (
@@ -699,7 +686,8 @@ function App() {
   const [colorMode, setColorMode] = useState<"light" | "dark">("light");
   const [debugMode, setDebugMode] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [workingDirectory, setWorkingDirectory] = useState("");
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [skipGitRepoCheck, setSkipGitRepoCheck] = useState(true);
   const [prompt, setPrompt] = useState("");
   const [promptHistory, setPromptHistory] = useState<string[]>([]);
@@ -734,6 +722,7 @@ function App() {
 
   const anyRunning = Object.keys(inFlightRuns).length > 0;
   const activeInFlightRun = activeTabId ? inFlightRuns[activeTabId] ?? null : null;
+  const workingDirectory = projects.find((p) => p.id === activeProjectId)?.path ?? "";
   const canRun = workingDirectory.length > 0 && prompt.length > 0;
 
 
@@ -749,7 +738,9 @@ function App() {
           model?: string;
           colorMode?: "light" | "dark";
           debugMode?: boolean;
-          workingDirectory?: string;
+          workingDirectory?: string; // legacy
+          projects?: Project[];
+          activeProjectId?: string;
           skipGitRepoCheck?: boolean;
           persistedRuns?: PersistedRun[];
           todos?: TodoItem[];
@@ -769,7 +760,17 @@ function App() {
           if (saved.model != null) setModel(saved.model);
           if (saved.colorMode) setColorMode(saved.colorMode);
           if (saved.debugMode != null) setDebugMode(saved.debugMode);
-          if (saved.workingDirectory) setWorkingDirectory(saved.workingDirectory);
+          // Project migration: legacy single workingDirectory → projects array
+          if (saved.projects && saved.projects.length > 0) {
+            setProjects(saved.projects);
+            if (saved.activeProjectId) setActiveProjectId(saved.activeProjectId);
+            else setActiveProjectId(saved.projects[0].id);
+          } else if (saved.workingDirectory) {
+            const name = saved.workingDirectory.split("/").pop() || "project";
+            const bootstrapped: Project = { id: crypto.randomUUID(), name, path: saved.workingDirectory, createdAt: Date.now() };
+            setProjects([bootstrapped]);
+            setActiveProjectId(bootstrapped.id);
+          }
           if (saved.skipGitRepoCheck != null) setSkipGitRepoCheck(saved.skipGitRepoCheck);
           if (saved.persistedRuns) setRestoredRuns(saved.persistedRuns);
           if (saved.todos) setTodos(saved.todos);
@@ -809,7 +810,8 @@ function App() {
         model,
         colorMode,
         debugMode,
-        workingDirectory,
+        projects,
+        activeProjectId,
         skipGitRepoCheck,
         persistedRuns: allPersisted,
         todos,
@@ -820,7 +822,7 @@ function App() {
     } catch {
       // Silently ignore save errors
     }
-  }, [agent, approvalPolicy, sandboxMode, model, colorMode, debugMode, workingDirectory, skipGitRepoCheck, restoredRuns, runs, todos, todoMode, rightPanelWidth]);
+  }, [agent, approvalPolicy, sandboxMode, model, colorMode, debugMode, projects, activeProjectId, skipGitRepoCheck, restoredRuns, runs, todos, todoMode, rightPanelWidth]);
 
   useEffect(() => {
     void saveSession();
@@ -962,6 +964,11 @@ function App() {
     return () => document.body.classList.remove("body-dark");
   }, [colorMode]);
 
+  // Reset terminal when switching projects
+  useEffect(() => {
+    setTerminalSessionId(null);
+  }, [activeProjectId]);
+
   // Todo handlers
   function handleAddTodo(text: string) {
     setTodos((prev) => [...prev, {
@@ -1040,9 +1047,24 @@ function App() {
     }
   }
 
-  async function handleBrowse() {
+  async function handleAddProject() {
     const dir = await open({ directory: true, multiple: false });
-    if (dir) setWorkingDirectory(dir as string);
+    if (!dir) return;
+    const path = dir as string;
+    const existing = projects.find((p) => p.path === path);
+    if (existing) { setActiveProjectId(existing.id); return; }
+    const name = path.split("/").pop() || "project";
+    const project: Project = { id: crypto.randomUUID(), name, path, createdAt: Date.now() };
+    setProjects((prev) => [...prev, project]);
+    setActiveProjectId(project.id);
+  }
+
+  function handleRemoveProject(id: string) {
+    setProjects((prev) => prev.filter((p) => p.id !== id));
+    if (activeProjectId === id) {
+      const remaining = projects.filter((p) => p.id !== id);
+      setActiveProjectId(remaining.length > 0 ? remaining[0].id : null);
+    }
   }
 
   async function handleRun(overridePrompt?: string) {
@@ -1306,18 +1328,13 @@ function App() {
           </div>
         </div>
 
-        <div className="directory-bar">
-          <button
-            type="button"
-            className="icon-button"
-            onClick={handleBrowse}
-            title="Browse working directory"
-            aria-label="Browse working directory"
-          >
-            <FolderIcon />
-          </button>
-          <div className="directory-path">{workingDirectory || "No working directory selected"}</div>
-        </div>
+        <ProjectNavigator
+          projects={projects}
+          activeProjectId={activeProjectId}
+          onSelect={setActiveProjectId}
+          onAdd={handleAddProject}
+          onRemove={handleRemoveProject}
+        />
 
         {searchOpen && (
           <div className="search-bar">
