@@ -13,11 +13,12 @@ import {
   type CodexExecOutput,
   type CodexStreamEvent,
 } from "./invoke";
-import type { StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project } from "./types";
+import type { StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session } from "./types";
 import { ProjectNavigator } from "./components/ProjectNavigator";
 import { TodoPanel } from "./components/TodoPanel";
 import { ResizeHandle } from "./components/ResizeHandle";
-import { TerminalPanel } from "./components/Terminal";
+// Terminal hidden — MAN-157
+// import { TerminalPanel } from "./components/Terminal";
 import { TabBar, type Tab } from "./components/TabBar";
 
 function SunIcon() {
@@ -66,15 +67,6 @@ function GearIcon() {
   );
 }
 
-function TerminalIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
-      <path d="M7 9l3 3-3 3" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-      <line x1="13" y1="15" x2="17" y2="15" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 function StopIcon() {
   return (
@@ -692,20 +684,22 @@ function App() {
   const [prompt, setPrompt] = useState("");
   const [promptHistory, setPromptHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
-  const [restoredRuns, setRestoredRuns] = useState<PersistedRun[]>([]);
+  // Per-session state (swapped when switching sessions)
+  const [sessionRuns, setSessionRuns] = useState<PersistedRun[]>([]);
   const [runs, setRuns] = useState<RunEntry[]>([]);
   const [inFlightRuns, setInFlightRuns] = useState<Record<string, InFlightRun>>({});
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  // Todo and panel state
   const [todos, setTodos] = useState<TodoItem[]>([]);
-  const [todoMode, setTodoMode] = useState(false);
   const [autoPlayTodos, setAutoPlayTodos] = useState(false);
+
+  // Global state
+  const [todoMode, setTodoMode] = useState(false);
   const [rightPanelWidth, setRightPanelWidth] = useState(280);
   const [rightCollapsed, setRightCollapsed] = useState(true);
-  const [terminalOpen, setTerminalOpen] = useState(false);
-  const [terminalSessionId, setTerminalSessionId] = useState<string | null>(null);
+
+  // Track which session owns which runId (for background run completion)
+  const runSessionMapRef = useRef<Record<string, { projectId: string; sessionId: string }>>({});
 
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -722,8 +716,19 @@ function App() {
 
   const anyRunning = Object.keys(inFlightRuns).length > 0;
   const activeInFlightRun = activeTabId ? inFlightRuns[activeTabId] ?? null : null;
-  const workingDirectory = projects.find((p) => p.id === activeProjectId)?.path ?? "";
+  const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
+  const workingDirectory = activeProject?.path ?? "";
   const canRun = workingDirectory.length > 0 && prompt.length > 0;
+
+  // Count in-flight runs per session for spinner indicators
+  const sessionRunCounts: Record<string, number> = {};
+  for (const [rid] of Object.entries(inFlightRuns)) {
+    const owner = runSessionMapRef.current[rid];
+    if (owner) {
+      const key = `${owner.projectId}:${owner.sessionId}`;
+      sessionRunCounts[key] = (sessionRunCounts[key] || 0) + 1;
+    }
+  }
 
 
   // Load persisted state on mount
@@ -760,20 +765,54 @@ function App() {
           if (saved.model != null) setModel(saved.model);
           if (saved.colorMode) setColorMode(saved.colorMode);
           if (saved.debugMode != null) setDebugMode(saved.debugMode);
-          // Project migration: legacy single workingDirectory → projects array
+          // Load projects with sessions
           if (saved.projects && saved.projects.length > 0) {
-            setProjects(saved.projects);
-            if (saved.activeProjectId) setActiveProjectId(saved.activeProjectId);
-            else setActiveProjectId(saved.projects[0].id);
+            // Migrate projects without sessions (from previous format)
+            const migratedProjects = saved.projects.map((p: any) => {
+              if (p.sessions && p.sessions.length > 0) return p;
+              // Create first session, migrate legacy runs/todos into it
+              const firstSession: Session = {
+                id: crypto.randomUUID(),
+                projectId: p.id,
+                name: "Session 1",
+                createdAt: p.createdAt,
+                runs: saved.persistedRuns ?? [],
+                todos: saved.todos ?? [],
+              };
+              return { ...p, sessions: [firstSession], activeSessionId: firstSession.id };
+            });
+            setProjects(migratedProjects);
+            const activeId = saved.activeProjectId ?? migratedProjects[0].id;
+            setActiveProjectId(activeId);
+            // Load active session data
+            const activeProj = migratedProjects.find((p: any) => p.id === activeId);
+            const activeSess = activeProj?.sessions?.find((s: any) => s.id === activeProj.activeSessionId) ?? activeProj?.sessions?.[0];
+            if (activeSess) {
+              setSessionRuns(activeSess.runs ?? []);
+              setTodos(activeSess.todos ?? []);
+            }
           } else if (saved.workingDirectory) {
+            // Legacy: single workingDirectory → project + session
             const name = saved.workingDirectory.split("/").pop() || "project";
-            const bootstrapped: Project = { id: crypto.randomUUID(), name, path: saved.workingDirectory, createdAt: Date.now() };
+            const projId = crypto.randomUUID();
+            const firstSession: Session = {
+              id: crypto.randomUUID(),
+              projectId: projId,
+              name: "Session 1",
+              createdAt: Date.now(),
+              runs: saved.persistedRuns ?? [],
+              todos: saved.todos ?? [],
+            };
+            const bootstrapped: Project = {
+              id: projId, name, path: saved.workingDirectory, createdAt: Date.now(),
+              sessions: [firstSession], activeSessionId: firstSession.id,
+            };
             setProjects([bootstrapped]);
-            setActiveProjectId(bootstrapped.id);
+            setActiveProjectId(projId);
+            setSessionRuns(firstSession.runs);
+            setTodos(firstSession.todos);
           }
           if (saved.skipGitRepoCheck != null) setSkipGitRepoCheck(saved.skipGitRepoCheck);
-          if (saved.persistedRuns) setRestoredRuns(saved.persistedRuns);
-          if (saved.todos) setTodos(saved.todos);
           if (saved.todoMode != null) {
             setTodoMode(saved.todoMode);
             setRightCollapsed(!saved.todoMode);
@@ -792,6 +831,7 @@ function App() {
     if (!storeReadyRef.current) return;
     try {
       const store = await loadStore("session.json");
+      // Flush current session state into projects before saving
       const currentRunsPersisted: PersistedRun[] = runs.map((r) => ({
         id: r.id,
         prompt: r.prompt,
@@ -802,7 +842,16 @@ function App() {
         stopped: r.stopped,
         completedAt: r.completedAt,
       }));
-      const allPersisted = [...restoredRuns, ...currentRunsPersisted];
+      const allRuns = [...sessionRuns, ...currentRunsPersisted];
+      const projectsToSave = projects.map((p) => {
+        if (p.id !== activeProjectId || !p.activeSessionId) return p;
+        return {
+          ...p,
+          sessions: p.sessions.map((s) =>
+            s.id === p.activeSessionId ? { ...s, runs: allRuns, todos } : s
+          ),
+        };
+      });
       await store.set("session", {
         agent,
         approvalPolicy,
@@ -810,11 +859,9 @@ function App() {
         model,
         colorMode,
         debugMode,
-        projects,
+        projects: projectsToSave,
         activeProjectId,
         skipGitRepoCheck,
-        persistedRuns: allPersisted,
-        todos,
         todoMode,
         rightPanelWidth,
       });
@@ -822,7 +869,7 @@ function App() {
     } catch {
       // Silently ignore save errors
     }
-  }, [agent, approvalPolicy, sandboxMode, model, colorMode, debugMode, projects, activeProjectId, skipGitRepoCheck, restoredRuns, runs, todos, todoMode, rightPanelWidth]);
+  }, [agent, approvalPolicy, sandboxMode, model, colorMode, debugMode, projects, activeProjectId, skipGitRepoCheck, sessionRuns, runs, todos, todoMode, rightPanelWidth]);
 
   useEffect(() => {
     void saveSession();
@@ -964,10 +1011,7 @@ function App() {
     return () => document.body.classList.remove("body-dark");
   }, [colorMode]);
 
-  // Reset terminal when switching projects
-  useEffect(() => {
-    setTerminalSessionId(null);
-  }, [activeProjectId]);
+  // Terminal hidden for now — MAN-157
 
   // Todo handlers
   function handleAddTodo(text: string) {
@@ -1047,23 +1091,124 @@ function App() {
     }
   }
 
+  function makeSession(projectId: string, index: number): Session {
+    return {
+      id: crypto.randomUUID(),
+      projectId,
+      name: `Session ${index + 1}`,
+      createdAt: Date.now(),
+      runs: [],
+      todos: [],
+    };
+  }
+
+  function flushCurrentSession() {
+    if (!activeProjectId || !activeProject?.activeSessionId) return;
+    const currentRunsPersisted: PersistedRun[] = runs.map((r) => ({
+      id: r.id,
+      prompt: r.prompt,
+      streamRows: r.streamRows,
+      exitCode: r.output.exitCode,
+      durationMs: r.output.durationMs,
+      finalSummary: buildFinalSummary(r),
+      stopped: r.stopped,
+      completedAt: r.completedAt,
+    }));
+    const allRuns = [...sessionRuns, ...currentRunsPersisted];
+    const sid = activeProject.activeSessionId;
+    setProjects((prev) => prev.map((p) => {
+      if (p.id !== activeProjectId) return p;
+      return {
+        ...p,
+        sessions: p.sessions.map((s) =>
+          s.id === sid ? { ...s, runs: allRuns, todos } : s
+        ),
+      };
+    }));
+  }
+
+  function loadSession(session: Session | null) {
+    setSessionRuns(session?.runs ?? []);
+    setRuns([]);
+    setTodos(session?.todos ?? []);
+    setActiveTabId(null);
+    setError(null);
+    setPrompt("");
+    setPromptHistory([]);
+    setHistoryIndex(-1);
+    setAutoPlayTodos(false);
+    setSearchQuery("");
+    setSearchOpen(false);
+  }
+
+  function switchSession(projectId: string, sessionId: string) {
+    flushCurrentSession();
+    setProjects((prev) => prev.map((p) =>
+      p.id === projectId ? { ...p, activeSessionId: sessionId } : p
+    ));
+    const project = projects.find((p) => p.id === projectId);
+    const session = project?.sessions.find((s) => s.id === sessionId) ?? null;
+    loadSession(session);
+  }
+
+  function handleNewSession() {
+    if (!activeProjectId || !activeProject) return;
+    flushCurrentSession();
+    const session = makeSession(activeProjectId, activeProject.sessions.length);
+    setProjects((prev) => prev.map((p) =>
+      p.id === activeProjectId
+        ? { ...p, sessions: [...p.sessions, session], activeSessionId: session.id }
+        : p
+    ));
+    loadSession(session);
+  }
+
   async function handleAddProject() {
+    flushCurrentSession();
     const dir = await open({ directory: true, multiple: false });
     if (!dir) return;
     const path = dir as string;
     const existing = projects.find((p) => p.path === path);
-    if (existing) { setActiveProjectId(existing.id); return; }
+    if (existing) {
+      switchToProject(existing.id);
+      return;
+    }
     const name = path.split("/").pop() || "project";
-    const project: Project = { id: crypto.randomUUID(), name, path, createdAt: Date.now() };
+    const firstSession = makeSession(crypto.randomUUID(), 0);
+    const project: Project = {
+      id: crypto.randomUUID(),
+      name,
+      path,
+      createdAt: Date.now(),
+      sessions: [firstSession],
+      activeSessionId: firstSession.id,
+    };
+    // Fix: session needs correct projectId
+    firstSession.projectId = project.id;
     setProjects((prev) => [...prev, project]);
     setActiveProjectId(project.id);
+    loadSession(firstSession);
+  }
+
+  function switchToProject(projectId: string) {
+    if (projectId === activeProjectId) return;
+    flushCurrentSession();
+    setActiveProjectId(projectId);
+    const project = projects.find((p) => p.id === projectId);
+    const session = project?.sessions.find((s) => s.id === project.activeSessionId) ?? null;
+    loadSession(session);
   }
 
   function handleRemoveProject(id: string) {
     setProjects((prev) => prev.filter((p) => p.id !== id));
     if (activeProjectId === id) {
       const remaining = projects.filter((p) => p.id !== id);
-      setActiveProjectId(remaining.length > 0 ? remaining[0].id : null);
+      if (remaining.length > 0) {
+        switchToProject(remaining[0].id);
+      } else {
+        setActiveProjectId(null);
+        loadSession(null);
+      }
     }
   }
 
@@ -1082,6 +1227,14 @@ function App() {
     // Initialize per-run tracking
     streamRowsMapRef.current[runId] = [];
     nextRowIdRef.current[runId] = 1;
+
+    // Track which session owns this run
+    if (activeProjectId && activeProject?.activeSessionId) {
+      runSessionMapRef.current[runId] = {
+        projectId: activeProjectId,
+        sessionId: activeProject.activeSessionId,
+      };
+    }
     stoppedMapRef.current[runId] = false;
     startTimeMapRef.current[runId] = Date.now();
     setElapsed(0);
@@ -1284,14 +1437,7 @@ function App() {
         <div className="app-header">
           <h1>busydev</h1>
           <div className="header-controls">
-            <button
-              type="button"
-              className={`todo-toggle ${terminalOpen ? "is-active" : ""}`}
-              onClick={() => setTerminalOpen((prev) => !prev)}
-              title={terminalOpen ? "Hide terminal" : "Show terminal"}
-            >
-              <TerminalIcon />
-            </button>
+            {/* Terminal hidden — MAN-157: re-enable when scoped per project/session */}
             <button
               type="button"
               className={`todo-toggle ${todoMode ? "is-active" : ""}`}
@@ -1331,10 +1477,29 @@ function App() {
         <ProjectNavigator
           projects={projects}
           activeProjectId={activeProjectId}
-          onSelect={setActiveProjectId}
+          onSelect={switchToProject}
           onAdd={handleAddProject}
           onRemove={handleRemoveProject}
         />
+
+        {activeProject && activeProject.sessions.length > 0 && (
+          <div className="session-bar">
+            {activeProject.sessions.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                className={`session-tab ${s.id === activeProject.activeSessionId ? "session-tab-active" : ""}`}
+                onClick={() => switchSession(activeProject.id, s.id)}
+              >
+                {s.name}
+                {sessionRunCounts[`${activeProject.id}:${s.id}`] > 0 && (
+                  <span className="session-tab-spinner" />
+                )}
+              </button>
+            ))}
+            <button type="button" className="session-tab-add" onClick={handleNewSession}>+</button>
+          </div>
+        )}
 
         {searchOpen && (
           <div className="search-bar">
@@ -1383,11 +1548,11 @@ function App() {
             </div>
           )}
 
-          {restoredRuns.length === 0 && runs.length === 0 && !activeInFlightRun && (
+          {sessionRuns.length === 0 && runs.length === 0 && !activeInFlightRun && (
             <div className="empty-stream">Run results will appear here as a single scrollable thread.</div>
           )}
 
-          {restoredRuns.map((run) => renderPersistedRun(run, debugMode, searchQuery))}
+          {sessionRuns.map((run) => renderPersistedRun(run, debugMode, searchQuery))}
 
               {runs.map((run) => {
                 const finalSummary = buildFinalSummary(run);
@@ -1499,16 +1664,7 @@ function App() {
           )}
         </div>
 
-        {workingDirectory && (terminalOpen || terminalSessionId) && (
-          <div className="terminal-panel" style={terminalOpen ? undefined : { display: "none" }}>
-            <TerminalPanel
-              sessionId={terminalSessionId}
-              onSessionCreated={setTerminalSessionId}
-              cwd={workingDirectory}
-              visible={terminalOpen}
-            />
-          </div>
-        )}
+        {/* Terminal hidden — MAN-157: re-enable when scoped per project/session */}
 
         <div className="bottom-panel">
           <div className="prompt-section">
