@@ -240,7 +240,7 @@ export function TodoPanel({
           </button>
         </div>
       )}
-      <div className="todo-list">
+      <div className="todo-list" onDragOver={(e) => e.preventDefault()}>
         {todos.length === 0 && onGenerateTodos && (
           <div className="todo-empty">
             <div className="todo-empty-text">What do you want to build?</div>
@@ -266,13 +266,12 @@ export function TodoPanel({
             draggable={!readonly && !item.done}
             onDragStart={(e) => {
               dragIdRef.current = item.id;
+              e.dataTransfer.setData("text/plain", String(index));
               e.dataTransfer.effectAllowed = "move";
-              (e.currentTarget as HTMLElement).classList.add("todo-item-dragging");
             }}
-            onDragEnd={(e) => {
+            onDragEnd={() => {
               dragIdRef.current = null;
               setDragOverId(null);
-              (e.currentTarget as HTMLElement).classList.remove("todo-item-dragging");
             }}
             onDragOver={(e) => {
               e.preventDefault();
@@ -282,15 +281,15 @@ export function TodoPanel({
               }
             }}
             onDragLeave={() => {
-              if (dragOverId === item.id) setDragOverId(null);
+              setDragOverId(null);
             }}
             onDrop={(e) => {
               e.preventDefault();
+              e.stopPropagation();
               setDragOverId(null);
-              if (!dragIdRef.current || dragIdRef.current === item.id || !onReorder) return;
-              const fromIdx = todos.findIndex((t) => t.id === dragIdRef.current);
-              const toIdx = index;
-              if (fromIdx !== -1 && toIdx !== -1) onReorder(fromIdx, toIdx);
+              const fromIdx = parseInt(e.dataTransfer.getData("text/plain"), 10);
+              if (Number.isNaN(fromIdx) || fromIdx === index || !onReorder) return;
+              onReorder(fromIdx, index);
               dragIdRef.current = null;
             }}
           >
