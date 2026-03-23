@@ -315,7 +315,7 @@ checksum = "5d20789868f4b01b2f2caec9f5c4e0213b41e3e5702a50157d699ae31ced2fcb"
 
 [[package]]
 name = "busydev"
-version = "0.1.7"
+version = "0.1.19"
 dependencies = [
  "libc",
  "portable-pty",
@@ -324,6 +324,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
+ "tauri-plugin-fs",
  "tauri-plugin-opener",
  "tauri-plugin-store",
  "tokio",

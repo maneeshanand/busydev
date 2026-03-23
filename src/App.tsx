@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { load as loadStore } from "@tauri-apps/plugin-store";
@@ -702,6 +703,7 @@ function App() {
   // Todo and panel state
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [todoMode, setTodoMode] = useState(false);
+  const [autoPlayTodos, setAutoPlayTodos] = useState(false);
   const [rightPanelWidth, setRightPanelWidth] = useState(280);
   const [rightCollapsed, setRightCollapsed] = useState(true);
   const [terminalOpen, setTerminalOpen] = useState(false);
@@ -966,6 +968,19 @@ function App() {
   function handleEditTodo(id: string, text: string) {
     setTodos((prev) => prev.map((t) => t.id === id ? { ...t, text } : t));
   }
+  function handleClearTodos() {
+    setTodos([]);
+    setAutoPlayTodos(false);
+  }
+  async function handleSaveTodos() {
+    const filePath = await save({
+      defaultPath: "todos.json",
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (!filePath) return;
+    const data = JSON.stringify(todos, null, 2);
+    await writeTextFile(filePath, data);
+  }
 
   // Resize handler
   function handleRightResize(delta: number) {
@@ -1100,6 +1115,20 @@ function App() {
               createdAt: Date.now(),
             })),
           ]);
+        }
+
+        // Auto-play: if enabled and there are still pending todos, run the next one
+        if (autoPlayTodos && !wasStopped) {
+          // Check after completions — use setTimeout to let state settle
+          setTimeout(() => {
+            setTodos((current) => {
+              const remaining = current.filter((t) => !t.done);
+              if (remaining.length > 0 && autoPlayTodos) {
+                void handleRun("Work on the next pending todo item");
+              }
+              return current;
+            });
+          }, 1000);
         }
       }
     } catch (e) {
@@ -1571,6 +1600,10 @@ function App() {
               void handleRun("Work through my remaining todos");
             }}
             onStopTodos={handleStop}
+            autoPlay={autoPlayTodos}
+            onToggleAutoPlay={() => setAutoPlayTodos((prev) => !prev)}
+            onClearTodos={handleClearTodos}
+            onSaveTodos={handleSaveTodos}
             onGenerateTodos={(goal) => {
               void handleRun(`IMPORTANT: Do NOT ask questions, do NOT use skills, do NOT brainstorm. Just output a todo list immediately.
 

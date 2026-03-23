@@ -8,6 +8,7 @@ interface TodoPanelProps {
   readonly?: boolean;
   canRun?: boolean;
   running?: boolean;
+  autoPlay?: boolean;
   onAdd: (text: string) => void;
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
@@ -16,6 +17,35 @@ interface TodoPanelProps {
   onRunTodos?: () => void;
   onStopTodos?: () => void;
   onGenerateTodos?: (goal: string) => void;
+  onClearTodos?: () => void;
+  onSaveTodos?: () => void;
+  onToggleAutoPlay?: () => void;
+}
+
+function SkipIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 5v14l11-7z" fill="currentColor" />
+      <rect x="17" y="5" width="3" height="14" fill="currentColor" />
+    </svg>
+  );
+}
+
+function ClearIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M6 6l12 12M6 18L18 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SaveIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 3v12m0 0l-4-4m4 4l4-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
 }
 
 function PlayIcon() {
@@ -72,8 +102,12 @@ export function TodoPanel({
   onRunTodos,
   onStopTodos,
   onGenerateTodos,
+  onClearTodos,
+  onSaveTodos,
+  onToggleAutoPlay,
   canRun,
   running,
+  autoPlay,
 }: TodoPanelProps) {
   const [newText, setNewText] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -274,26 +308,42 @@ export function TodoPanel({
             </button>
           </div>
           {pending.length > 0 && (
-            running ? (
+            <div className="todo-player">
+              {running ? (
+                <button type="button" className="todo-player-btn todo-player-stop" onClick={onStopTodos} title="Stop">
+                  <PauseIcon />
+                </button>
+              ) : (
+                <button type="button" className="todo-player-btn todo-player-play" onClick={onRunTodos} disabled={!canRun} title="Run next todo">
+                  <PlayIcon />
+                </button>
+              )}
               <button
                 type="button"
-                className="todo-run-button todo-run-stop"
-                onClick={onStopTodos}
+                className={`todo-player-btn ${autoPlay ? "todo-player-active" : ""}`}
+                onClick={onToggleAutoPlay}
+                title={autoPlay ? "Auto-play ON — will run all todos" : "Auto-play OFF — pauses between todos"}
               >
-                <PauseIcon />
-                Stop
+                <SkipIcon />
               </button>
-            ) : (
-              <button
-                type="button"
-                className="todo-run-button"
-                onClick={onRunTodos}
-                disabled={!canRun}
-              >
-                <PlayIcon />
-                Run {pending.length} todo{pending.length !== 1 ? "s" : ""}
-              </button>
-            )
+              <span className="todo-player-status">
+                {running ? "Running..." : `${pending.length} left`}
+              </span>
+            </div>
+          )}
+          {todos.length > 0 && (
+            <div className="todo-actions">
+              {onSaveTodos && (
+                <button type="button" className="todo-action-btn" onClick={onSaveTodos} title="Save as JSON">
+                  <SaveIcon /> Save
+                </button>
+              )}
+              {onClearTodos && !running && (
+                <button type="button" className="todo-action-btn todo-action-danger" onClick={onClearTodos} title="Clear all todos">
+                  <ClearIcon /> Clear
+                </button>
+              )}
+            </div>
           )}
         </div>
       )}
