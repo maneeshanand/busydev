@@ -8,7 +8,10 @@ import {
   stopCodexExec,
   type CodexStreamEvent,
 } from "./invoke";
-import type { StreamRow, RunEntry, PersistedRun, InFlightRun } from "./types";
+import type { StreamRow, RunEntry, PersistedRun, InFlightRun, Session, TodoItem } from "./types";
+import { SessionPanel } from "./components/SessionPanel";
+import { TodoPanel } from "./components/TodoPanel";
+import { ResizeHandle } from "./components/ResizeHandle";
 
 function SunIcon() {
   return (
@@ -89,6 +92,21 @@ function RunIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function ChecklistIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M9 5H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"
+        fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"
+      />
+      <path d="M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2Z"
+        fill="none" stroke="currentColor" strokeWidth="1.7"
+      />
+      <path d="m9 14 2 2 4-4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -280,6 +298,34 @@ function renderStreamRow(row: StreamRow) {
   }
 }
 
+function renderPersistedRun(run: PersistedRun, debugMode: boolean) {
+  return (
+    <div key={`persisted-${run.id}`} className="output-section">
+      <div className="chat-thread">
+        <div className="chat-row chat-row-user">
+          <div className="chat-bubble chat-bubble-user">{run.prompt}</div>
+        </div>
+
+        {run.streamRows.length > 0 && (
+          <div className="stream-events">
+            {run.streamRows.filter((r) => !r.hidden).map(renderStreamRow)}
+          </div>
+        )}
+
+        <div className="chat-row chat-row-agent chat-row-final">
+          <div className="ev-message ev-message-final">{run.finalSummary}</div>
+        </div>
+      </div>
+
+      <div className="run-footer">
+        {debugMode && <div>Run #{run.id}</div>}
+        <div>{run.stopped ? `Stopped after ${(run.durationMs / 1000).toFixed(1)}s` : `Finished in ${(run.durationMs / 1000).toFixed(1)}s`}</div>
+        {debugMode && <div>Exit code: {run.exitCode ?? "N/A"}</div>}
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [loading, setLoading] = useState(true);
   const [splashFading, setSplashFading] = useState(false);
@@ -293,10 +339,20 @@ function App() {
   const [skipGitRepoCheck, setSkipGitRepoCheck] = useState(true);
   const [prompt, setPrompt] = useState("");
   const [running, setRunning] = useState(false);
-  const [restoredRuns, setRestoredRuns] = useState<PersistedRun[]>([]);
   const [runs, setRuns] = useState<RunEntry[]>([]);
   const [inFlightRun, setInFlightRun] = useState<InFlightRun | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Session and panel state
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string>("");
+  const [todos, setTodos] = useState<TodoItem[]>([]);
+  const [todoMode, setTodoMode] = useState(false);
+  const [leftPanelWidth, setLeftPanelWidth] = useState(220);
+  const [rightPanelWidth, setRightPanelWidth] = useState(280);
+  const [leftCollapsed, setLeftCollapsed] = useState(true);
+  const [rightCollapsed, setRightCollapsed] = useState(true);
+  const [viewingSessionId, setViewingSessionId] = useState<string | null>(null);
 
   const streamPanelRef = useRef<HTMLDivElement | null>(null);
   const streamBottomRef = useRef<HTMLDivElement | null>(null);
@@ -305,10 +361,17 @@ function App() {
   const nextStreamRowIdRef = useRef(1);
   const stoppedRef = useRef(false);
   const runStartTimeRef = useRef<number>(0);
+  const sessionStartedAtRef = useRef(Date.now());
   const [elapsed, setElapsed] = useState(0);
   const storeReadyRef = useRef(false);
 
   const canRun = !running && workingDirectory.length > 0 && prompt.length > 0;
+
+  // Determine if we are viewing a past session
+  const isViewingPast = viewingSessionId != null && viewingSessionId !== activeSessionId;
+  const viewingSession = isViewingPast
+    ? sessions.find((s) => s.id === viewingSessionId) ?? null
+    : null;
 
   // Load persisted session on mount
   useEffect(() => {
@@ -323,7 +386,10 @@ function App() {
           debugMode?: boolean;
           workingDirectory?: string;
           skipGitRepoCheck?: boolean;
-          persistedRuns?: PersistedRun[];
+          sessions?: Session[];
+          todoMode?: boolean;
+          leftPanelWidth?: number;
+          rightPanelWidth?: number;
         }>("session");
         if (saved) {
           if (saved.approvalPolicy) setApprovalPolicy(saved.approvalPolicy);
@@ -333,11 +399,18 @@ function App() {
           if (saved.debugMode != null) setDebugMode(saved.debugMode);
           if (saved.workingDirectory) setWorkingDirectory(saved.workingDirectory);
           if (saved.skipGitRepoCheck != null) setSkipGitRepoCheck(saved.skipGitRepoCheck);
-          if (saved.persistedRuns) setRestoredRuns(saved.persistedRuns);
+          if (saved.sessions) setSessions(saved.sessions);
+          if (saved.todoMode != null) setTodoMode(saved.todoMode);
+          if (saved.leftPanelWidth) setLeftPanelWidth(saved.leftPanelWidth);
+          if (saved.rightPanelWidth) setRightPanelWidth(saved.rightPanelWidth);
         }
       } catch {
         // First launch or corrupted store — start fresh
       }
+
+      const newSessionId = crypto.randomUUID();
+      setActiveSessionId(newSessionId);
+      sessionStartedAtRef.current = Date.now();
       storeReadyRef.current = true;
     })();
   }, []);
@@ -356,7 +429,16 @@ function App() {
         finalSummary: buildFinalSummary(r),
         stopped: r.stopped,
       }));
-      const allPersisted = [...restoredRuns, ...currentRunsPersisted];
+      const currentSession: Session = {
+        id: activeSessionId,
+        startedAt: sessionStartedAtRef.current,
+        runs: currentRunsPersisted,
+        todos,
+      };
+      const allSessions = [
+        ...sessions.filter((s) => s.id !== activeSessionId),
+        currentSession,
+      ];
       await store.set("session", {
         approvalPolicy,
         sandboxMode,
@@ -365,13 +447,16 @@ function App() {
         debugMode,
         workingDirectory,
         skipGitRepoCheck,
-        persistedRuns: allPersisted,
+        sessions: allSessions,
+        todoMode,
+        leftPanelWidth,
+        rightPanelWidth,
       });
       await store.save();
     } catch {
       // Silently ignore save errors
     }
-  }, [approvalPolicy, sandboxMode, model, colorMode, debugMode, workingDirectory, skipGitRepoCheck, restoredRuns, runs]);
+  }, [approvalPolicy, sandboxMode, model, colorMode, debugMode, workingDirectory, skipGitRepoCheck, sessions, runs, activeSessionId, todos, todoMode, leftPanelWidth, rightPanelWidth]);
 
   useEffect(() => {
     void saveSession();
@@ -429,7 +514,7 @@ function App() {
     requestAnimationFrame(() => {
       streamBottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
     });
-  }, [loading, restoredRuns, runs, inFlightRun, running, error]);
+  }, [loading, runs, inFlightRun, running, error]);
 
   useEffect(() => {
     const fadeTimer = setTimeout(() => setSplashFading(true), 3000);
@@ -458,6 +543,42 @@ function App() {
     return () => document.body.classList.remove("body-dark");
   }, [colorMode]);
 
+  // Todo handlers
+  function handleAddTodo(text: string) {
+    setTodos((prev) => [...prev, {
+      id: crypto.randomUUID(), text, done: false, source: "user", createdAt: Date.now(),
+    }]);
+  }
+  function handleToggleTodo(id: string) {
+    setTodos((prev) => prev.map((t) => t.id === id ? { ...t, done: !t.done } : t));
+  }
+  function handleDeleteTodo(id: string) {
+    setTodos((prev) => prev.filter((t) => t.id !== id));
+  }
+  function handleEditTodo(id: string, text: string) {
+    setTodos((prev) => prev.map((t) => t.id === id ? { ...t, text } : t));
+  }
+
+  // Resize handlers
+  function handleLeftResize(delta: number) {
+    setLeftPanelWidth((prev) => Math.max(180, Math.min(400, prev + delta)));
+  }
+  function handleRightResize(delta: number) {
+    setRightPanelWidth((prev) => Math.max(220, Math.min(500, prev - delta)));
+  }
+  function handleResizeEnd() {
+    // Save triggers via the effect dependency on leftPanelWidth/rightPanelWidth
+  }
+
+  // Session selection
+  function handleSelectSession(id: string) {
+    if (id === activeSessionId) {
+      setViewingSessionId(null); // Back to live
+    } else {
+      setViewingSessionId(id);
+    }
+  }
+
   async function handleBrowse() {
     const dir = await open({ directory: true, multiple: false });
     if (dir) setWorkingDirectory(dir as string);
@@ -483,6 +604,9 @@ function App() {
       prompt: submittedPrompt,
       streamRows: [],
     });
+
+    // Clear viewing past session when starting a new run
+    setViewingSessionId(null);
 
     try {
       const out = await runCodexExec({
@@ -569,203 +693,238 @@ function App() {
 
   return (
     <div className={`container theme-${colorMode}`}>
-      <div className="app-header">
-        <h1>busydev</h1>
-        <button
-          type="button"
-          className="theme-toggle"
-          onClick={() => setColorMode((prev) => (prev === "light" ? "dark" : "light"))}
-          title={colorMode === "light" ? "Switch to dark mode" : "Switch to light mode"}
-          aria-label={colorMode === "light" ? "Switch to dark mode" : "Switch to light mode"}
-        >
-          <span className="theme-toggle-icon"><SunIcon /></span>
-          <span className="theme-toggle-icon"><MoonIcon /></span>
-          <span className={`theme-toggle-knob ${colorMode === "dark" ? "is-dark" : ""}`} />
-        </button>
+      <div
+        className={`side-panel-left ${leftCollapsed ? "is-collapsed" : ""}`}
+        style={leftCollapsed ? undefined : { width: leftPanelWidth }}
+        onClick={() => leftCollapsed && setLeftCollapsed(false)}
+      >
+        <SessionPanel
+          sessions={sessions}
+          activeSessionId={viewingSessionId ?? activeSessionId}
+          collapsed={leftCollapsed}
+          onSelectSession={handleSelectSession}
+        />
       </div>
+      {!leftCollapsed && (
+        <ResizeHandle side="left" onResize={handleLeftResize} onResizeEnd={handleResizeEnd} />
+      )}
 
-      <div className="directory-bar">
-        <button
-          type="button"
-          className="icon-button"
-          onClick={handleBrowse}
-          title="Browse working directory"
-          aria-label="Browse working directory"
-        >
-          <FolderIcon />
-        </button>
-        <div className="directory-path">{workingDirectory || "No working directory selected"}</div>
-      </div>
-
-      <div className="stream-panel" ref={streamPanelRef}>
-        {error && (
-          <div className="output-section">
-            <h2>Error</h2>
-            <pre className="stderr">{error}</pre>
-          </div>
-        )}
-
-        {restoredRuns.length === 0 && runs.length === 0 && !inFlightRun && (
-          <div className="empty-stream">Run results will appear here as a single scrollable thread.</div>
-        )}
-
-        {restoredRuns.map((run) => (
-          <div key={`restored-${run.id}`} className="output-section">
-            <div className="chat-thread">
-              <div className="chat-row chat-row-user">
-                <div className="chat-bubble chat-bubble-user">{run.prompt}</div>
-              </div>
-
-              {run.streamRows.length > 0 && (
-                <div className="stream-events">
-                  {run.streamRows.filter((r) => !r.hidden).map(renderStreamRow)}
-                </div>
-              )}
-
-              <div className="chat-row chat-row-agent chat-row-final">
-                <div className="ev-message ev-message-final">{run.finalSummary}</div>
-              </div>
-            </div>
-
-            <div className="run-footer">
-              {debugMode && <div>Run #{run.id}</div>}
-              <div>{run.stopped ? `Stopped after ${(run.durationMs / 1000).toFixed(1)}s` : `Finished in ${(run.durationMs / 1000).toFixed(1)}s`}</div>
-              {debugMode && <div>Exit code: {run.exitCode ?? "N/A"}</div>}
-            </div>
-          </div>
-        ))}
-
-        {runs.map((run) => {
-          const finalSummary = buildFinalSummary(run);
-          return (
-            <div key={run.id} className="output-section">
-              <div className="chat-thread">
-                <div className="chat-row chat-row-user">
-                  <div className="chat-bubble chat-bubble-user">{run.prompt}</div>
-                </div>
-
-                {run.streamRows.length > 0 && (
-                  <div className="stream-events">
-                    {run.streamRows.filter((r) => !r.hidden).map(renderStreamRow)}
-                  </div>
-                )}
-
-                <div className="chat-row chat-row-agent chat-row-final">
-                  <div className="ev-message ev-message-final">{finalSummary}</div>
-                </div>
-              </div>
-
-              <div className="run-footer">
-                {debugMode && <div>Run #{run.id}</div>}
-                <div>{run.stopped ? `Stopped after ${(run.output.durationMs / 1000).toFixed(1)}s` : `Finished in ${(run.output.durationMs / 1000).toFixed(1)}s`}</div>
-                {debugMode && <div>Exit code: {run.output.exitCode ?? "N/A"}</div>}
-              </div>
-
-              {debugMode && (
-                <details className="raw-details">
-                  <summary>Show raw output</summary>
-                  {run.output.stdoutRaw && (
-                    <pre className="stdout">{run.output.stdoutRaw}</pre>
-                  )}
-                  {run.output.stderrRaw && (
-                    <pre className="stderr">{run.output.stderrRaw}</pre>
-                  )}
-                  {run.output.parsedJson != null && (
-                    <pre className="json">{JSON.stringify(run.output.parsedJson, null, 2)}</pre>
-                  )}
-                </details>
-              )}
-            </div>
-          );
-        })}
-
-        {inFlightRun && (
-          <div className="output-section output-section-live">
-            <div className="chat-thread">
-              <div className="chat-row chat-row-user">
-                <div className="chat-bubble chat-bubble-user">{inFlightRun.prompt}</div>
-              </div>
-              <div className="stream-events">
-                {inFlightRun.streamRows.filter((r) => !r.hidden).map(renderStreamRow)}
-                {inFlightRun.streamRows.filter((r) => !r.hidden).length === 0 && (
-                  <div className="ev-thinking">
-                    <span className="ev-thinking-dot" />
-                    Thinking...
-                  </div>
-                )}
-              </div>
-            </div>
-            {debugMode && (
-              <details className="raw-details">
-                <summary>Show live raw stream events</summary>
-                <pre className="stdout">
-                  {inFlightRun.streamRows.map((row) => `${row.category}: ${row.text}`).join("\n") || "(no events yet)"}
-                </pre>
-              </details>
-            )}
-            <div className="run-footer">
-              {debugMode && <div>Run #{inFlightRun.id}</div>}
-              <div className="run-footer-running">
-                Running <span className="elapsed-timer">{elapsed.toFixed(2)}s</span>
-                <button type="button" className="stop-button" onClick={handleStop}>
-                  Stop
-                </button>
-                <span className="stop-hint">Esc / Ctrl+C</span>
-              </div>
-            </div>
-          </div>
-        )}
-        <div ref={streamBottomRef} />
-      </div>
-
-      <div className="bottom-panel">
-        <div className="prompt-section">
-          <textarea
-            rows={3}
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={handlePromptKeyDown}
-            placeholder="Get Busy..."
-          />
-          <div className="prompt-left-actions">
+      <div className="main-column">
+        <div className="app-header">
+          <h1>busydev</h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <button
               type="button"
-              className="prompt-action prompt-action-settings"
-              onClick={() => setSettingsOpen(true)}
-              title="Open settings"
-              aria-label="Open settings"
+              className={`todo-toggle ${todoMode ? "is-active" : ""}`}
+              onClick={() => {
+                setTodoMode((prev) => !prev);
+                setRightCollapsed((prev) => !prev);
+              }}
+              title={todoMode ? "Hide todos" : "Show todos"}
             >
-              <GearIcon />
+              <ChecklistIcon />
+            </button>
+            <button
+              type="button"
+              className="theme-toggle"
+              onClick={() => setColorMode((prev) => (prev === "light" ? "dark" : "light"))}
+              title={colorMode === "light" ? "Switch to dark mode" : "Switch to light mode"}
+              aria-label={colorMode === "light" ? "Switch to dark mode" : "Switch to light mode"}
+            >
+              <span className="theme-toggle-icon"><SunIcon /></span>
+              <span className="theme-toggle-icon"><MoonIcon /></span>
+              <span className={`theme-toggle-knob ${colorMode === "dark" ? "is-dark" : ""}`} />
             </button>
           </div>
-          <div className="composer-meta">
-            <span className="meta-label">Approval Policy: {approvalPolicy}</span>
-          </div>
-          <div className="prompt-actions">
-            {running ? (
+        </div>
+
+        <div className="directory-bar">
+          <button
+            type="button"
+            className="icon-button"
+            onClick={handleBrowse}
+            title="Browse working directory"
+            aria-label="Browse working directory"
+          >
+            <FolderIcon />
+          </button>
+          <div className="directory-path">{workingDirectory || "No working directory selected"}</div>
+        </div>
+
+        <div className="stream-panel" ref={streamPanelRef}>
+          {error && (
+            <div className="output-section">
+              <h2>Error</h2>
+              <pre className="stderr">{error}</pre>
+            </div>
+          )}
+
+          {viewingSession ? (
+            <>
+              {viewingSession.runs.length === 0 && (
+                <div className="empty-stream">This session has no runs.</div>
+              )}
+              {viewingSession.runs.map((run) => renderPersistedRun(run, debugMode))}
+            </>
+          ) : (
+            <>
+              {runs.length === 0 && !inFlightRun && (
+                <div className="empty-stream">Run results will appear here as a single scrollable thread.</div>
+              )}
+
+              {runs.map((run) => {
+                const finalSummary = buildFinalSummary(run);
+                return (
+                  <div key={run.id} className="output-section">
+                    <div className="chat-thread">
+                      <div className="chat-row chat-row-user">
+                        <div className="chat-bubble chat-bubble-user">{run.prompt}</div>
+                      </div>
+
+                      {run.streamRows.length > 0 && (
+                        <div className="stream-events">
+                          {run.streamRows.filter((r) => !r.hidden).map(renderStreamRow)}
+                        </div>
+                      )}
+
+                      <div className="chat-row chat-row-agent chat-row-final">
+                        <div className="ev-message ev-message-final">{finalSummary}</div>
+                      </div>
+                    </div>
+
+                    <div className="run-footer">
+                      {debugMode && <div>Run #{run.id}</div>}
+                      <div>{run.stopped ? `Stopped after ${(run.output.durationMs / 1000).toFixed(1)}s` : `Finished in ${(run.output.durationMs / 1000).toFixed(1)}s`}</div>
+                      {debugMode && <div>Exit code: {run.output.exitCode ?? "N/A"}</div>}
+                    </div>
+
+                    {debugMode && (
+                      <details className="raw-details">
+                        <summary>Show raw output</summary>
+                        {run.output.stdoutRaw && (
+                          <pre className="stdout">{run.output.stdoutRaw}</pre>
+                        )}
+                        {run.output.stderrRaw && (
+                          <pre className="stderr">{run.output.stderrRaw}</pre>
+                        )}
+                        {run.output.parsedJson != null && (
+                          <pre className="json">{JSON.stringify(run.output.parsedJson, null, 2)}</pre>
+                        )}
+                      </details>
+                    )}
+                  </div>
+                );
+              })}
+
+              {inFlightRun && (
+                <div className="output-section output-section-live">
+                  <div className="chat-thread">
+                    <div className="chat-row chat-row-user">
+                      <div className="chat-bubble chat-bubble-user">{inFlightRun.prompt}</div>
+                    </div>
+                    <div className="stream-events">
+                      {inFlightRun.streamRows.filter((r) => !r.hidden).map(renderStreamRow)}
+                      {inFlightRun.streamRows.filter((r) => !r.hidden).length === 0 && (
+                        <div className="ev-thinking">
+                          <span className="ev-thinking-dot" />
+                          Thinking...
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {debugMode && (
+                    <details className="raw-details">
+                      <summary>Show live raw stream events</summary>
+                      <pre className="stdout">
+                        {inFlightRun.streamRows.map((row) => `${row.category}: ${row.text}`).join("\n") || "(no events yet)"}
+                      </pre>
+                    </details>
+                  )}
+                  <div className="run-footer">
+                    {debugMode && <div>Run #{inFlightRun.id}</div>}
+                    <div className="run-footer-running">
+                      Running <span className="elapsed-timer">{elapsed.toFixed(2)}s</span>
+                      <button type="button" className="stop-button" onClick={handleStop}>
+                        Stop
+                      </button>
+                      <span className="stop-hint">Esc / Ctrl+C</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+          <div ref={streamBottomRef} />
+        </div>
+
+        <div className="bottom-panel">
+          <div className="prompt-section">
+            <textarea
+              rows={3}
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={handlePromptKeyDown}
+              placeholder="Get Busy..."
+            />
+            <div className="prompt-left-actions">
               <button
                 type="button"
-                onClick={handleStop}
-                className="prompt-action prompt-action-stop"
-                title="Stop (Esc)"
-                aria-label="Stop"
+                className="prompt-action prompt-action-settings"
+                onClick={() => setSettingsOpen(true)}
+                title="Open settings"
+                aria-label="Open settings"
               >
-                <StopIcon />
+                <GearIcon />
               </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleRun}
-                disabled={!canRun}
-                className="prompt-action prompt-action-run"
-                title="Run"
-                aria-label="Run"
-              >
-                <RunIcon />
-              </button>
-            )}
+            </div>
+            <div className="composer-meta">
+              <span className="meta-label">Approval Policy: {approvalPolicy}</span>
+            </div>
+            <div className="prompt-actions">
+              {running ? (
+                <button
+                  type="button"
+                  onClick={handleStop}
+                  className="prompt-action prompt-action-stop"
+                  title="Stop (Esc)"
+                  aria-label="Stop"
+                >
+                  <StopIcon />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleRun}
+                  disabled={!canRun}
+                  className="prompt-action prompt-action-run"
+                  title="Run"
+                  aria-label="Run"
+                >
+                  <RunIcon />
+                </button>
+              )}
+            </div>
           </div>
         </div>
+      </div>
+
+      {!rightCollapsed && (
+        <ResizeHandle side="right" onResize={handleRightResize} onResizeEnd={handleResizeEnd} />
+      )}
+      <div
+        className={`side-panel-right ${rightCollapsed ? "is-collapsed" : ""}`}
+        style={rightCollapsed ? undefined : { width: rightPanelWidth }}
+        onClick={() => rightCollapsed && setRightCollapsed(false)}
+      >
+        <TodoPanel
+          todos={viewingSession ? viewingSession.todos : todos}
+          collapsed={rightCollapsed}
+          readonly={isViewingPast}
+          onAdd={handleAddTodo}
+          onToggle={handleToggleTodo}
+          onDelete={handleDeleteTodo}
+          onEdit={handleEditTodo}
+        />
       </div>
 
       {settingsOpen && (

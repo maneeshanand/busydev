@@ -65,12 +65,43 @@ body {
 }
 
 .container {
-  max-width: 1120px;
   height: 100%;
-  margin: 0 auto;
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+}
+
+.main-column {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  max-width: 1120px;
+  padding: 12px 0;
+}
+
+.side-panel-left {
+  width: var(--left-panel-width, 220px);
+  min-width: 42px;
+  flex-shrink: 0;
+  padding: 12px 0 12px 12px;
+}
+
+.side-panel-right {
+  width: var(--right-panel-width, 280px);
+  min-width: 42px;
+  flex-shrink: 0;
+  padding: 12px 12px 12px 0;
+}
+
+.side-panel-left.is-collapsed {
+  width: 42px;
+}
+
+.side-panel-right.is-collapsed {
+  width: 42px;
 }
 
 .app-header {
@@ -137,6 +168,30 @@ svg {
 
 .theme-toggle-knob.is-dark {
   transform: translateX(34px);
+}
+
+.todo-toggle {
+  width: 32px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-2);
+  cursor: pointer;
+}
+
+.todo-toggle:hover {
+  border-color: var(--vp-c-brand-3);
+  color: var(--vp-c-brand-1);
+}
+
+.todo-toggle.is-active {
+  background: var(--vp-c-brand-1);
+  border-color: var(--vp-c-brand-2);
+  color: #fff;
 }
 
 button,
