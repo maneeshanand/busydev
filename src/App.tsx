@@ -1238,24 +1238,66 @@ function App() {
   }
 
   function switchSession(projectId: string, sessionId: string) {
-    flushCurrentSession();
-    setProjects((prev) => prev.map((p) =>
-      p.id === projectId ? { ...p, activeSessionId: sessionId } : p
-    ));
-    const project = projects.find((p) => p.id === projectId);
-    const session = project?.sessions.find((s) => s.id === sessionId) ?? null;
-    loadSession(session);
+    // Flush current + switch + read target in one atomic update
+    const currentRunsPersisted: PersistedRun[] = runs.map((r) => ({
+      id: r.id, prompt: r.prompt, streamRows: r.streamRows,
+      exitCode: r.output.exitCode, durationMs: r.output.durationMs,
+      finalSummary: buildFinalSummary(r), stopped: r.stopped, completedAt: r.completedAt,
+    }));
+    const allRuns = [...sessionRuns, ...currentRunsPersisted];
+
+    let targetSession: Session | null = null;
+    setProjects((prev) => prev.map((p) => {
+      // Flush current session
+      if (p.id === activeProjectId && p.activeSessionId) {
+        const flushed = {
+          ...p,
+          sessions: p.sessions.map((s) =>
+            s.id === p.activeSessionId ? { ...s, runs: allRuns, todos } : s
+          ),
+        };
+        // If this is also the target project, switch active session and read target
+        if (p.id === projectId) {
+          targetSession = flushed.sessions.find((s) => s.id === sessionId) ?? null;
+          return { ...flushed, activeSessionId: sessionId };
+        }
+        return flushed;
+      }
+      // If this is the target project (different from current)
+      if (p.id === projectId) {
+        targetSession = p.sessions.find((s) => s.id === sessionId) ?? null;
+        return { ...p, activeSessionId: sessionId };
+      }
+      return p;
+    }));
+
+    loadSession(targetSession);
   }
 
   function handleNewSession() {
     if (!activeProjectId || !activeProject) return;
-    flushCurrentSession();
+    // Flush + create new session in one atomic update
+    const currentRunsPersisted: PersistedRun[] = runs.map((r) => ({
+      id: r.id, prompt: r.prompt, streamRows: r.streamRows,
+      exitCode: r.output.exitCode, durationMs: r.output.durationMs,
+      finalSummary: buildFinalSummary(r), stopped: r.stopped, completedAt: r.completedAt,
+    }));
+    const allRuns = [...sessionRuns, ...currentRunsPersisted];
     const session = makeSession(activeProjectId, activeProject.sessions.length);
-    setProjects((prev) => prev.map((p) =>
-      p.id === activeProjectId
-        ? { ...p, sessions: [...p.sessions, session], activeSessionId: session.id }
-        : p
-    ));
+
+    setProjects((prev) => prev.map((p) => {
+      if (p.id !== activeProjectId) return p;
+      return {
+        ...p,
+        sessions: [
+          ...p.sessions.map((s) =>
+            s.id === p.activeSessionId ? { ...s, runs: allRuns, todos } : s
+          ),
+          session,
+        ],
+        activeSessionId: session.id,
+      };
+    }));
     loadSession(session);
   }
 
