@@ -757,10 +757,6 @@ function SessionTabs({ sessions, activeSessionId, sessionRunCounts, projectId, o
 function App() {
   const [loading, setLoading] = useState(true);
   const [splashFading, setSplashFading] = useState(false);
-  const [agent, setAgent] = useState("codex");
-  const [approvalPolicy, setApprovalPolicy] = useState("full-auto");
-  const [sandboxMode, setSandboxMode] = useState("read-only");
-  const [model, setModel] = useState("");
   const [colorMode, setColorMode] = useState<"light" | "dark">("light");
   const [debugMode, setDebugMode] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -806,6 +802,10 @@ function App() {
   const activeSession = activeProject?.sessions.find((s) => s.id === activeProject.activeSessionId) ?? null;
   const sessionRuns = activeSession?.runs ?? [];
   const todos = activeSession?.todos ?? [];
+  const agent = activeSession?.agent ?? "codex";
+  const model = activeSession?.model ?? "";
+  const approvalPolicy = activeSession?.approvalPolicy ?? "full-auto";
+  const sandboxMode = activeSession?.sandboxMode ?? "read-only";
   const workingDirectory = activeProject?.path ?? "";
   const canRun = workingDirectory.length > 0 && prompt.length > 0;
 
@@ -850,10 +850,7 @@ function App() {
           if (saved.windowWidth && saved.windowHeight) {
             void getCurrentWindow().setSize(new LogicalSize(saved.windowWidth, saved.windowHeight));
           }
-          if (saved.agent) setAgent(saved.agent);
-          if (saved.approvalPolicy) setApprovalPolicy(saved.approvalPolicy);
-          if (saved.sandboxMode) setSandboxMode(saved.sandboxMode);
-          if (saved.model != null) setModel(saved.model);
+          // agent, model, approvalPolicy, sandboxMode are per-session (stored in Session type)
           if (saved.colorMode) setColorMode(saved.colorMode);
           if (saved.debugMode != null) setDebugMode(saved.debugMode);
           // Load projects with sessions
@@ -916,10 +913,7 @@ function App() {
       const store = await loadStore("session.json");
       // Projects contain all session data directly — no flush needed
       await store.set("session", {
-        agent,
-        approvalPolicy,
-        sandboxMode,
-        model,
+        // agent, model, approvalPolicy, sandboxMode are per-session
         colorMode,
         debugMode,
         projects,
@@ -932,7 +926,7 @@ function App() {
     } catch {
       // Silently ignore save errors
     }
-  }, [agent, approvalPolicy, sandboxMode, model, colorMode, debugMode, projects, activeProjectId, skipGitRepoCheck, todoMode, rightPanelWidth]);
+  }, [colorMode, debugMode, projects, activeProjectId, skipGitRepoCheck, todoMode, rightPanelWidth]);
 
   useEffect(() => {
     void saveSession();
@@ -1186,6 +1180,11 @@ function App() {
       todos: typeof newTodos === "function" ? newTodos(s.todos) : newTodos,
     }));
   }
+
+  function setAgent(v: string) { updateActiveSession((s) => ({ ...s, agent: v })); }
+  function setModel(v: string) { updateActiveSession((s) => ({ ...s, model: v })); }
+  function setApprovalPolicy(v: string) { updateActiveSession((s) => ({ ...s, approvalPolicy: v })); }
+  function setSandboxMode(v: string) { updateActiveSession((s) => ({ ...s, sandboxMode: v })); }
 
   function makeSession(projectId: string, index: number): Session {
     return {

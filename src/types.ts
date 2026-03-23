@@ -62,6 +62,10 @@ export interface Session {
   createdAt: number;
   runs: PersistedRun[];
   todos: TodoItem[];
+  agent?: string;
+  model?: string;
+  approvalPolicy?: string;
+  sandboxMode?: string;
 }
 
 export interface Project {
