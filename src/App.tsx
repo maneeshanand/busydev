@@ -176,12 +176,38 @@ function extractLastAgentMessage(parsedJson: unknown): string | null {
   for (const event of parsedJson) {
     if (!event || typeof event !== "object" || Array.isArray(event)) continue;
     const obj = event as Record<string, unknown>;
+
+    // Codex: item.type === "agent_message"
     const item = obj.item;
-    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
-    const eventItem = item as Record<string, unknown>;
-    if (eventItem.type !== "agent_message") continue;
-    const text = typeof eventItem.text === "string" ? eventItem.text.trim() : "";
-    if (text) lastMessage = text;
+    if (item && typeof item === "object" && !Array.isArray(item)) {
+      const eventItem = item as Record<string, unknown>;
+      if (eventItem.type === "agent_message") {
+        const text = typeof eventItem.text === "string" ? eventItem.text.trim() : "";
+        if (text) lastMessage = text;
+      }
+    }
+
+    // Claude: type === "result" with result field
+    if (obj.type === "result" && typeof obj.result === "string") {
+      const text = obj.result.trim();
+      if (text) lastMessage = text;
+    }
+
+    // Claude: type === "assistant" with text content blocks
+    if (obj.type === "assistant") {
+      const message = obj.message as Record<string, unknown> | undefined;
+      const content = message?.content;
+      if (Array.isArray(content)) {
+        for (const block of content) {
+          if (block && typeof block === "object" && (block as Record<string, unknown>).type === "text") {
+            const text = typeof (block as Record<string, unknown>).text === "string"
+              ? ((block as Record<string, unknown>).text as string).trim()
+              : "";
+            if (text) lastMessage = text;
+          }
+        }
+      }
+    }
   }
 
   return lastMessage;
@@ -235,11 +261,99 @@ function classifyEvent(event: CodexStreamEvent): ClassifiedRow {
     return { category: "error", text };
   }
 
-  // Parse structured JSON events from codex stdout
+  // Parse structured JSON events from stdout
   const value = event.parsedJson;
   if (value && typeof value === "object" && !Array.isArray(value)) {
     const obj = value as Record<string, unknown>;
     const type = typeof obj.type === "string" ? obj.type : "";
+
+    // ── Claude Code events ──────────────────────────────────────
+    // System events (hooks, init) — hide
+    if (type === "system") {
+      const subtype = typeof obj.subtype === "string" ? obj.subtype : "";
+      if (subtype === "init") {
+        const model = typeof obj.model === "string" ? obj.model : "";
+        return model
+          ? { category: "status", text: `Claude ${model}` }
+          : { category: "status", text: "", hidden: true };
+      }
+      return { category: "status", text: "", hidden: true };
+    }
+
+    if (type === "rate_limit_event") {
+      return { category: "status", text: "", hidden: true };
+    }
+
+    // Assistant messages — thinking, tool_use, text
+    if (type === "assistant") {
+      const message = obj.message as Record<string, unknown> | undefined;
+      const content = message?.content;
+      if (Array.isArray(content) && content.length > 0) {
+        const block = content[content.length - 1] as Record<string, unknown>;
+        const blockType = typeof block.type === "string" ? block.type : "";
+
+        if (blockType === "thinking") {
+          const thinking = typeof block.thinking === "string" ? block.thinking.trim() : "";
+          if (!thinking) return { category: "status", text: "", hidden: true };
+          const display = thinking.length > 200 ? `${thinking.slice(0, 200)}...` : thinking;
+          return { category: "message", text: display };
+        }
+
+        if (blockType === "tool_use") {
+          const toolName = typeof block.name === "string" ? block.name : "tool";
+          const input = block.input as Record<string, unknown> | undefined;
+          let summary = toolName;
+          if (toolName === "Read" && input?.file_path) {
+            summary = `Read ${shortenPath(String(input.file_path))}`;
+          } else if (toolName === "Edit" && input?.file_path) {
+            summary = `Edit ${shortenPath(String(input.file_path))}`;
+          } else if (toolName === "Write" && input?.file_path) {
+            summary = `Write ${shortenPath(String(input.file_path))}`;
+          } else if (toolName === "Bash" && input?.command) {
+            summary = cleanCommand(String(input.command));
+          } else if (toolName === "Glob" && input?.pattern) {
+            summary = `Glob ${String(input.pattern)}`;
+          } else if (toolName === "Grep" && input?.pattern) {
+            summary = `Grep ${String(input.pattern)}`;
+          } else if (toolName === "WebSearch" && input?.query) {
+            summary = `Search: ${String(input.query)}`;
+          } else if (toolName === "WebFetch" && input?.url) {
+            summary = `Fetch ${String(input.url)}`;
+          }
+          return { category: "command", text: summary, command: summary, status: "running" };
+        }
+
+        if (blockType === "text") {
+          const raw = typeof block.text === "string" ? block.text.trim() : "";
+          const text = stripTodoMarkers(raw);
+          if (!text) return { category: "status", text: "", hidden: true };
+          const isTodoSummary = /working on #\d/i.test(text) || (/todo/i.test(text) && /#\d/.test(text));
+          return { category: "message", text, isTodoSummary };
+        }
+      }
+      return { category: "status", text: "", hidden: true };
+    }
+
+    // Tool results — mark the corresponding tool_use as done
+    if (type === "user") {
+      const toolResult = obj.tool_use_result as Record<string, unknown> | undefined;
+      if (toolResult) {
+        // This is a tool result — we want to merge into the running command row
+        // Return as a completed command so the listener merges it
+        return { category: "command", text: "", command: "", status: "done" };
+      }
+      return { category: "status", text: "", hidden: true };
+    }
+
+    // Final result — show cost/duration
+    if (type === "result") {
+      const cost = typeof obj.total_cost_usd === "number" ? `$${obj.total_cost_usd.toFixed(4)}` : "";
+      const turns = typeof obj.num_turns === "number" ? `${obj.num_turns} turns` : "";
+      const parts = [turns, cost].filter(Boolean).join(" · ");
+      return { category: "status", text: parts || "Done" };
+    }
+
+    // ── Codex events ────────────────────────────────────────────
     const item = obj.item && typeof obj.item === "object" && !Array.isArray(obj.item)
       ? (obj.item as Record<string, unknown>)
       : null;
@@ -259,7 +373,7 @@ function classifyEvent(event: CodexStreamEvent): ClassifiedRow {
       if (itemType === "agent_message") {
         const raw = typeof item.text === "string" ? item.text.trim() : "";
         const text = stripTodoMarkers(raw);
-        const isTodoSummary = /working on #\d/i.test(text) || /todo/i.test(text) && /#\d/.test(text);
+        const isTodoSummary = /working on #\d/i.test(text) || (/todo/i.test(text) && /#\d/.test(text));
         return { category: "message", text: text || "Thinking...", isTodoSummary };
       }
 
@@ -621,15 +735,31 @@ function App() {
         (classified.status === "done" || classified.status === "failed");
 
       if (isCommandDone) {
-        const updateRow = (r: StreamRow): StreamRow =>
-          r.category === "command" && r.command === classified.command && r.status === "running"
-            ? { ...r, status: classified.status, exitCode: classified.exitCode }
-            : r;
+        // Mark matching running command as done.
+        // For Codex: match by command string. For Claude tool results (empty command): mark last running command.
+        const markDone = (rows: StreamRow[]): StreamRow[] => {
+          if (classified.command) {
+            return rows.map((r) =>
+              r.category === "command" && r.command === classified.command && r.status === "running"
+                ? { ...r, status: classified.status, exitCode: classified.exitCode }
+                : r
+            );
+          }
+          // Empty command (Claude) — find last running command from the end
+          let idx = -1;
+          for (let i = rows.length - 1; i >= 0; i--) {
+            if (rows[i].category === "command" && rows[i].status === "running") { idx = i; break; }
+          }
+          if (idx === -1) return rows;
+          return rows.map((r, i) =>
+            i === idx ? { ...r, status: classified.status ?? "done", exitCode: classified.exitCode } : r
+          );
+        };
 
-        streamRowsRef.current = streamRowsRef.current.map(updateRow);
+        streamRowsRef.current = markDone(streamRowsRef.current);
         setInFlightRun((prev) => {
           if (!prev || prev.runId !== payload.runId) return prev;
-          return { ...prev, streamRows: prev.streamRows.map(updateRow) };
+          return { ...prev, streamRows: markDone(prev.streamRows) };
         });
       } else {
         const row: StreamRow = { ...classified, id: nextStreamRowIdRef.current++ };
