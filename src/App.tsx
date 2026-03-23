@@ -268,10 +268,7 @@ function classifyEvent(event: CodexStreamEvent): ClassifiedRow {
     if (type === "system") {
       const subtype = typeof obj.subtype === "string" ? obj.subtype : "";
       if (subtype === "init") {
-        const model = typeof obj.model === "string" ? obj.model : "";
-        return model
-          ? { category: "status", text: `Claude ${model}` }
-          : { category: "status", text: "", hidden: true };
+        return { category: "status", text: "", hidden: true };
       }
       return { category: "status", text: "", hidden: true };
     }

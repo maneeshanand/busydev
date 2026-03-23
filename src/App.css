@@ -804,7 +804,7 @@ pre.json {
   border: 1px solid var(--vp-c-divider);
   color: var(--vp-c-text-1);
   border-radius: 3px;
-  padding: 10px 58px 44px;
+  padding: 10px 58px 44px 12px;
   font-size: 0.86rem;
 }
 
