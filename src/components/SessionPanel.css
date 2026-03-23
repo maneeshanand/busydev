@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--vp-c-bg);
+  background: color-mix(in srgb, var(--vp-c-bg) 92%, var(--vp-c-bg-soft));
   border: 1px solid var(--vp-c-divider);
   border-radius: 12px;
   overflow: hidden;
@@ -24,8 +24,35 @@
 }
 
 .session-panel-header {
-  padding: 10px 12px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 8px 6px 12px;
   border-bottom: 1px solid var(--vp-c-divider);
+}
+
+.panel-collapse-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--vp-c-text-3);
+  cursor: pointer;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.panel-collapse-btn:hover {
+  color: var(--vp-c-text-1);
+  background: var(--vp-c-bg-mute);
+}
+
+.panel-collapse-btn svg {
+  width: 15px;
+  height: 15px;
 }
 
 .session-panel-header h3 {

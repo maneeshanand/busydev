@@ -66,6 +66,8 @@ body {
 
 .container {
   height: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
   display: flex;
   flex-direction: row;
   gap: 0;
@@ -78,30 +80,43 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-width: 1120px;
-  padding: 12px 0;
+  padding: 12px 12px;
+}
+
+.side-panel-left,
+.side-panel-right {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 42px;
 }
 
 .side-panel-left {
   width: var(--left-panel-width, 220px);
-  min-width: 42px;
-  flex-shrink: 0;
   padding: 12px 0 12px 12px;
 }
 
 .side-panel-right {
   width: var(--right-panel-width, 280px);
-  min-width: 42px;
-  flex-shrink: 0;
   padding: 12px 12px 12px 0;
 }
 
-.side-panel-left.is-collapsed {
+.side-panel-left.is-collapsed,
+.side-panel-right.is-collapsed {
   width: 42px;
 }
 
-.side-panel-right.is-collapsed {
-  width: 42px;
+/* Align side panels to the stream-panel area (skip header + directory bar) */
+.side-panel-spacer {
+  height: calc(1.42rem * 1.2 + 36px + 24px); /* header + dir bar + gaps */
+  flex-shrink: 0;
+}
+
+.side-panel-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .app-header {

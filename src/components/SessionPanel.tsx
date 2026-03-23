@@ -6,6 +6,7 @@ interface SessionPanelProps {
   activeSessionId: string;
   collapsed: boolean;
   onSelectSession: (id: string) => void;
+  onCollapse: () => void;
 }
 
 function ClockIcon() {
@@ -13,6 +14,16 @@ function ClockIcon() {
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.7" />
       <path d="M12 7v5l3 3" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function CollapseLeftIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <line x1="9" y1="3" x2="9" y2="21" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M14 10l-2 2 2 2" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -32,6 +43,7 @@ export function SessionPanel({
   activeSessionId,
   collapsed,
   onSelectSession,
+  onCollapse,
 }: SessionPanelProps) {
   if (collapsed) {
     return (
@@ -47,6 +59,9 @@ export function SessionPanel({
     <div className="session-panel">
       <div className="session-panel-header">
         <h3>Sessions</h3>
+        <button type="button" className="panel-collapse-btn" onClick={onCollapse} title="Collapse panel">
+          <CollapseLeftIcon />
+        </button>
       </div>
       <div className="session-panel-list">
         {sessions.map((s) => (

@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--vp-c-bg);
+  background: color-mix(in srgb, var(--vp-c-bg) 92%, var(--vp-c-bg-soft));
   border: 1px solid var(--vp-c-divider);
   border-radius: 12px;
   overflow: hidden;
@@ -36,6 +36,36 @@
   justify-content: space-between;
   padding: 10px 12px 6px;
   border-bottom: 1px solid var(--vp-c-divider);
+}
+
+.todo-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.panel-collapse-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--vp-c-text-3);
+  cursor: pointer;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.panel-collapse-btn:hover {
+  color: var(--vp-c-text-1);
+  background: var(--vp-c-bg-mute);
+}
+
+.panel-collapse-btn svg {
+  width: 15px;
+  height: 15px;
 }
 
 .todo-panel-header h3 {
@@ -147,10 +177,12 @@
   gap: 6px;
   padding: 8px;
   border-top: 1px solid var(--vp-c-divider);
+  flex-shrink: 0;
 }
 
 .todo-add-input {
   flex: 1;
+  min-width: 0;
   font-size: 0.78rem;
   padding: 6px 8px;
   border: 1px solid var(--vp-c-divider);

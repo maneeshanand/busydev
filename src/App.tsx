@@ -698,12 +698,16 @@ function App() {
         style={leftCollapsed ? undefined : { width: leftPanelWidth }}
         onClick={() => leftCollapsed && setLeftCollapsed(false)}
       >
-        <SessionPanel
-          sessions={sessions}
-          activeSessionId={viewingSessionId ?? activeSessionId}
-          collapsed={leftCollapsed}
-          onSelectSession={handleSelectSession}
-        />
+        <div className="side-panel-spacer" />
+        <div className="side-panel-content">
+          <SessionPanel
+            sessions={sessions}
+            activeSessionId={viewingSessionId ?? activeSessionId}
+            collapsed={leftCollapsed}
+            onSelectSession={handleSelectSession}
+            onCollapse={() => setLeftCollapsed(true)}
+          />
+        </div>
       </div>
       {!leftCollapsed && (
         <ResizeHandle side="left" onResize={handleLeftResize} onResizeEnd={handleResizeEnd} />
@@ -916,15 +920,22 @@ function App() {
         style={rightCollapsed ? undefined : { width: rightPanelWidth }}
         onClick={() => rightCollapsed && setRightCollapsed(false)}
       >
-        <TodoPanel
-          todos={viewingSession ? viewingSession.todos : todos}
-          collapsed={rightCollapsed}
-          readonly={isViewingPast}
-          onAdd={handleAddTodo}
-          onToggle={handleToggleTodo}
-          onDelete={handleDeleteTodo}
-          onEdit={handleEditTodo}
-        />
+        <div className="side-panel-spacer" />
+        <div className="side-panel-content">
+          <TodoPanel
+            todos={viewingSession ? viewingSession.todos : todos}
+            collapsed={rightCollapsed}
+            readonly={isViewingPast}
+            onAdd={handleAddTodo}
+            onToggle={handleToggleTodo}
+            onDelete={handleDeleteTodo}
+            onEdit={handleEditTodo}
+            onCollapse={() => {
+              setRightCollapsed(true);
+              setTodoMode(false);
+            }}
+          />
+        </div>
       </div>
 
       {settingsOpen && (

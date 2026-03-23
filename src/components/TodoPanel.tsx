@@ -10,6 +10,17 @@ interface TodoPanelProps {
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
   onEdit: (id: string, text: string) => void;
+  onCollapse: () => void;
+}
+
+function CollapseRightIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <line x1="15" y1="3" x2="15" y2="21" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M10 10l2 2-2 2" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
 }
 
 function ChecklistIcon() {
@@ -35,6 +46,7 @@ export function TodoPanel({
   onToggle,
   onDelete,
   onEdit,
+  onCollapse,
 }: TodoPanelProps) {
   const [newText, setNewText] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -96,9 +108,14 @@ export function TodoPanel({
     <div className="todo-panel">
       <div className="todo-panel-header">
         <h3>Todos</h3>
-        {todos.length > 0 && (
-          <span className="todo-progress">{doneCount}/{todos.length}</span>
-        )}
+        <div className="todo-header-actions">
+          {todos.length > 0 && (
+            <span className="todo-progress">{doneCount}/{todos.length}</span>
+          )}
+          <button type="button" className="panel-collapse-btn" onClick={onCollapse} title="Collapse panel">
+            <CollapseRightIcon />
+          </button>
+        </div>
       </div>
       <div className="todo-list">
         {todos.map((item) => (
