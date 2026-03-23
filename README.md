@@ -1,115 +1,61 @@
 # busydev
 
-busydev is an open-source desktop app for running multiple AI coding agent sessions across repos and branches at the same time.
-
-## Why busydev
-
-If you use CLI agents (Codex, Claude Code, Aider, etc.) across several repos, you end up juggling terminal tabs, losing context, and missing when an agent needs attention. busydev gives you one place to coordinate all of that.
+A desktop app for running multiple AI coding agents in parallel.
 
 ## What It Does
 
-- Manage multiple projects and agent workspaces in one app
-- Create isolated git worktrees per workspace automatically
-- View agent chat output with status and usage context
-- Review code changes in a built-in diff viewer
-- Run integrated terminal tabs per workspace
-- Get attention signals via in-app notifications and tray badge
-- Stay LLM-agnostic through an adapter-based agent system
-
-## Screenshot
-
-> _Coming soon — the app is in active development._
-
-## Website and Docs
-
-Initial public website content for `busydev.com` now lives in `site/`:
-
-- VitePress docs root: `site/docs/`
-- Home/landing page: `site/docs/index.md`
-- Getting started and setup guides: `site/docs/*.md`
-
-Content is built with VitePress and deployed through `.github/workflows/site-pages.yml`.
-
-## Current Status
-
-busydev is in active development. Core UI and backend are implemented:
-
-- Three-panel resizable layout (sidebar, chat, diff/terminal)
-- Project and workspace management with SQLite persistence
-- Agent chat with live event streaming (message, tool call, status)
-- Unified diff viewer with per-file accept/revert
-- xterm.js terminal integration with tab management
-- Claude and Codex agent adapters
-- Git worktree lifecycle management
-- Settings panel with MCP server configuration
-- Status bar with token usage and cost tracking
+- **Multi-agent support** — Run Codex and Claude Code side by side, each in its own tab
+- **Parallel runs** — Submit prompts to multiple agents simultaneously
+- **Human-readable event stream** — Agent messages, tool calls, file changes, and errors rendered with distinct visual treatment
+- **Todo mode** — Define a checklist, the agent works through it and auto-checks completed items
+- **Built-in terminal** — Interactive shell in the working directory, persists across panel toggles
+- **Search** — Cmd/Ctrl+F to search across all agent output with highlighted matches
+- **Inline controls** — Agent, model, approval policy, and sandbox mode selectable directly in the prompt composer
+- **Session persistence** — Run history, todos, settings, and window size persist across restarts
+- **Stop/cancel** — Stop any running agent via button, Esc, or Ctrl+C
 
 ## Tech Stack
 
-- Rust + Tauri 2 (desktop backend/runtime)
+- Rust + Tauri 2 (desktop backend)
 - React + TypeScript + Vite (frontend)
-- Zustand (state management)
-- SQLite via `rusqlite` (persistence)
-- `portable-pty` + `xterm.js` (terminal integration)
+- `portable-pty` + `xterm.js` (terminal)
+- `tauri-plugin-store` (persistence)
 
-## Getting Started (Dev)
+## Getting Started
 
 Prerequisites:
 
-- Rust toolchain
-- Node.js + npm
-- Tauri 2 CLI (`cargo install tauri-cli --version '^2'`)
+- Rust toolchain (`rustup`)
+- Node.js 20+ and npm
+- Tauri CLI (`cargo install tauri-cli --version '^2'`)
 - macOS command line tools (`xcode-select --install`)
-
-Install dependencies:
+- At least one agent CLI: `codex` and/or `claude`
 
 ```bash
 npm install
-```
-
-Run frontend lint and tests:
-
-```bash
-npm run lint
-npm test
-```
-
-Run in development:
-
-```bash
 cargo tauri dev
 ```
 
-Run frontend only (no Tauri runtime):
+## Versioning
+
+All three version sources (package.json, Cargo.toml, tauri.conf.json) must stay in sync.
 
 ```bash
-npm run dev
+npm run version:check          # verify versions are in sync
+npm run version:sync           # sync Cargo.toml + tauri.conf.json to package.json
+npm run release:prepare patch  # bump version (patch/minor/major)
+npm run release:cut patch      # bump, commit, and tag
 ```
 
-Build:
-
-```bash
-cargo tauri build
-```
+Pushing to `main` auto-tags the next patch version and triggers the release workflow.
 
 ## Contributing
 
-Contributions are welcome. busydev is built in public with a modular architecture so contributors can pick up focused tickets.
-
 1. Browse [open issues](https://github.com/maneeshanand/busydev/issues)
 2. Comment on one you'd like to take
-3. Submit a PR with a clear scope
+3. Submit a PR — CI runs TypeScript checks and Rust builds on macOS
 
-For setup, conventions, and workflow details, see [CONTRIBUTING.md](./CONTRIBUTING.md).
-
-Release/version helpers:
-
-- `npm run version:check`
-- `npm run version:sync`
-- `npm run release:prepare -- patch`
-- `npm run release:cut -- patch`
-- `npm run commitlint`
-- `npm run changelog:generate`
+Use conventional commits: `feat(scope):`, `fix(scope):`, `chore(scope):`.
 
 ## License
 
