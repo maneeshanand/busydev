@@ -70,10 +70,10 @@ fn build_agent_command(input: &CodexExecInput) -> (String, Vec<String>) {
         _ => {
             // Map busydev policy names to Codex CLI values
             let codex_policy = match input.approval_policy.as_str() {
-                "full-auto" => "never",
+                "full-auto" | "interactive" => "never",
                 "unless-allow-listed" => "untrusted",
                 "never" | "manual" => "on-request",
-                other => other,
+                _ => "never",
             };
             let mut args = vec![
                 "-a".to_string(),
