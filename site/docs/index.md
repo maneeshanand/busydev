@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: "busydev"
-  text: "Coordinate coding agents without terminal chaos."
-  tagline: "A desktop command center for Codex, Claude Code, and other CLI coding agents. Latest version: v0.1.0."
+  text: "Run multiple AI coding agents in parallel."
+  tagline: "A desktop app for Codex, Claude Code, and other CLI agents. v0.1.7"
   actions:
     - theme: brand
       text: Getting Started
@@ -14,12 +14,12 @@ hero:
       link: /core-workflows
 
 features:
-  - title: Run multiple agent sessions
-    details: Track status and output across workspaces with one unified view.
-  - title: Keep each task isolated
-    details: Use automatic git worktrees per workspace to avoid branch collisions.
-  - title: Review changes quickly
-    details: Use built-in diff tools and terminal tabs without context switching.
-  - title: Stay LLM-agnostic
-    details: Plug in supported adapters while keeping one consistent workflow.
+  - title: Multi-agent tabs
+    details: Run Codex and Claude Code side by side, each in its own tab with independent streaming.
+  - title: Todo mode
+    details: Define a checklist and let the agent work through it — auto-checks completed items.
+  - title: Built-in terminal
+    details: Interactive shell in the working directory, persists across panel toggles.
+  - title: Human-readable stream
+    details: Agent messages, tool calls, file changes, and errors rendered with distinct visual treatment.
 ---

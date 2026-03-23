@@ -1,17 +1,21 @@
 # Core Workflows
 
-## 1) Parallel issue execution
+## 1) Parallel agent runs
 
-Create one workspace per issue/branch and run separate agent sessions in each workspace.
+Submit prompts to multiple agents simultaneously. Each run gets its own tab with independent event streaming. Switch between tabs to monitor progress.
 
-## 2) Review and apply changes
+## 2) Todo-driven development
 
-Use the diff view to inspect modifications quickly, then apply or revert file changes before committing.
+Toggle Todo mode, define a checklist, and click "Run todos". The agent sees the list, works through items, and auto-checks them as it completes each one. Agent can also suggest new todos via `ADD_TODO:` markers.
 
-## 3) Terminal-assisted fixes
+## 3) Terminal alongside agents
 
-Use built-in terminal tabs for tests, builds, and validation commands without leaving the active workspace context.
+Open the built-in terminal to run commands in the working directory while agents work. Terminal history persists across panel toggles.
 
-## 4) Settings and MCP integrations
+## 4) Search agent history
 
-Manage MCP server entries and adapter settings in-app so each workspace has predictable runtime behavior.
+Use Cmd/Ctrl+F to search across all agent output — messages, commands, file paths. Matches highlighted in amber.
+
+## 5) Agent and model switching
+
+Switch between Codex and Claude Code, pick models, and set approval policies directly from the prompt composer. No settings menu needed for day-to-day use.
