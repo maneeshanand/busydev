@@ -668,6 +668,54 @@ function parseTodoAdditions(output: CodexExecOutput): string[] {
   return newTodos;
 }
 
+function SessionTabs({ sessions, activeSessionId, sessionRunCounts, projectId, onSelect, onNew, onRename }: {
+  sessions: Session[];
+  activeSessionId: string | null;
+  sessionRunCounts: Record<string, number>;
+  projectId: string;
+  onSelect: (id: string) => void;
+  onNew: () => void;
+  onRename: (id: string, name: string) => void;
+}) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+
+  return (
+    <div className="session-bar">
+      {sessions.map((s) => (
+        editingId === s.id ? (
+          <input
+            key={s.id}
+            className="session-tab-edit"
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            onBlur={() => { onRename(s.id, editName); setEditingId(null); }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { onRename(s.id, editName); setEditingId(null); }
+              if (e.key === "Escape") setEditingId(null);
+            }}
+            autoFocus
+          />
+        ) : (
+          <button
+            key={s.id}
+            type="button"
+            className={`session-tab ${s.id === activeSessionId ? "session-tab-active" : ""}`}
+            onClick={() => onSelect(s.id)}
+            onDoubleClick={() => { setEditingId(s.id); setEditName(s.name); }}
+          >
+            {s.name}
+            {(sessionRunCounts[`${projectId}:${s.id}`] ?? 0) > 0 && (
+              <span className="session-tab-spinner" />
+            )}
+          </button>
+        )
+      ))}
+      <button type="button" className="session-tab-add" onClick={onNew}>+</button>
+    </div>
+  );
+}
+
 function App() {
   const [loading, setLoading] = useState(true);
   const [splashFading, setSplashFading] = useState(false);
@@ -1171,6 +1219,19 @@ function App() {
     loadSession(session);
   }
 
+  function handleRenameSession(sessionId: string, name: string) {
+    if (!activeProjectId || !name.trim()) return;
+    setProjects((prev) => prev.map((p) => {
+      if (p.id !== activeProjectId) return p;
+      return {
+        ...p,
+        sessions: p.sessions.map((s) =>
+          s.id === sessionId ? { ...s, name: name.trim() } : s
+        ),
+      };
+    }));
+  }
+
   async function handleAddProject() {
     flushCurrentSession();
     const dir = await open({ directory: true, multiple: false });
@@ -1507,31 +1568,26 @@ function App() {
           </div>
         </div>
 
-        <ProjectNavigator
-          projects={projects}
-          activeProjectId={activeProjectId}
-          onSelect={switchToProject}
-          onAdd={handleAddProject}
-          onRemove={handleRemoveProject}
-        />
+        <div className="project-container">
+          <ProjectNavigator
+            projects={projects}
+            activeProjectId={activeProjectId}
+            onSelect={switchToProject}
+            onAdd={handleAddProject}
+            onRemove={handleRemoveProject}
+          />
+        </div>
 
         {activeProject && activeProject.sessions.length > 0 && (
-          <div className="session-bar">
-            {activeProject.sessions.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                className={`session-tab ${s.id === activeProject.activeSessionId ? "session-tab-active" : ""}`}
-                onClick={() => switchSession(activeProject.id, s.id)}
-              >
-                {s.name}
-                {sessionRunCounts[`${activeProject.id}:${s.id}`] > 0 && (
-                  <span className="session-tab-spinner" />
-                )}
-              </button>
-            ))}
-            <button type="button" className="session-tab-add" onClick={handleNewSession}>+</button>
-          </div>
+          <SessionTabs
+            sessions={activeProject.sessions}
+            activeSessionId={activeProject.activeSessionId}
+            sessionRunCounts={sessionRunCounts}
+            projectId={activeProject.id}
+            onSelect={(sid) => switchSession(activeProject.id, sid)}
+            onNew={handleNewSession}
+            onRename={handleRenameSession}
+          />
         )}
 
         {searchOpen && (

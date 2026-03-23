@@ -235,22 +235,32 @@ button:disabled {
   gap: 10px;
 }
 
+.project-container {
+  padding: 6px 8px;
+  background: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 3px;
+}
+
 .session-bar {
   display: flex;
   gap: 2px;
   align-items: center;
-  padding: 0 2px;
+  padding: 0 4px;
   flex-shrink: 0;
+  margin-bottom: -1px;
+  z-index: 1;
+  position: relative;
 }
 
 .session-tab {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 10px;
+  padding: 5px 12px;
   font-size: 0.72rem;
   border: 1px solid var(--vp-c-divider);
-  border-radius: 3px;
+  border-radius: 3px 3px 0 0;
   background: var(--vp-c-bg-soft);
   color: var(--vp-c-text-3);
   cursor: pointer;
@@ -264,9 +274,10 @@ button:disabled {
 }
 
 .session-tab-active {
-  background: var(--vp-c-bg);
+  background: color-mix(in srgb, var(--vp-c-bg) 78%, var(--vp-c-bg-soft));
   color: var(--vp-c-text-1);
-  border-color: var(--vp-c-brand-3);
+  border-color: var(--vp-c-divider);
+  border-bottom-color: color-mix(in srgb, var(--vp-c-bg) 78%, var(--vp-c-bg-soft));
   font-weight: 500;
 }
 
@@ -278,6 +289,19 @@ button:disabled {
   border-top-color: transparent;
   border-radius: 50%;
   animation: runSpinner 0.7s linear infinite;
+}
+
+.session-tab-edit {
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  border: 1px solid var(--vp-c-brand-3);
+  border-radius: 3px 3px 0 0;
+  background: var(--vp-c-bg);
+  color: var(--vp-c-text-1);
+  font-family: inherit;
+  outline: none;
+  min-width: 60px;
+  max-width: 140px;
 }
 
 .session-tab-add {
