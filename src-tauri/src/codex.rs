@@ -57,7 +57,6 @@ fn build_agent_command(input: &CodexExecInput) -> (String, Vec<String>) {
                 "--verbose".to_string(),
                 "--output-format".to_string(),
                 "stream-json".to_string(),
-                "--continue".to_string(),
             ];
             if let Some(ref model) = input.model {
                 if !model.is_empty() {
