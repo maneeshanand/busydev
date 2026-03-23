@@ -6,48 +6,9 @@ import {
   CODEX_STREAM_EVENT,
   runCodexExec,
   stopCodexExec,
-  type CodexExecOutput,
   type CodexStreamEvent,
 } from "./invoke";
-
-type EventCategory = "message" | "command" | "file_change" | "status" | "error";
-
-interface StreamRow {
-  id: number;
-  category: EventCategory;
-  text: string;
-  command?: string;
-  exitCode?: number | null;
-  status?: "running" | "done" | "failed";
-  filePaths?: string[];
-  hidden?: boolean;
-}
-
-interface RunEntry {
-  id: number;
-  prompt: string;
-  output: CodexExecOutput;
-  streamRows: StreamRow[];
-  stopped?: boolean;
-}
-
-/** Slim version of RunEntry for persistence — drops large raw output fields. */
-interface PersistedRun {
-  id: number;
-  prompt: string;
-  streamRows: StreamRow[];
-  exitCode: number | null;
-  durationMs: number;
-  finalSummary: string;
-  stopped?: boolean;
-}
-
-interface InFlightRun {
-  id: number;
-  runId: string;
-  prompt: string;
-  streamRows: StreamRow[];
-}
+import type { StreamRow, RunEntry, PersistedRun, InFlightRun } from "./types";
 
 function SunIcon() {
   return (
