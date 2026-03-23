@@ -10,6 +10,7 @@ interface TerminalProps {
   sessionId: string | null;
   onSessionCreated: (id: string) => void;
   cwd: string;
+  visible?: boolean;
 }
 
 interface TerminalOutput {
@@ -17,7 +18,7 @@ interface TerminalOutput {
   data: string;
 }
 
-export function TerminalPanel({ sessionId, onSessionCreated, cwd }: TerminalProps) {
+export function TerminalPanel({ sessionId, onSessionCreated, cwd, visible }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -114,6 +115,13 @@ export function TerminalPanel({ sessionId, onSessionCreated, cwd }: TerminalProp
       term.dispose();
     };
   }, [cwd]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Refit when panel becomes visible again
+  useEffect(() => {
+    if (visible && fitRef.current) {
+      requestAnimationFrame(() => fitRef.current?.fit());
+    }
+  }, [visible]);
 
   return <div className="terminal-container" ref={containerRef} />;
 }
