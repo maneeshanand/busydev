@@ -769,6 +769,16 @@ input[type="text"] {
     height: calc(100vh - 16px);
   }
 
+  .side-panel-left,
+  .side-panel-right,
+  .resize-handle {
+    display: none;
+  }
+
+  .main-column {
+    padding: 0;
+  }
+
   .settings-grid {
     grid-template-columns: 1fr;
   }
