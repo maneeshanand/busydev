@@ -1192,11 +1192,36 @@ function App() {
 
   function switchToProject(projectId: string) {
     if (projectId === activeProjectId) return;
-    flushCurrentSession();
+    // Flush current session AND read target project in one atomic update
+    const currentRunsPersisted: PersistedRun[] = runs.map((r) => ({
+      id: r.id, prompt: r.prompt, streamRows: r.streamRows,
+      exitCode: r.output.exitCode, durationMs: r.output.durationMs,
+      finalSummary: buildFinalSummary(r), stopped: r.stopped, completedAt: r.completedAt,
+    }));
+    const allRuns = [...sessionRuns, ...currentRunsPersisted];
+
+    let targetSession: Session | null = null;
+    setProjects((prev) => {
+      const updated = prev.map((p) => {
+        // Flush current project's active session
+        if (p.id === activeProjectId && p.activeSessionId) {
+          return {
+            ...p,
+            sessions: p.sessions.map((s) =>
+              s.id === p.activeSessionId ? { ...s, runs: allRuns, todos } : s
+            ),
+          };
+        }
+        return p;
+      });
+      // Find target project's active session
+      const targetProject = updated.find((p) => p.id === projectId);
+      targetSession = targetProject?.sessions.find((s) => s.id === targetProject.activeSessionId) ?? targetProject?.sessions[0] ?? null;
+      return updated;
+    });
+
     setActiveProjectId(projectId);
-    const project = projects.find((p) => p.id === projectId);
-    const session = project?.sessions.find((s) => s.id === project.activeSessionId) ?? null;
-    loadSession(session);
+    loadSession(targetSession);
   }
 
   function handleRemoveProject(id: string) {
