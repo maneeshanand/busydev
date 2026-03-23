@@ -17,7 +17,8 @@ import type { StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project,
 import { ProjectNavigator } from "./components/ProjectNavigator";
 import { TodoPanel } from "./components/TodoPanel";
 import { ResizeHandle } from "./components/ResizeHandle";
-import { SettingsView } from "./components/SettingsView";
+import { SettingsView, type SectionId } from "./components/SettingsView";
+import { SETTINGS_VERSION, migrateStoredSettings } from "./lib/settings";
 // Terminal hidden — MAN-157
 // import { TerminalPanel } from "./components/Terminal";
 import { TabBar, type Tab } from "./components/TabBar";
@@ -762,6 +763,7 @@ function App() {
   const [colorMode, setColorMode] = useState<"light" | "dark">("light");
   const [debugMode, setDebugMode] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<SectionId>("general");
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [skipGitRepoCheck, setSkipGitRepoCheck] = useState(true);
@@ -810,6 +812,17 @@ function App() {
   const sandboxMode = activeSession?.sandboxMode ?? "read-only";
   const workingDirectory = activeProject?.path ?? "";
   const canRun = workingDirectory.length > 0 && prompt.length > 0;
+  const modelLabel = model || (agent === "claude" ? "claude-sonnet-4-6" : "codex-mini");
+  const approvalLabel = approvalPolicy === "unless-allow-listed"
+    ? "allow-listed"
+    : approvalPolicy === "never"
+      ? "manual"
+      : "full-auto";
+
+  function openSettings(section: SectionId) {
+    setSettingsSection(section);
+    setSettingsOpen(true);
+  }
 
   // Count in-flight runs per session for spinner indicators
   const sessionRunCounts: Record<string, number> = {};
@@ -829,77 +842,25 @@ function App() {
     (async () => {
       try {
         const store = await loadStore("session.json");
-        const saved = await store.get<{
-          agent?: string;
-          approvalPolicy?: string;
-          sandboxMode?: string;
-          model?: string;
-          colorMode?: "light" | "dark";
-          debugMode?: boolean;
-          workingDirectory?: string; // legacy
-          projects?: Project[];
-          activeProjectId?: string;
-          skipGitRepoCheck?: boolean;
-          persistedRuns?: PersistedRun[];
-          todos?: TodoItem[];
-          todoMode?: boolean;
-          rightPanelWidth?: number;
-          windowWidth?: number;
-          windowHeight?: number;
-        }>("session");
-        if (saved) {
+        const saved = await store.get<unknown>("session");
+        const migrated = migrateStoredSettings(saved);
+        if (migrated) {
           // Restore window size
-          if (saved.windowWidth && saved.windowHeight) {
-            void getCurrentWindow().setSize(new LogicalSize(saved.windowWidth, saved.windowHeight));
+          if (migrated.windowWidth && migrated.windowHeight) {
+            void getCurrentWindow().setSize(new LogicalSize(migrated.windowWidth, migrated.windowHeight));
           }
-          // agent, model, approvalPolicy, sandboxMode are per-session (stored in Session type)
-          if (saved.colorMode) setColorMode(saved.colorMode);
-          if (saved.debugMode != null) setDebugMode(saved.debugMode);
-          // Load projects with sessions
-          if (saved.projects && saved.projects.length > 0) {
-            // Migrate projects without sessions (from previous format)
-            const migratedProjects = saved.projects.map((p: any) => {
-              if (p.sessions && p.sessions.length > 0) return p;
-              // Create first session, migrate legacy runs/todos into it
-              const firstSession: Session = {
-                id: crypto.randomUUID(),
-                projectId: p.id,
-                name: "Session 1",
-                createdAt: p.createdAt,
-                runs: saved.persistedRuns ?? [],
-                todos: saved.todos ?? [],
-              };
-              return { ...p, sessions: [firstSession], activeSessionId: firstSession.id };
-            });
-            setProjects(migratedProjects);
-            const activeId = saved.activeProjectId ?? migratedProjects[0].id;
-            setActiveProjectId(activeId);
-            // Session data lives in projects — derived automatically
-          } else if (saved.workingDirectory) {
-            // Legacy: single workingDirectory → project + session
-            const name = saved.workingDirectory.split("/").pop() || "project";
-            const projId = crypto.randomUUID();
-            const firstSession: Session = {
-              id: crypto.randomUUID(),
-              projectId: projId,
-              name: "Session 1",
-              createdAt: Date.now(),
-              runs: saved.persistedRuns ?? [],
-              todos: saved.todos ?? [],
-            };
-            const bootstrapped: Project = {
-              id: projId, name, path: saved.workingDirectory, createdAt: Date.now(),
-              sessions: [firstSession], activeSessionId: firstSession.id,
-            };
-            setProjects([bootstrapped]);
-            setActiveProjectId(projId);
-          }
-          if (saved.skipGitRepoCheck != null) setSkipGitRepoCheck(saved.skipGitRepoCheck);
-          if (saved.todoMode != null) {
-            setTodoMode(saved.todoMode);
-            setRightCollapsed(!saved.todoMode);
-          }
-          if (saved.rightPanelWidth) setRightPanelWidth(saved.rightPanelWidth);
+          setColorMode(migrated.colorMode);
+          setDebugMode(migrated.debugMode);
+          setProjects(migrated.projects);
+          setActiveProjectId(migrated.activeProjectId);
+          setSkipGitRepoCheck(migrated.skipGitRepoCheck);
+          setTodoMode(migrated.todoMode);
+          setRightCollapsed(!migrated.todoMode);
+          setRightPanelWidth(migrated.rightPanelWidth);
+
+          // Backfill migrated shape to disk so subsequent loads skip legacy handling.
+          await store.set("session", migrated);
+          await store.save();
         }
       } catch {
         // First launch or corrupted store — start fresh
@@ -915,6 +876,7 @@ function App() {
       const store = await loadStore("session.json");
       // Projects contain all session data directly — no flush needed
       await store.set("session", {
+        settingsVersion: SETTINGS_VERSION,
         // agent, model, approvalPolicy, sandboxMode are per-session
         colorMode,
         debugMode,
@@ -1555,7 +1517,7 @@ function App() {
             <button
               type="button"
               className="todo-toggle"
-              onClick={() => setSettingsOpen(true)}
+              onClick={() => openSettings("general")}
               title="Open settings"
               aria-label="Open settings"
             >
@@ -1735,55 +1697,35 @@ function App() {
               placeholder="Get Busy..."
             />
             <div className="composer-meta">
-              <select
-                className="meta-select"
-                value={agent}
-                onChange={(e) => {
-                  setAgent(e.target.value);
-                  setModel("");
-                }}
+              <button
+                type="button"
+                className="meta-chip-button"
+                onClick={() => openSettings("session")}
               >
-                <option value="codex">Codex</option>
-                <option value="claude">Claude Code</option>
-              </select>
-              <select
-                className="meta-select"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
+                Agent: {agent === "claude" ? "Claude Code" : "Codex"}
+              </button>
+              <button
+                type="button"
+                className="meta-chip-button"
+                onClick={() => openSettings("session")}
               >
-                {agent === "claude" ? (
-                  <>
-                    <option value="">claude-sonnet-4-6</option>
-                    <option value="claude-opus-4-6">claude-opus-4-6</option>
-                    <option value="claude-haiku-4-5">claude-haiku-4-5</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="">codex-mini</option>
-                    <option value="o3">o3</option>
-                    <option value="o4-mini">o4-mini</option>
-                  </>
-                )}
-              </select>
-              <select
-                className="meta-select"
-                value={approvalPolicy}
-                onChange={(e) => setApprovalPolicy(e.target.value)}
+                Model: {modelLabel}
+              </button>
+              <button
+                type="button"
+                className="meta-chip-button"
+                onClick={() => openSettings("execution")}
               >
-                <option value="full-auto">full-auto</option>
-                <option value="unless-allow-listed">allow-listed</option>
-                <option value="never">manual</option>
-              </select>
+                Approval: {approvalLabel}
+              </button>
               {agent === "codex" && (
-                <select
-                  className="meta-select"
-                  value={sandboxMode}
-                  onChange={(e) => setSandboxMode(e.target.value)}
+                <button
+                  type="button"
+                  className="meta-chip-button"
+                  onClick={() => openSettings("execution")}
                 >
-                  <option value="read-only">read-only</option>
-                  <option value="workspace-write">workspace-write</option>
-                  <option value="danger-full-access">full-access</option>
-                </select>
+                  Sandbox: {sandboxMode === "danger-full-access" ? "full-access" : sandboxMode}
+                </button>
               )}
               {todoMode && todos.length > 0 && (
                 <span className="meta-label">Todos: {todos.filter((t) => !t.done).length} remaining</span>
@@ -1881,6 +1823,7 @@ ADD_TODO: step three description`);
       <SettingsView
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+        initialSection={settingsSection}
         colorMode={colorMode}
         setColorMode={setColorMode}
         debugMode={debugMode}
