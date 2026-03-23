@@ -10,6 +10,9 @@ import {
   runCodexExec,
   stopCodexExec,
   writeToAgent,
+  createWorktree,
+  deleteWorktree,
+  isGitRepo,
   type CodexExecOutput,
   type CodexStreamEvent,
 } from "./invoke";
@@ -712,6 +715,9 @@ function SessionTabs({ sessions, activeSessionId, sessionRunCounts, projectId, o
               >
                 {s.name}
               </span>
+              {s.worktreeBranch && (
+                <span className="session-tab-branch" title={s.worktreeBranch}>⑂</span>
+              )}
               {(sessionRunCounts[`${projectId}:${s.id}`] ?? 0) > 0 && (
                 <span className="session-tab-spinner" />
               )}
@@ -810,7 +816,7 @@ function App() {
   const model = activeSession?.model ?? "";
   const approvalPolicy = activeSession?.approvalPolicy ?? "full-auto";
   const sandboxMode = activeSession?.sandboxMode ?? "read-only";
-  const workingDirectory = activeProject?.path ?? "";
+  const workingDirectory = activeSession?.worktreePath ?? activeProject?.path ?? "";
   const canRun = workingDirectory.length > 0 && prompt.length > 0;
   const modelLabel = model || (agent === "claude" ? "claude-sonnet-4-6" : "codex-mini");
   const approvalLabel = approvalPolicy === "unless-allow-listed"
@@ -1186,9 +1192,27 @@ function App() {
     resetEphemeralState();
   }
 
-  function handleNewSession() {
+  async function handleNewSession() {
     if (!activeProjectId || !activeProject) return;
     const session = makeSession(activeProjectId, activeProject.sessions.length);
+
+    // Create a git worktree for non-first sessions
+    if (activeProject.sessions.length > 0) {
+      try {
+        const isGit = await isGitRepo(activeProject.path);
+        if (isGit) {
+          const slug = session.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+          const branch = `busydev/${slug}`;
+          const wtPath = `${activeProject.path}/.worktrees/${session.id}`;
+          await createWorktree(activeProject.path, wtPath, branch);
+          session.worktreePath = wtPath;
+          session.worktreeBranch = branch;
+        }
+      } catch {
+        // Non-git project or worktree creation failed — continue without
+      }
+    }
+
     setProjects((prev) => prev.map((p) =>
       p.id === activeProjectId
         ? { ...p, sessions: [...p.sessions, session], activeSessionId: session.id }
@@ -1197,8 +1221,17 @@ function App() {
     resetEphemeralState();
   }
 
-  function handleDeleteSession(sessionId: string) {
-    if (!activeProjectId) return;
+  async function handleDeleteSession(sessionId: string) {
+    if (!activeProjectId || !activeProject) return;
+    // Clean up worktree if it exists
+    const session = activeProject.sessions.find((s) => s.id === sessionId);
+    if (session?.worktreePath) {
+      try {
+        await deleteWorktree(activeProject.path, session.worktreePath);
+      } catch {
+        // Worktree may already be gone
+      }
+    }
     setProjects((prev) => prev.map((p) => {
       if (p.id !== activeProjectId) return p;
       const remaining = p.sessions.filter((s) => s.id !== sessionId);

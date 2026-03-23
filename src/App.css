@@ -310,6 +310,12 @@ button:disabled {
   font-weight: 500;
 }
 
+.session-tab-branch {
+  font-size: 0.68rem;
+  color: var(--vp-c-text-3);
+  cursor: help;
+}
+
 .session-tab-spinner {
   display: inline-block;
   width: 8px;
