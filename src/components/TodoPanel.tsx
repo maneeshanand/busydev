@@ -20,6 +20,7 @@ interface TodoPanelProps {
   onClearTodos?: () => void;
   onSaveTodos?: () => void;
   onToggleAutoPlay?: () => void;
+  onReorder?: (fromIndex: number, toIndex: number) => void;
 }
 
 function SkipIcon() {
@@ -108,6 +109,7 @@ export function TodoPanel({
   canRun,
   running,
   autoPlay,
+  onReorder,
 }: TodoPanelProps) {
   const [newText, setNewText] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -255,8 +257,30 @@ export function TodoPanel({
             </div>
           </div>
         )}
-        {todos.map((item) => (
+        {todos.map((item, index) => (
           <div key={item.id} className={`todo-item ${item.done ? "todo-item-done" : ""}`}>
+            {!readonly && onReorder && !item.done && (
+              <div className="todo-reorder">
+                <button
+                  type="button"
+                  className="todo-reorder-btn"
+                  disabled={index === 0}
+                  onClick={() => { if (index > 0) onReorder(index, index - 1); }}
+                  title="Move up"
+                >
+                  ▲
+                </button>
+                <button
+                  type="button"
+                  className="todo-reorder-btn"
+                  disabled={index >= todos.length - 1}
+                  onClick={() => { if (index < todos.length - 1) onReorder(index, index + 1); }}
+                  title="Move down"
+                >
+                  ▼
+                </button>
+              </div>
+            )}
             {!readonly && (
               <input
                 type="checkbox"

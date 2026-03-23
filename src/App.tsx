@@ -1609,6 +1609,14 @@ function App() {
             onToggleAutoPlay={() => setAutoPlayTodos((prev) => !prev)}
             onClearTodos={handleClearTodos}
             onSaveTodos={handleSaveTodos}
+            onReorder={(from, to) => {
+              setTodos((prev) => {
+                const next = [...prev];
+                const [moved] = next.splice(from, 1);
+                next.splice(to, 0, moved);
+                return next;
+              });
+            }}
             onGenerateTodos={(goal) => {
               void handleRun(`IMPORTANT: Do NOT ask questions, do NOT use skills, do NOT brainstorm. Just output a todo list immediately.
 
