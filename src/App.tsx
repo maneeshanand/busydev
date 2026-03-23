@@ -124,46 +124,9 @@ function ChecklistIcon() {
   );
 }
 
-interface TurnUsage {
-  inputTokens: number;
-  outputTokens: number;
-}
 
-function extractTurnUsage(value: unknown): TurnUsage | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const obj = value as Record<string, unknown>;
-  if (obj.type !== "turn.completed") return null;
 
-  const usage = obj.usage;
-  if (!usage || typeof usage !== "object" || Array.isArray(usage)) return null;
-  const usageObj = usage as Record<string, unknown>;
 
-  const inputTokens = typeof usageObj.input_tokens === "number" ? usageObj.input_tokens : null;
-  const outputTokens = typeof usageObj.output_tokens === "number" ? usageObj.output_tokens : null;
-  if (inputTokens == null || outputTokens == null) return null;
-
-  return { inputTokens, outputTokens };
-}
-
-function formatTokenCount(value: number): string {
-  return new Intl.NumberFormat("en-US").format(value);
-}
-
-function inferModelType(modelName: string): string {
-  const lower = modelName.toLowerCase();
-  if (lower.includes("codex")) return "coding";
-  if (lower.includes("mini")) return "compact";
-  if (lower.includes("gpt")) return "general";
-  return "unknown";
-}
-
-function inferContextWindow(modelName: string): number | null {
-  const hint = modelName.match(/(\d+)\s*k/i);
-  if (!hint) return null;
-  const value = Number.parseInt(hint[1], 10);
-  if (!Number.isFinite(value) || value <= 0) return null;
-  return value * 1000;
-}
 
 function summarizePrompt(prompt: string): string {
   const compact = prompt.trim().replace(/\s+/g, " ");
@@ -712,7 +675,6 @@ function App() {
   const [inFlightRuns, setInFlightRuns] = useState<Record<string, InFlightRun>>({});
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [lastUsage, setLastUsage] = useState<TurnUsage | null>(null);
 
   // Todo and panel state
   const [todos, setTodos] = useState<TodoItem[]>([]);
@@ -738,16 +700,6 @@ function App() {
   const anyRunning = Object.keys(inFlightRuns).length > 0;
   const activeInFlightRun = activeTabId ? inFlightRuns[activeTabId] ?? null : null;
   const canRun = workingDirectory.length > 0 && prompt.length > 0;
-  const defaultModel = agent === "claude" ? "claude-sonnet-4-6" : "codex-mini";
-  const displayModel = model.trim() || defaultModel;
-  const modelType = inferModelType(displayModel);
-  const contextWindow = inferContextWindow(displayModel);
-  const remainingContext = contextWindow != null && lastUsage
-    ? Math.max(0, contextWindow - lastUsage.inputTokens)
-    : null;
-  const remainingUsage = contextWindow != null && lastUsage
-    ? Math.max(0, contextWindow - (lastUsage.inputTokens + lastUsage.outputTokens))
-    : null;
 
 
   // Load persisted state on mount
@@ -843,9 +795,6 @@ function App() {
 
       // Only process events for runs we're tracking
       if (!streamRowsMapRef.current[rid]) return;
-
-      const usage = extractTurnUsage(payload.parsedJson);
-      if (usage) setLastUsage(usage);
 
       const classified = classifyEvent(payload);
       if (classified.hidden) return;
@@ -1030,7 +979,6 @@ function App() {
 
     setPrompt("");
     setError(null);
-    setLastUsage(null);
 
     // Initialize per-run tracking
     streamRowsMapRef.current[runId] = [];
@@ -1454,18 +1402,45 @@ function App() {
               placeholder="Get Busy..."
             />
             <div className="composer-meta">
-              <span className="meta-label">Approval Policy: {approvalPolicy}</span>
-              <span className="meta-label">Agent: {agent === "claude" ? "Claude Code" : "Codex"}</span>
-              <span className="meta-label">Model: {displayModel}</span>
-              {modelType !== "unknown" && (
-                <span className="meta-label">Type: {modelType}</span>
-              )}
-              {remainingContext != null && (
-                <span className="meta-label">Context: {formatTokenCount(remainingContext)}</span>
-              )}
-              {remainingUsage != null && (
-                <span className="meta-label">Usage: {formatTokenCount(remainingUsage)}</span>
-              )}
+              <select
+                className="meta-select"
+                value={agent}
+                onChange={(e) => setAgent(e.target.value)}
+              >
+                <option value="codex">Codex</option>
+                <option value="claude">Claude Code</option>
+              </select>
+              <select
+                className="meta-select"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+              >
+                <option value="">
+                  {agent === "claude" ? "claude-sonnet-4-6" : "codex-mini"}
+                </option>
+                {agent === "claude" ? (
+                  <>
+                    <option value="claude-sonnet-4-6">claude-sonnet-4-6</option>
+                    <option value="claude-opus-4-6">claude-opus-4-6</option>
+                    <option value="claude-haiku-4-5">claude-haiku-4-5</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="codex-mini">codex-mini</option>
+                    <option value="o4-mini">o4-mini</option>
+                    <option value="o3">o3</option>
+                  </>
+                )}
+              </select>
+              <select
+                className="meta-select"
+                value={approvalPolicy}
+                onChange={(e) => setApprovalPolicy(e.target.value)}
+              >
+                <option value="full-auto">full-auto</option>
+                <option value="unless-allow-listed">allow-listed</option>
+                <option value="never">manual</option>
+              </select>
               {todoMode && todos.length > 0 && (
                 <span className="meta-label">Todos: {todos.filter((t) => !t.done).length} remaining</span>
               )}
