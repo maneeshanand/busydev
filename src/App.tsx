@@ -733,7 +733,7 @@ function SessionTabs({ sessions, activeSessionId, sessionRunCounts, projectId, o
           <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
             <div className="confirm-title">Delete "{sessionToDelete.name}"?</div>
             <div className="confirm-body">
-              This will permanently delete {sessionToDelete.runs.length} run{sessionToDelete.runs.length !== 1 ? "s" : ""} and {sessionToDelete.todos.length} todo{sessionToDelete.todos.length !== 1 ? "s" : ""} in this session. This cannot be undone.
+              All session history and data will be permanently deleted. This cannot be undone.
             </div>
             <div className="confirm-actions">
               <button type="button" className="confirm-cancel" onClick={() => setConfirmDeleteId(null)}>
