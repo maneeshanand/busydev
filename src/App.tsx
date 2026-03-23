@@ -193,6 +193,15 @@ function buildFinalSummary(run: RunEntry): string {
   return `You asked me to ${summarizePrompt(run.prompt)}, but the run ended with exit code ${run.output.exitCode ?? "N/A"}.`;
 }
 
+function formatTimestamp(ts: number): string {
+  const d = new Date(ts);
+  const now = new Date();
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (d.toDateString() === now.toDateString()) return time;
+  const date = d.toLocaleDateString([], { month: "short", day: "numeric" });
+  return `${date}, ${time}`;
+}
+
 function cleanCommand(raw: string): string {
   const m = raw.match(/^\/bin\/(?:ba|z)?sh\s+-\w*c\s+['"](.+)['"]$/s);
   if (m) return m[1];
@@ -607,6 +616,7 @@ function renderPersistedRun(run: PersistedRun, debugMode: boolean, searchQuery =
         {debugMode && <div>Run #{run.id}</div>}
         <div>{run.stopped ? `Stopped after ${(run.durationMs / 1000).toFixed(1)}s` : `Finished in ${(run.durationMs / 1000).toFixed(1)}s`}</div>
         {debugMode && <div>Exit code: {run.exitCode ?? "N/A"}</div>}
+        {run.completedAt && <div className="run-timestamp">{formatTimestamp(run.completedAt)}</div>}
       </div>
     </div>
   );
@@ -789,6 +799,7 @@ function App() {
         durationMs: r.output.durationMs,
         finalSummary: buildFinalSummary(r),
         stopped: r.stopped,
+        completedAt: r.completedAt,
       }));
       const allPersisted = [...restoredRuns, ...currentRunsPersisted];
       await store.set("session", {
@@ -1089,6 +1100,7 @@ function App() {
           output: out,
           streamRows: finalStreamRows,
           stopped: wasStopped,
+          completedAt: Date.now(),
         },
       ]);
 
@@ -1389,6 +1401,7 @@ function App() {
                       {debugMode && <div>Run #{run.id}</div>}
                       <div>{run.stopped ? `Stopped after ${(run.output.durationMs / 1000).toFixed(1)}s` : `Finished in ${(run.output.durationMs / 1000).toFixed(1)}s`}</div>
                       {debugMode && <div>Exit code: {run.output.exitCode ?? "N/A"}</div>}
+                      {run.completedAt && <div className="run-timestamp">{formatTimestamp(run.completedAt)}</div>}
                     </div>
 
                     {debugMode && (
