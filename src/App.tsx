@@ -1463,6 +1463,17 @@ function App() {
                 <option value="unless-allow-listed">allow-listed</option>
                 <option value="never">manual</option>
               </select>
+              {agent === "codex" && (
+                <select
+                  className="meta-select"
+                  value={sandboxMode}
+                  onChange={(e) => setSandboxMode(e.target.value)}
+                >
+                  <option value="read-only">read-only</option>
+                  <option value="workspace-write">workspace-write</option>
+                  <option value="danger-full-access">full-access</option>
+                </select>
+              )}
               {todoMode && todos.length > 0 && (
                 <span className="meta-label">Todos: {todos.filter((t) => !t.done).length} remaining</span>
               )}
@@ -1543,14 +1554,6 @@ function App() {
               <button type="button" className="settings-close" onClick={() => setSettingsOpen(false)}>✕</button>
             </div>
             <div className="settings-grid">
-              <label>
-                Sandbox Mode (Codex only)
-                <select value={sandboxMode} onChange={(e) => setSandboxMode(e.target.value)}>
-                  <option value="read-only">read-only</option>
-                  <option value="workspace-write">workspace-write</option>
-                  <option value="danger-full-access">danger-full-access</option>
-                </select>
-              </label>
               <label className="checkbox">
                 <input
                   type="checkbox"
