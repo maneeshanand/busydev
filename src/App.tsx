@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
+import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { load as loadStore } from "@tauri-apps/plugin-store";
 import {
@@ -742,8 +743,14 @@ function App() {
           todos?: TodoItem[];
           todoMode?: boolean;
           rightPanelWidth?: number;
+          windowWidth?: number;
+          windowHeight?: number;
         }>("session");
         if (saved) {
+          // Restore window size
+          if (saved.windowWidth && saved.windowHeight) {
+            void getCurrentWindow().setSize(new LogicalSize(saved.windowWidth, saved.windowHeight));
+          }
           if (saved.agent) setAgent(saved.agent);
           if (saved.approvalPolicy) setApprovalPolicy(saved.approvalPolicy);
           if (saved.sandboxMode) setSandboxMode(saved.sandboxMode);
@@ -805,6 +812,28 @@ function App() {
   useEffect(() => {
     void saveSession();
   }, [saveSession]);
+
+  // Save window size on resize (debounced)
+  useEffect(() => {
+    let timeout: ReturnType<typeof setTimeout>;
+    const handleResize = () => {
+      clearTimeout(timeout);
+      timeout = setTimeout(async () => {
+        try {
+          const size = await getCurrentWindow().innerSize();
+          const store = await loadStore("session.json");
+          const saved = await store.get<Record<string, unknown>>("session") ?? {};
+          await store.set("session", { ...saved, windowWidth: size.width, windowHeight: size.height });
+          await store.save();
+        } catch { /* ignore */ }
+      }, 500);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => {
+      clearTimeout(timeout);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
 
   useEffect(() => {
     let unlisten: UnlistenFn | undefined;
