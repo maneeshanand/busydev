@@ -63,8 +63,6 @@ fn build_agent_command(input: &CodexExecInput) -> (String, Vec<String>) {
                     // Interactive permission prompts via stdin/stdout JSON
                     args.push("--permission-prompt-tool".to_string());
                     args.push("stdio".to_string());
-                    args.push("--input-format".to_string());
-                    args.push("stream-json".to_string());
                 }
                 _ => {
                     // Default: auto-approve everything for Claude
