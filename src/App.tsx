@@ -53,17 +53,18 @@ function MoonIcon() {
 }
 
 
-function GearIcon() {
+function WrenchIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path
-        d="m12 2 1.2 2.2a7.7 7.7 0 0 1 1.8.7l2.3-.8 1.8 3-1.8 1.7a8 8 0 0 1 0 2.4l1.8 1.7-1.8 3-2.3-.8a7.7 7.7 0 0 1-1.8.7L12 22l-1.2-2.2a7.7 7.7 0 0 1-1.8-.7l-2.3.8-1.8-3 1.8-1.7a8 8 0 0 1 0-2.4L4.9 10l1.8-3 2.3.8a7.7 7.7 0 0 1 1.8-.7L12 2Z"
+        d="M20.2 6.9a4.7 4.7 0 0 1-6.3 4.5L7 18.3a1.8 1.8 0 0 1-2.5 0l-.8-.8a1.8 1.8 0 0 1 0-2.5l6.9-6.9a4.7 4.7 0 0 1 4.5-6.3l-2.1 2.1a1.2 1.2 0 0 0 0 1.7l2.4 2.4a1.2 1.2 0 0 0 1.7 0l2.1-2.1Z"
         fill="none"
         stroke="currentColor"
-        strokeWidth="1.4"
+        strokeWidth="1.7"
+        strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="6.6" cy="16.4" r="0.9" fill="currentColor" />
     </svg>
   );
 }
@@ -1558,7 +1559,7 @@ function App() {
               title="Open settings"
               aria-label="Open settings"
             >
-              <GearIcon />
+              <WrenchIcon />
             </button>
             <button
               type="button"

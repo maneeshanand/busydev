@@ -46,7 +46,9 @@
   width: 100%;
   justify-content: flex-start;
   font-size: 0.86rem;
-  padding: 8px 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
 }
 
 .settings-nav-item.is-active {
@@ -67,6 +69,7 @@
   justify-content: space-between;
   border-bottom: 1px solid var(--vp-c-divider);
   padding: 18px 22px;
+  background: color-mix(in srgb, var(--vp-c-bg-soft) 54%, transparent);
 }
 
 .settings-main-header h2 {
@@ -89,6 +92,7 @@
   flex-direction: column;
   gap: 14px;
   overflow: auto;
+  align-items: flex-start;
 }
 
 .settings-helper {
@@ -99,21 +103,53 @@
 
 .settings-section label {
   display: grid;
-  gap: 6px;
-  font-size: 0.78rem;
+  gap: 7px;
+  font-size: 0.76rem;
+  letter-spacing: 0.01em;
+  font-weight: 500;
   color: var(--vp-c-text-2);
+  width: min(420px, 100%);
 }
 
-.settings-section input,
+.settings-section input:not([type="checkbox"]):not([type="range"]),
 .settings-section select {
-  height: 36px;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 4px;
-  background: var(--vp-c-bg-soft);
+  height: 42px;
+  border: 1px solid color-mix(in srgb, var(--vp-c-divider) 82%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--vp-c-bg-soft) 85%, var(--vp-c-bg));
   color: var(--vp-c-text-1);
-  padding: 0 10px;
+  padding: 0 12px;
   font-size: 0.84rem;
   font-family: inherit;
+  outline: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
+}
+
+.settings-section input:not([type="checkbox"]):not([type="range"]):hover,
+.settings-section select:hover {
+  border-color: color-mix(in srgb, var(--vp-c-brand-3) 54%, var(--vp-c-divider));
+}
+
+.settings-section input:not([type="checkbox"]):not([type="range"]):focus,
+.settings-section select:focus {
+  border-color: color-mix(in srgb, var(--vp-c-brand-1) 65%, var(--vp-c-divider));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--vp-c-brand-1) 40%, transparent),
+    0 0 0 4px color-mix(in srgb, var(--vp-c-brand-1) 18%, transparent);
+  background: color-mix(in srgb, var(--vp-c-bg-soft) 72%, var(--vp-c-bg));
+}
+
+.settings-section select {
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--vp-c-text-3) 50%),
+    linear-gradient(135deg, var(--vp-c-text-3) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% - 2px),
+    calc(100% - 13px) calc(50% - 2px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 34px;
 }
 
 .settings-section input[type="range"] {
@@ -128,6 +164,7 @@
   align-items: center;
   gap: 8px;
   font-size: 0.82rem;
+  font-weight: 500;
   color: var(--vp-c-text-1);
 }
 
@@ -152,4 +189,3 @@
     flex-wrap: wrap;
   }
 }
-
