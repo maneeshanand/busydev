@@ -34,6 +34,6 @@ export function runCodexExec(input: CodexExecInput): Promise<CodexExecOutput> {
   return invoke<CodexExecOutput>("run_codex_exec", { input });
 }
 
-export function stopCodexExec(): Promise<void> {
-  return invoke<void>("stop_codex_exec");
+export function stopCodexExec(runId?: string): Promise<void> {
+  return invoke<void>("stop_codex_exec", { runId: runId ?? null });
 }
