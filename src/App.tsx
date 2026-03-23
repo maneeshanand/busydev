@@ -1647,6 +1647,8 @@ function App() {
           />
         )}
 
+        <div className="session-workspace">
+        <div className="session-main">
         {searchOpen && (
           <div className="search-bar">
             <svg viewBox="0 0 24 24" aria-hidden="true" className="search-icon">
@@ -1899,24 +1901,18 @@ function App() {
             </div>
           </div>
         </div>
-      </div>
+        </div>
+        {/* end session-main */}
 
-      {!rightCollapsed && (
-        <ResizeHandle side="right" onResize={handleRightResize} onResizeEnd={handleResizeEnd} />
-      )}
-      <div
-        className={`side-panel-right ${rightCollapsed ? "is-collapsed" : ""}`}
-        style={rightCollapsed ? undefined : { width: rightPanelWidth }}
-        onClick={() => {
-          if (rightCollapsed) {
-            setRightCollapsed(false);
-            setTodoMode(true);
-          }
-        }}
-      >
-        <div className="side-panel-spacer" />
-        <div className="side-panel-content">
-          <TodoPanel
+        {!rightCollapsed && (
+          <ResizeHandle side="right" onResize={handleRightResize} onResizeEnd={handleResizeEnd} />
+        )}
+        <div
+          className={`session-todo ${rightCollapsed ? "session-todo-collapsed" : ""}`}
+          style={rightCollapsed ? undefined : { width: rightPanelWidth }}
+          onClick={() => { if (rightCollapsed) { setRightCollapsed(false); setTodoMode(true); } }}
+        >
+            <TodoPanel
             todos={todos}
             collapsed={rightCollapsed}
             canRun={workingDirectory.length > 0}
@@ -1963,7 +1959,10 @@ ADD_TODO: step three description`);
             }}
           />
         </div>
+        {/* end session-workspace */}
+        </div>
       </div>
+      {/* end main-column */}
 
       {settingsOpen && (
         <div className="settings-overlay" onClick={() => setSettingsOpen(false)}>
