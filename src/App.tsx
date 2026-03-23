@@ -1124,7 +1124,9 @@ function App() {
             setTodos((current) => {
               const remaining = current.filter((t) => !t.done);
               if (remaining.length > 0 && autoPlayTodos) {
-                void handleRun("Work on the next pending todo item");
+                const next = remaining[0];
+                const nextIdx = current.indexOf(next);
+                void handleRun(`Work on todo #${nextIdx + 1}: ${next.text}\n\nComplete this single item and mark it done with DONE: ${nextIdx + 1}`);
               }
               return current;
             });
@@ -1597,7 +1599,10 @@ function App() {
             }}
             onRunTodos={() => {
               if (todos.filter((t) => !t.done).length === 0) return;
-              void handleRun("Work through my remaining todos");
+              const nextTodo = todos.find((t) => !t.done);
+              if (!nextTodo) return;
+              const idx = todos.indexOf(nextTodo);
+              void handleRun(`Work on todo #${idx + 1}: ${nextTodo.text}\n\nComplete this single item and mark it done with DONE: ${idx + 1}`);
             }}
             onStopTodos={handleStop}
             autoPlay={autoPlayTodos}
