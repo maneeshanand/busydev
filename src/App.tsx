@@ -17,6 +17,7 @@ import type { StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project,
 import { ProjectNavigator } from "./components/ProjectNavigator";
 import { TodoPanel } from "./components/TodoPanel";
 import { ResizeHandle } from "./components/ResizeHandle";
+import { SettingsView } from "./components/SettingsView";
 // Terminal hidden — MAN-157
 // import { TerminalPanel } from "./components/Terminal";
 import { TabBar, type Tab } from "./components/TabBar";
@@ -1473,6 +1474,11 @@ function App() {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      if (settingsOpen && e.key === "Escape") {
+        e.preventDefault();
+        setSettingsOpen(false);
+        return;
+      }
       // Cmd/Ctrl+F to toggle search
       if ((e.metaKey || e.ctrlKey) && e.key === "f") {
         e.preventDefault();
@@ -1871,34 +1877,33 @@ ADD_TODO: step three description`);
       </div>
       {/* end main-column */}
 
-      {settingsOpen && (
-        <div className="settings-overlay" onClick={() => setSettingsOpen(false)}>
-          <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="settings-header">
-              <h2>Settings</h2>
-              <button type="button" className="settings-close" onClick={() => setSettingsOpen(false)}>✕</button>
-            </div>
-            <div className="settings-grid">
-              <label className="checkbox">
-                <input
-                  type="checkbox"
-                  checked={skipGitRepoCheck}
-                  onChange={(e) => setSkipGitRepoCheck(e.target.checked)}
-                />
-                Skip git repo check
-              </label>
-              <label className="checkbox">
-                <input
-                  type="checkbox"
-                  checked={debugMode}
-                  onChange={(e) => setDebugMode(e.target.checked)}
-                />
-                Debug mode
-              </label>
-            </div>
-          </div>
-        </div>
-      )}
+      <SettingsView
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        colorMode={colorMode}
+        setColorMode={setColorMode}
+        debugMode={debugMode}
+        setDebugMode={setDebugMode}
+        skipGitRepoCheck={skipGitRepoCheck}
+        setSkipGitRepoCheck={setSkipGitRepoCheck}
+        project={activeProject}
+        session={activeSession}
+        agent={agent}
+        setAgent={setAgent}
+        model={model}
+        setModel={setModel}
+        approvalPolicy={approvalPolicy}
+        setApprovalPolicy={setApprovalPolicy}
+        sandboxMode={sandboxMode}
+        setSandboxMode={setSandboxMode}
+        todoMode={todoMode}
+        setTodoMode={(enabled) => {
+          setTodoMode(enabled);
+          setRightCollapsed(!enabled);
+        }}
+        rightPanelWidth={rightPanelWidth}
+        setRightPanelWidth={setRightPanelWidth}
+      />
     </div>
   );
 }
