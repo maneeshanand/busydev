@@ -468,7 +468,7 @@ function App() {
     requestAnimationFrame(() => {
       streamBottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
     });
-  }, [restoredRuns, runs, inFlightRun, running, error]);
+  }, [loading, restoredRuns, runs, inFlightRun, running, error]);
 
   useEffect(() => {
     const fadeTimer = setTimeout(() => setSplashFading(true), 3000);
