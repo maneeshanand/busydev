@@ -9,45 +9,9 @@ import {
   type CodexExecOutput,
   type CodexStreamEvent,
 } from "./invoke";
-
-type EventCategory = "message" | "command" | "file_change" | "status" | "error";
-
-interface StreamRow {
-  id: number;
-  category: EventCategory;
-  text: string;
-  command?: string;
-  exitCode?: number | null;
-  status?: "running" | "done" | "failed";
-  filePaths?: string[];
-  hidden?: boolean;
-}
-
-interface RunEntry {
-  id: number;
-  prompt: string;
-  output: CodexExecOutput;
-  streamRows: StreamRow[];
-  stopped?: boolean;
-}
-
-/** Slim version of RunEntry for persistence — drops large raw output fields. */
-interface PersistedRun {
-  id: number;
-  prompt: string;
-  streamRows: StreamRow[];
-  exitCode: number | null;
-  durationMs: number;
-  finalSummary: string;
-  stopped?: boolean;
-}
-
-interface InFlightRun {
-  id: number;
-  runId: string;
-  prompt: string;
-  streamRows: StreamRow[];
-}
+import type { StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem } from "./types";
+import { TodoPanel } from "./components/TodoPanel";
+import { ResizeHandle } from "./components/ResizeHandle";
 
 function SunIcon() {
   return (
@@ -132,6 +96,62 @@ function RunIcon() {
   );
 }
 
+function ChecklistIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M9 5H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"
+        fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"
+      />
+      <path d="M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2Z"
+        fill="none" stroke="currentColor" strokeWidth="1.7"
+      />
+      <path d="m9 14 2 2 4-4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+interface TurnUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
+function extractTurnUsage(value: unknown): TurnUsage | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const obj = value as Record<string, unknown>;
+  if (obj.type !== "turn.completed") return null;
+
+  const usage = obj.usage;
+  if (!usage || typeof usage !== "object" || Array.isArray(usage)) return null;
+  const usageObj = usage as Record<string, unknown>;
+
+  const inputTokens = typeof usageObj.input_tokens === "number" ? usageObj.input_tokens : null;
+  const outputTokens = typeof usageObj.output_tokens === "number" ? usageObj.output_tokens : null;
+  if (inputTokens == null || outputTokens == null) return null;
+
+  return { inputTokens, outputTokens };
+}
+
+function formatTokenCount(value: number): string {
+  return new Intl.NumberFormat("en-US").format(value);
+}
+
+function inferModelType(modelName: string): string {
+  const lower = modelName.toLowerCase();
+  if (lower.includes("codex")) return "coding";
+  if (lower.includes("mini")) return "compact";
+  if (lower.includes("gpt")) return "general";
+  return "unknown";
+}
+
+function inferContextWindow(modelName: string): number | null {
+  const hint = modelName.match(/(\d+)\s*k/i);
+  if (!hint) return null;
+  const value = Number.parseInt(hint[1], 10);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return value * 1000;
+}
+
 function summarizePrompt(prompt: string): string {
   const compact = prompt.trim().replace(/\s+/g, " ");
   if (!compact) return "complete the requested task";
@@ -156,13 +176,17 @@ function extractLastAgentMessage(parsedJson: unknown): string | null {
   return lastMessage;
 }
 
+function stripTodoMarkers(text: string): string {
+  return text.replace(/^DONE:\s*\d+\s*$/gm, "").replace(/^ADD_TODO:\s*.+\s*$/gm, "").trim();
+}
+
 function buildFinalSummary(run: RunEntry): string {
   if (run.stopped) {
     return "Stopped. What should I do instead?";
   }
 
   const lastAgentMessage = extractLastAgentMessage(run.output.parsedJson);
-  if (lastAgentMessage) return lastAgentMessage;
+  if (lastAgentMessage) return stripTodoMarkers(lastAgentMessage);
 
   if ((run.output.exitCode ?? 1) === 0) {
     return `You asked me to ${summarizePrompt(run.prompt)}, and I finished it.`;
@@ -222,8 +246,10 @@ function classifyEvent(event: CodexStreamEvent): ClassifiedRow {
       const itemType = typeof item.type === "string" ? item.type : "";
 
       if (itemType === "agent_message") {
-        const text = typeof item.text === "string" ? item.text.trim() : "";
-        return { category: "message", text: text || "Thinking..." };
+        const raw = typeof item.text === "string" ? item.text.trim() : "";
+        const text = stripTodoMarkers(raw);
+        const isTodoSummary = /working on #\d/i.test(text) || /todo/i.test(text) && /#\d/.test(text);
+        return { category: "message", text: text || "Thinking...", isTodoSummary };
       }
 
       if (itemType === "command_execution") {
@@ -277,21 +303,35 @@ function classifyEvent(event: CodexStreamEvent): ClassifiedRow {
   return { category: "status", text: "", hidden: true };
 }
 
-function renderStreamRow(row: StreamRow) {
+function highlightText(text: string, query: string): React.ReactNode {
+  if (!query || !text) return text;
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const parts = text.split(new RegExp(`(${escaped})`, "gi"));
+  if (parts.length === 1) return text;
+  return parts.map((part, i) =>
+    part.toLowerCase() === query.toLowerCase()
+      ? <mark key={i} className="search-highlight">{part}</mark>
+      : part
+  );
+}
+
+function renderStreamRow(row: StreamRow, searchQuery = "") {
   if (row.hidden) return null;
+
+  const hl = (text: string) => highlightText(text, searchQuery);
 
   switch (row.category) {
     case "message":
       return (
         <div key={row.id} className="chat-row chat-row-agent">
-          <div className="ev-message">{row.text}</div>
+          <div className={`ev-message ${row.isTodoSummary ? "ev-message-todo" : ""}`}>{hl(row.text)}</div>
         </div>
       );
     case "command":
       return (
         <div key={row.id} className="ev-command">
           <span className="ev-command-prefix">$</span>
-          <span className="ev-command-text">{row.command}</span>
+          <span className="ev-command-text">{hl(row.command ?? row.text)}</span>
           <span className={`ev-command-status is-${row.status}`}>
             {row.status === "running" && <span className="ev-spinner" />}
             {row.status === "done" && "done"}
@@ -303,20 +343,116 @@ function renderStreamRow(row: StreamRow) {
       return (
         <div key={row.id} className="ev-file-change">
           <span className="ev-file-label">edited</span>
-          <span className="ev-file-paths">{row.text}</span>
+          <span className="ev-file-paths">{hl(row.text)}</span>
         </div>
       );
     case "status":
       return (
-        <div key={row.id} className="ev-status">{row.text}</div>
+        <div key={row.id} className="ev-status">{hl(row.text)}</div>
       );
     case "error":
       return (
-        <div key={row.id} className="ev-error">{row.text}</div>
+        <div key={row.id} className="ev-error">{hl(row.text)}</div>
       );
     default:
       return null;
   }
+}
+
+function renderPersistedRun(run: PersistedRun, debugMode: boolean, searchQuery = "") {
+  const hl = (text: string) => highlightText(text, searchQuery);
+  return (
+    <div key={`persisted-${run.id}`} className="output-section">
+      <div className="chat-thread">
+        <div className="chat-row chat-row-user">
+          <div className="chat-bubble chat-bubble-user">{hl(run.prompt)}</div>
+        </div>
+
+        {run.streamRows.length > 0 && (
+          <div className="stream-events">
+            {run.streamRows.filter((r) => !r.hidden).map((r) => renderStreamRow(r, searchQuery))}
+          </div>
+        )}
+
+        <div className="chat-row chat-row-agent chat-row-final">
+          <div className="ev-message ev-message-final">{hl(run.finalSummary)}</div>
+        </div>
+      </div>
+
+      <div className="run-footer">
+        {debugMode && <div>Run #{run.id}</div>}
+        <div>{run.stopped ? `Stopped after ${(run.durationMs / 1000).toFixed(1)}s` : `Finished in ${(run.durationMs / 1000).toFixed(1)}s`}</div>
+        {debugMode && <div>Exit code: {run.exitCode ?? "N/A"}</div>}
+      </div>
+    </div>
+  );
+}
+
+function buildTodoPrompt(userPrompt: string, todos: TodoItem[]): string {
+  if (todos.length === 0) return userPrompt;
+
+  const todoLines = todos.map((t, i) =>
+    `${i + 1}. [${t.done ? "x" : " "}] ${t.text}`
+  ).join("\n");
+
+  const pending = todos.filter((t) => !t.done);
+  const done = todos.filter((t) => t.done);
+
+  return `## Active Todo List (${done.length}/${todos.length} complete)
+
+${todoLines}
+
+## Todo Mode Instructions
+
+You are working in todo mode. Start your response by briefly acknowledging which todo item(s) you'll be working on from the list above (e.g., "Working on #3: fix the login bug").
+
+As you work, use these markers at the END of your final message:
+
+To mark items complete:
+DONE: <number>
+
+To suggest new todos:
+ADD_TODO: <description>
+
+Examples:
+DONE: 1
+DONE: 3
+ADD_TODO: write unit tests for the new auth module
+ADD_TODO: update README with setup instructions
+
+Only mark items you actually completed. Only suggest todos that are concrete next steps.${pending.length === 0 ? "\n\nAll todos are complete! Focus on the user's prompt below." : ""}
+
+---
+
+${userPrompt}`;
+}
+
+function parseTodoCompletions(output: CodexExecOutput, todos: TodoItem[]): string[] {
+  const lastMessage = extractLastAgentMessage(output.parsedJson);
+  if (!lastMessage) return [];
+
+  const completedIds: string[] = [];
+  const matches = lastMessage.matchAll(/^DONE:\s*(\d+)\s*$/gm);
+  for (const m of matches) {
+    const idx = parseInt(m[1], 10) - 1;
+    if (idx >= 0 && idx < todos.length && !todos[idx].done) {
+      completedIds.push(todos[idx].id);
+    }
+  }
+  return completedIds;
+}
+
+function parseTodoAdditions(output: CodexExecOutput): string[] {
+  const lastMessage = extractLastAgentMessage(output.parsedJson);
+  if (!lastMessage) return [];
+
+  const newTodos: string[] = [];
+  const matches = lastMessage.matchAll(/^ADD_TODO:\s*(.+)\s*$/gm);
+  for (const m of matches) {
+    const text = m[1].trim();
+    if (text) newTodos.push(text);
+  }
+  return newTodos;
 }
 
 function App() {
@@ -336,7 +472,18 @@ function App() {
   const [runs, setRuns] = useState<RunEntry[]>([]);
   const [inFlightRun, setInFlightRun] = useState<InFlightRun | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [lastUsage, setLastUsage] = useState<TurnUsage | null>(null);
 
+  // Todo and panel state
+  const [todos, setTodos] = useState<TodoItem[]>([]);
+  const [todoMode, setTodoMode] = useState(false);
+  const [rightPanelWidth, setRightPanelWidth] = useState(280);
+  const [rightCollapsed, setRightCollapsed] = useState(true);
+
+  const [showScrollDown, setShowScrollDown] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const streamPanelRef = useRef<HTMLDivElement | null>(null);
   const streamBottomRef = useRef<HTMLDivElement | null>(null);
   const activeRunIdRef = useRef<string | null>(null);
@@ -348,8 +495,18 @@ function App() {
   const storeReadyRef = useRef(false);
 
   const canRun = !running && workingDirectory.length > 0 && prompt.length > 0;
+  const displayModel = model.trim() || "default";
+  const modelType = inferModelType(displayModel);
+  const contextWindow = inferContextWindow(displayModel);
+  const remainingContext = contextWindow != null && lastUsage
+    ? Math.max(0, contextWindow - lastUsage.inputTokens)
+    : null;
+  const remainingUsage = contextWindow != null && lastUsage
+    ? Math.max(0, contextWindow - (lastUsage.inputTokens + lastUsage.outputTokens))
+    : null;
 
-  // Load persisted session on mount
+
+  // Load persisted state on mount
   useEffect(() => {
     (async () => {
       try {
@@ -363,6 +520,9 @@ function App() {
           workingDirectory?: string;
           skipGitRepoCheck?: boolean;
           persistedRuns?: PersistedRun[];
+          todos?: TodoItem[];
+          todoMode?: boolean;
+          rightPanelWidth?: number;
         }>("session");
         if (saved) {
           if (saved.approvalPolicy) setApprovalPolicy(saved.approvalPolicy);
@@ -373,6 +533,12 @@ function App() {
           if (saved.workingDirectory) setWorkingDirectory(saved.workingDirectory);
           if (saved.skipGitRepoCheck != null) setSkipGitRepoCheck(saved.skipGitRepoCheck);
           if (saved.persistedRuns) setRestoredRuns(saved.persistedRuns);
+          if (saved.todos) setTodos(saved.todos);
+          if (saved.todoMode != null) {
+            setTodoMode(saved.todoMode);
+            setRightCollapsed(!saved.todoMode);
+          }
+          if (saved.rightPanelWidth) setRightPanelWidth(saved.rightPanelWidth);
         }
       } catch {
         // First launch or corrupted store — start fresh
@@ -381,7 +547,7 @@ function App() {
     })();
   }, []);
 
-  // Save session whenever persisted state changes
+  // Save state whenever persisted values change
   const saveSession = useCallback(async () => {
     if (!storeReadyRef.current) return;
     try {
@@ -405,12 +571,15 @@ function App() {
         workingDirectory,
         skipGitRepoCheck,
         persistedRuns: allPersisted,
+        todos,
+        todoMode,
+        rightPanelWidth,
       });
       await store.save();
     } catch {
       // Silently ignore save errors
     }
-  }, [approvalPolicy, sandboxMode, model, colorMode, debugMode, workingDirectory, skipGitRepoCheck, restoredRuns, runs]);
+  }, [approvalPolicy, sandboxMode, model, colorMode, debugMode, workingDirectory, skipGitRepoCheck, restoredRuns, runs, todos, todoMode, rightPanelWidth]);
 
   useEffect(() => {
     void saveSession();
@@ -423,6 +592,9 @@ function App() {
     void listen<CodexStreamEvent>(CODEX_STREAM_EVENT, (event) => {
       const payload = event.payload;
       if (!payload || payload.runId !== activeRunIdRef.current) return;
+
+      const usage = extractTurnUsage(payload.parsedJson);
+      if (usage) setLastUsage(usage);
 
       const classified = classifyEvent(payload);
       if (classified.hidden) return;
@@ -468,7 +640,19 @@ function App() {
     requestAnimationFrame(() => {
       streamBottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
     });
-  }, [restoredRuns, runs, inFlightRun, running, error]);
+  }, [loading, runs, inFlightRun, running, error]);
+
+  useEffect(() => {
+    const panel = streamPanelRef.current;
+    if (!panel) return;
+    function handleScroll() {
+      if (!panel) return;
+      const distFromBottom = panel.scrollHeight - panel.scrollTop - panel.clientHeight;
+      setShowScrollDown(distFromBottom > 100);
+    }
+    panel.addEventListener("scroll", handleScroll);
+    return () => panel.removeEventListener("scroll", handleScroll);
+  }, [loading]);
 
   useEffect(() => {
     const fadeTimer = setTimeout(() => setSplashFading(true), 3000);
@@ -497,19 +681,46 @@ function App() {
     return () => document.body.classList.remove("body-dark");
   }, [colorMode]);
 
+  // Todo handlers
+  function handleAddTodo(text: string) {
+    setTodos((prev) => [...prev, {
+      id: crypto.randomUUID(), text, done: false, source: "user", createdAt: Date.now(),
+    }]);
+  }
+  function handleToggleTodo(id: string) {
+    setTodos((prev) => prev.map((t) =>
+      t.id === id ? { ...t, done: !t.done, completedAt: !t.done ? Date.now() : undefined } : t
+    ));
+  }
+  function handleDeleteTodo(id: string) {
+    setTodos((prev) => prev.filter((t) => t.id !== id));
+  }
+  function handleEditTodo(id: string, text: string) {
+    setTodos((prev) => prev.map((t) => t.id === id ? { ...t, text } : t));
+  }
+
+  // Resize handler
+  function handleRightResize(delta: number) {
+    setRightPanelWidth((prev) => Math.max(220, Math.min(500, prev - delta)));
+  }
+  function handleResizeEnd() {
+    // Save triggers via the effect dependency on rightPanelWidth
+  }
+
   async function handleBrowse() {
     const dir = await open({ directory: true, multiple: false });
     if (dir) setWorkingDirectory(dir as string);
   }
 
-  async function handleRun() {
-    const submittedPrompt = prompt;
+  async function handleRun(overridePrompt?: string) {
+    const submittedPrompt = overridePrompt ?? prompt;
     const runNumber = runs.length + 1;
     const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     setPrompt("");
     setRunning(true);
     setError(null);
+    setLastUsage(null);
     activeRunIdRef.current = runId;
     streamRowsRef.current = [];
     nextStreamRowIdRef.current = 1;
@@ -523,10 +734,15 @@ function App() {
       streamRows: [],
     });
 
+
+    const effectivePrompt = todoMode && todos.length > 0
+      ? buildTodoPrompt(submittedPrompt, todos)
+      : submittedPrompt;
+
     try {
       const out = await runCodexExec({
         runId,
-        prompt: submittedPrompt,
+        prompt: effectivePrompt,
         approvalPolicy,
         sandboxMode,
         workingDirectory,
@@ -546,6 +762,32 @@ function App() {
           stopped: wasStopped,
         },
       ]);
+
+      // Auto-update todos from agent output
+      if (todoMode && !wasStopped) {
+        const completedIds = parseTodoCompletions(out, todos);
+        if (completedIds.length > 0) {
+          setTodos((prev) => prev.map((t) =>
+            completedIds.includes(t.id)
+              ? { ...t, done: true, source: "agent", completedAt: Date.now() }
+              : t
+          ));
+        }
+
+        const newTodoTexts = parseTodoAdditions(out);
+        if (newTodoTexts.length > 0) {
+          setTodos((prev) => [
+            ...prev,
+            ...newTodoTexts.map((text) => ({
+              id: crypto.randomUUID(),
+              text,
+              done: false,
+              source: "agent" as const,
+              createdAt: Date.now(),
+            })),
+          ]);
+        }
+      }
     } catch (e) {
       setError(String(e));
     } finally {
@@ -576,8 +818,30 @@ function App() {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (!running) return;
-      if (e.key === "Escape" || (e.ctrlKey && e.key === "c")) {
+      // Cmd/Ctrl+F to toggle search
+      if ((e.metaKey || e.ctrlKey) && e.key === "f") {
+        e.preventDefault();
+        setSearchOpen((prev) => {
+          if (prev) { setSearchQuery(""); return false; }
+          setTimeout(() => searchInputRef.current?.focus(), 0);
+          return true;
+        });
+        return;
+      }
+      // Escape closes search or stops run
+      if (e.key === "Escape") {
+        if (searchOpen) {
+          setSearchOpen(false);
+          setSearchQuery("");
+          return;
+        }
+        if (running) {
+          e.preventDefault();
+          void handleStop();
+        }
+        return;
+      }
+      if (running && e.ctrlKey && e.key === "c") {
         e.preventDefault();
         void handleStop();
       }
@@ -608,202 +872,287 @@ function App() {
 
   return (
     <div className={`container theme-${colorMode}`}>
-      <div className="app-header">
-        <h1>busydev</h1>
-        <button
-          type="button"
-          className="theme-toggle"
-          onClick={() => setColorMode((prev) => (prev === "light" ? "dark" : "light"))}
-          title={colorMode === "light" ? "Switch to dark mode" : "Switch to light mode"}
-          aria-label={colorMode === "light" ? "Switch to dark mode" : "Switch to light mode"}
-        >
-          <span className="theme-toggle-icon"><SunIcon /></span>
-          <span className="theme-toggle-icon"><MoonIcon /></span>
-          <span className={`theme-toggle-knob ${colorMode === "dark" ? "is-dark" : ""}`} />
-        </button>
-      </div>
-
-      <div className="directory-bar">
-        <button
-          type="button"
-          className="icon-button"
-          onClick={handleBrowse}
-          title="Browse working directory"
-          aria-label="Browse working directory"
-        >
-          <FolderIcon />
-        </button>
-        <div className="directory-path">{workingDirectory || "No working directory selected"}</div>
-      </div>
-
-      <div className="stream-panel" ref={streamPanelRef}>
-        {error && (
-          <div className="output-section">
-            <h2>Error</h2>
-            <pre className="stderr">{error}</pre>
-          </div>
-        )}
-
-        {restoredRuns.length === 0 && runs.length === 0 && !inFlightRun && (
-          <div className="empty-stream">Run results will appear here as a single scrollable thread.</div>
-        )}
-
-        {restoredRuns.map((run) => (
-          <div key={`restored-${run.id}`} className="output-section">
-            <div className="chat-thread">
-              <div className="chat-row chat-row-user">
-                <div className="chat-bubble chat-bubble-user">{run.prompt}</div>
-              </div>
-
-              {run.streamRows.length > 0 && (
-                <div className="stream-events">
-                  {run.streamRows.filter((r) => !r.hidden).map(renderStreamRow)}
-                </div>
-              )}
-
-              <div className="chat-row chat-row-agent chat-row-final">
-                <div className="ev-message ev-message-final">{run.finalSummary}</div>
-              </div>
-            </div>
-
-            <div className="run-footer">
-              {debugMode && <div>Run #{run.id}</div>}
-              <div>{run.stopped ? `Stopped after ${(run.durationMs / 1000).toFixed(1)}s` : `Finished in ${(run.durationMs / 1000).toFixed(1)}s`}</div>
-              {debugMode && <div>Exit code: {run.exitCode ?? "N/A"}</div>}
-            </div>
-          </div>
-        ))}
-
-        {runs.map((run) => {
-          const finalSummary = buildFinalSummary(run);
-          return (
-            <div key={run.id} className="output-section">
-              <div className="chat-thread">
-                <div className="chat-row chat-row-user">
-                  <div className="chat-bubble chat-bubble-user">{run.prompt}</div>
-                </div>
-
-                {run.streamRows.length > 0 && (
-                  <div className="stream-events">
-                    {run.streamRows.filter((r) => !r.hidden).map(renderStreamRow)}
-                  </div>
-                )}
-
-                <div className="chat-row chat-row-agent chat-row-final">
-                  <div className="ev-message ev-message-final">{finalSummary}</div>
-                </div>
-              </div>
-
-              <div className="run-footer">
-                {debugMode && <div>Run #{run.id}</div>}
-                <div>{run.stopped ? `Stopped after ${(run.output.durationMs / 1000).toFixed(1)}s` : `Finished in ${(run.output.durationMs / 1000).toFixed(1)}s`}</div>
-                {debugMode && <div>Exit code: {run.output.exitCode ?? "N/A"}</div>}
-              </div>
-
-              {debugMode && (
-                <details className="raw-details">
-                  <summary>Show raw output</summary>
-                  {run.output.stdoutRaw && (
-                    <pre className="stdout">{run.output.stdoutRaw}</pre>
-                  )}
-                  {run.output.stderrRaw && (
-                    <pre className="stderr">{run.output.stderrRaw}</pre>
-                  )}
-                  {run.output.parsedJson != null && (
-                    <pre className="json">{JSON.stringify(run.output.parsedJson, null, 2)}</pre>
-                  )}
-                </details>
-              )}
-            </div>
-          );
-        })}
-
-        {inFlightRun && (
-          <div className="output-section output-section-live">
-            <div className="chat-thread">
-              <div className="chat-row chat-row-user">
-                <div className="chat-bubble chat-bubble-user">{inFlightRun.prompt}</div>
-              </div>
-              <div className="stream-events">
-                {inFlightRun.streamRows.filter((r) => !r.hidden).map(renderStreamRow)}
-                {inFlightRun.streamRows.filter((r) => !r.hidden).length === 0 && (
-                  <div className="ev-thinking">
-                    <span className="ev-thinking-dot" />
-                    Thinking...
-                  </div>
-                )}
-              </div>
-            </div>
-            {debugMode && (
-              <details className="raw-details">
-                <summary>Show live raw stream events</summary>
-                <pre className="stdout">
-                  {inFlightRun.streamRows.map((row) => `${row.category}: ${row.text}`).join("\n") || "(no events yet)"}
-                </pre>
-              </details>
-            )}
-            <div className="run-footer">
-              {debugMode && <div>Run #{inFlightRun.id}</div>}
-              <div className="run-footer-running">
-                Running <span className="elapsed-timer">{elapsed.toFixed(2)}s</span>
-                <button type="button" className="stop-button" onClick={handleStop}>
-                  Stop
-                </button>
-                <span className="stop-hint">Esc / Ctrl+C</span>
-              </div>
-            </div>
-          </div>
-        )}
-        <div ref={streamBottomRef} />
-      </div>
-
-      <div className="bottom-panel">
-        <div className="prompt-section">
-          <textarea
-            rows={3}
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={handlePromptKeyDown}
-            placeholder="Get Busy..."
-          />
-          <div className="prompt-left-actions">
+      <div className="main-column">
+        <div className="app-header">
+          <h1>busydev</h1>
+          <div className="header-controls">
             <button
               type="button"
-              className="prompt-action prompt-action-settings"
+              className={`todo-toggle ${todoMode ? "is-active" : ""}`}
+              onClick={() => {
+                setTodoMode((prev) => !prev);
+                setRightCollapsed((prev) => !prev);
+              }}
+              title={todoMode ? "Hide todos" : "Show todos"}
+            >
+              <ChecklistIcon />
+            </button>
+            <button
+              type="button"
+              className="todo-toggle"
               onClick={() => setSettingsOpen(true)}
               title="Open settings"
               aria-label="Open settings"
             >
               <GearIcon />
             </button>
+            <button
+              type="button"
+              className="theme-toggle"
+              onClick={() => setColorMode((prev) => (prev === "light" ? "dark" : "light"))}
+              title={colorMode === "light" ? "Switch to dark mode" : "Switch to light mode"}
+              aria-label={colorMode === "light" ? "Switch to dark mode" : "Switch to light mode"}
+            >
+              <span className="theme-toggle-icon"><SunIcon /></span>
+              <span className="theme-toggle-icon"><MoonIcon /></span>
+              <span className={`theme-toggle-knob ${colorMode === "dark" ? "is-dark" : ""}`} />
+            </button>
           </div>
-          <div className="composer-meta">
-            <span className="meta-label">Approval Policy: {approvalPolicy}</span>
-          </div>
-          <div className="prompt-actions">
-            {running ? (
-              <button
-                type="button"
-                onClick={handleStop}
-                className="prompt-action prompt-action-stop"
-                title="Stop (Esc)"
-                aria-label="Stop"
-              >
-                <StopIcon />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleRun}
-                disabled={!canRun}
-                className="prompt-action prompt-action-run"
-                title="Run"
-                aria-label="Run"
-              >
-                <RunIcon />
+        </div>
+
+        <div className="directory-bar">
+          <button
+            type="button"
+            className="icon-button"
+            onClick={handleBrowse}
+            title="Browse working directory"
+            aria-label="Browse working directory"
+          >
+            <FolderIcon />
+          </button>
+          <div className="directory-path">{workingDirectory || "No working directory selected"}</div>
+        </div>
+
+        {searchOpen && (
+          <div className="search-bar">
+            <svg viewBox="0 0 24 24" aria-hidden="true" className="search-icon">
+              <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" strokeWidth="1.7" />
+              <path d="m16 16 4 4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+            </svg>
+            <input
+              ref={searchInputRef}
+              type="text"
+              className="search-input"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search agent log..."
+            />
+            {searchQuery && (
+              <button type="button" className="search-clear" onClick={() => setSearchQuery("")}>
+                ×
               </button>
             )}
           </div>
+        )}
+
+        <div className="stream-panel" ref={streamPanelRef}>
+          {error && (
+            <div className="output-section">
+              <h2>Error</h2>
+              <pre className="stderr">{error}</pre>
+            </div>
+          )}
+
+          {restoredRuns.length === 0 && runs.length === 0 && !inFlightRun && (
+            <div className="empty-stream">Run results will appear here as a single scrollable thread.</div>
+          )}
+
+          {restoredRuns.map((run) => renderPersistedRun(run, debugMode, searchQuery))}
+
+              {runs.map((run) => {
+                const finalSummary = buildFinalSummary(run);
+                const visibleRows = run.streamRows.filter((r) => !r.hidden);
+                const lastVisibleText = visibleRows.length > 0 ? visibleRows[visibleRows.length - 1].text : "";
+                const showFinalSummary = finalSummary !== lastVisibleText;
+                return (
+                  <div key={run.id} className="output-section">
+                    <div className="chat-thread">
+                      <div className="chat-row chat-row-user">
+                        <div className="chat-bubble chat-bubble-user">{highlightText(run.prompt, searchQuery)}</div>
+                      </div>
+
+                      {visibleRows.length > 0 && (
+                        <div className="stream-events">
+                          {visibleRows.map((r) => renderStreamRow(r, searchQuery))}
+                        </div>
+                      )}
+
+                      {showFinalSummary && (
+                        <div className="chat-row chat-row-agent chat-row-final">
+                          <div className="ev-message ev-message-final">{highlightText(finalSummary, searchQuery)}</div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="run-footer">
+                      {debugMode && <div>Run #{run.id}</div>}
+                      <div>{run.stopped ? `Stopped after ${(run.output.durationMs / 1000).toFixed(1)}s` : `Finished in ${(run.output.durationMs / 1000).toFixed(1)}s`}</div>
+                      {debugMode && <div>Exit code: {run.output.exitCode ?? "N/A"}</div>}
+                    </div>
+
+                    {debugMode && (
+                      <details className="raw-details">
+                        <summary>Show raw output</summary>
+                        {run.output.stdoutRaw && (
+                          <pre className="stdout">{run.output.stdoutRaw}</pre>
+                        )}
+                        {run.output.stderrRaw && (
+                          <pre className="stderr">{run.output.stderrRaw}</pre>
+                        )}
+                        {run.output.parsedJson != null && (
+                          <pre className="json">{JSON.stringify(run.output.parsedJson, null, 2)}</pre>
+                        )}
+                      </details>
+                    )}
+                  </div>
+                );
+              })}
+
+              {inFlightRun && (
+                <div className="output-section output-section-live">
+                  {todoMode && todos.length > 0 && (
+                    <div className="todo-mode-banner">
+                      Working through {todos.filter((t) => !t.done).length} of {todos.length} todos
+                    </div>
+                  )}
+                  <div className="chat-thread">
+                    <div className="chat-row chat-row-user">
+                      <div className="chat-bubble chat-bubble-user">{inFlightRun.prompt}</div>
+                    </div>
+                    <div className="stream-events">
+                      {inFlightRun.streamRows.filter((r) => !r.hidden).map((r) => renderStreamRow(r, searchQuery))}
+                      {inFlightRun.streamRows.filter((r) => !r.hidden).length === 0 && (
+                        <div className="ev-thinking">
+                          <span className="ev-thinking-dot" />
+                          Thinking...
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {debugMode && (
+                    <details className="raw-details">
+                      <summary>Show live raw stream events</summary>
+                      <pre className="stdout">
+                        {inFlightRun.streamRows.map((row) => `${row.category}: ${row.text}`).join("\n") || "(no events yet)"}
+                      </pre>
+                    </details>
+                  )}
+                  <div className="run-footer">
+                    {debugMode && <div>Run #{inFlightRun.id}</div>}
+                    <div className="run-footer-running">
+                      <span className="running-label">Running <span className="elapsed-timer">{elapsed.toFixed(2)}s</span></span>
+                      <button type="button" className="stop-button" onClick={handleStop}>
+                        Stop
+                      </button>
+                      <span className="stop-hint">Esc / Ctrl+C</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+          <div ref={streamBottomRef} />
+          {showScrollDown && (
+            <button
+              type="button"
+              className="scroll-to-bottom"
+              onClick={() => streamBottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })}
+              title="Jump to bottom"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          )}
+        </div>
+
+        <div className="bottom-panel">
+          <div className="prompt-section">
+            <textarea
+              rows={3}
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={handlePromptKeyDown}
+              placeholder="Get Busy..."
+            />
+            <div className="composer-meta">
+              <span className="meta-label">Approval Policy: {approvalPolicy}</span>
+              <span className="meta-label">Agent: Codex</span>
+              <span className="meta-label">Model: {displayModel}</span>
+              <span className="meta-label">Type: {modelType}</span>
+              <span className="meta-label">
+                Remaining Context: {remainingContext != null ? formatTokenCount(remainingContext) : "N/A"}
+              </span>
+              <span className="meta-label">
+                Remaining Usage: {remainingUsage != null ? formatTokenCount(remainingUsage) : "N/A"}
+              </span>
+              {todoMode && todos.length > 0 && (
+                <span className="meta-label">Todos: {todos.filter((t) => !t.done).length} remaining</span>
+              )}
+            </div>
+            <div className="prompt-actions">
+              {running ? (
+                <button
+                  type="button"
+                  onClick={handleStop}
+                  className="prompt-action prompt-action-stop"
+                  title="Stop (Esc)"
+                  aria-label="Stop"
+                >
+                  <StopIcon />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleRun()}
+                  disabled={!canRun}
+                  className="prompt-action prompt-action-run"
+                  title="Run"
+                  aria-label="Run"
+                >
+                  <RunIcon />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {!rightCollapsed && (
+        <ResizeHandle side="right" onResize={handleRightResize} onResizeEnd={handleResizeEnd} />
+      )}
+      <div
+        className={`side-panel-right ${rightCollapsed ? "is-collapsed" : ""}`}
+        style={rightCollapsed ? undefined : { width: rightPanelWidth }}
+        onClick={() => {
+          if (rightCollapsed) {
+            setRightCollapsed(false);
+            setTodoMode(true);
+          }
+        }}
+      >
+        <div className="side-panel-spacer" />
+        <div className="side-panel-content">
+          <TodoPanel
+            todos={todos}
+            collapsed={rightCollapsed}
+            canRun={!running && workingDirectory.length > 0}
+            running={running}
+            onAdd={handleAddTodo}
+            onToggle={handleToggleTodo}
+            onDelete={handleDeleteTodo}
+            onEdit={handleEditTodo}
+            onCollapse={() => {
+              setRightCollapsed(true);
+              setTodoMode(false);
+            }}
+            onRunTodos={() => {
+              if (todos.filter((t) => !t.done).length === 0) return;
+              void handleRun("Work through my remaining todos");
+            }}
+            onStopTodos={handleStop}
+            onGenerateTodos={() => {
+              void handleRun("Look at the codebase and generate a practical todo list of things that need to be done. Use ADD_TODO: for each item.");
+            }}
+          />
         </div>
       </div>
 
