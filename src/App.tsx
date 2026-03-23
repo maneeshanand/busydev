@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { load as loadStore } from "@tauri-apps/plugin-store";
@@ -190,6 +191,15 @@ function buildFinalSummary(run: RunEntry): string {
     return `You asked me to ${summarizePrompt(run.prompt)}, and I finished it.`;
   }
   return `You asked me to ${summarizePrompt(run.prompt)}, but the run ended with exit code ${run.output.exitCode ?? "N/A"}.`;
+}
+
+function formatTimestamp(ts: number): string {
+  const d = new Date(ts);
+  const now = new Date();
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (d.toDateString() === now.toDateString()) return time;
+  const date = d.toLocaleDateString([], { month: "short", day: "numeric" });
+  return `${date}, ${time}`;
 }
 
 function cleanCommand(raw: string): string {
@@ -606,6 +616,7 @@ function renderPersistedRun(run: PersistedRun, debugMode: boolean, searchQuery =
         {debugMode && <div>Run #{run.id}</div>}
         <div>{run.stopped ? `Stopped after ${(run.durationMs / 1000).toFixed(1)}s` : `Finished in ${(run.durationMs / 1000).toFixed(1)}s`}</div>
         {debugMode && <div>Exit code: {run.exitCode ?? "N/A"}</div>}
+        {run.completedAt && <div className="run-timestamp">{formatTimestamp(run.completedAt)}</div>}
       </div>
     </div>
   );
@@ -702,6 +713,7 @@ function App() {
   // Todo and panel state
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [todoMode, setTodoMode] = useState(false);
+  const [autoPlayTodos, setAutoPlayTodos] = useState(false);
   const [rightPanelWidth, setRightPanelWidth] = useState(280);
   const [rightCollapsed, setRightCollapsed] = useState(true);
   const [terminalOpen, setTerminalOpen] = useState(false);
@@ -787,6 +799,7 @@ function App() {
         durationMs: r.output.durationMs,
         finalSummary: buildFinalSummary(r),
         stopped: r.stopped,
+        completedAt: r.completedAt,
       }));
       const allPersisted = [...restoredRuns, ...currentRunsPersisted];
       await store.set("session", {
@@ -966,6 +979,19 @@ function App() {
   function handleEditTodo(id: string, text: string) {
     setTodos((prev) => prev.map((t) => t.id === id ? { ...t, text } : t));
   }
+  function handleClearTodos() {
+    setTodos([]);
+    setAutoPlayTodos(false);
+  }
+  async function handleSaveTodos() {
+    const filePath = await save({
+      defaultPath: "todos.json",
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (!filePath) return;
+    const data = JSON.stringify(todos, null, 2);
+    await writeTextFile(filePath, data);
+  }
 
   // Resize handler
   function handleRightResize(delta: number) {
@@ -1074,6 +1100,7 @@ function App() {
           output: out,
           streamRows: finalStreamRows,
           stopped: wasStopped,
+          completedAt: Date.now(),
         },
       ]);
 
@@ -1100,6 +1127,22 @@ function App() {
               createdAt: Date.now(),
             })),
           ]);
+        }
+
+        // Auto-play: if enabled and there are still pending todos, run the next one
+        if (autoPlayTodos && !wasStopped) {
+          // Check after completions — use setTimeout to let state settle
+          setTimeout(() => {
+            setTodos((current) => {
+              const remaining = current.filter((t) => !t.done);
+              if (remaining.length > 0 && autoPlayTodos) {
+                const next = remaining[0];
+                const nextIdx = current.indexOf(next);
+                void handleRun(`Work on todo #${nextIdx + 1}: ${next.text}\n\nComplete this single item and mark it done with DONE: ${nextIdx + 1}`);
+              }
+              return current;
+            });
+          }, 1000);
         }
       }
     } catch (e) {
@@ -1358,6 +1401,7 @@ function App() {
                       {debugMode && <div>Run #{run.id}</div>}
                       <div>{run.stopped ? `Stopped after ${(run.output.durationMs / 1000).toFixed(1)}s` : `Finished in ${(run.output.durationMs / 1000).toFixed(1)}s`}</div>
                       {debugMode && <div>Exit code: {run.output.exitCode ?? "N/A"}</div>}
+                      {run.completedAt && <div className="run-timestamp">{formatTimestamp(run.completedAt)}</div>}
                     </div>
 
                     {debugMode && (
@@ -1568,11 +1612,35 @@ function App() {
             }}
             onRunTodos={() => {
               if (todos.filter((t) => !t.done).length === 0) return;
-              void handleRun("Work through my remaining todos");
+              const nextTodo = todos.find((t) => !t.done);
+              if (!nextTodo) return;
+              const idx = todos.indexOf(nextTodo);
+              void handleRun(`Work on todo #${idx + 1}: ${nextTodo.text}\n\nComplete this single item and mark it done with DONE: ${idx + 1}`);
             }}
             onStopTodos={handleStop}
-            onGenerateTodos={() => {
-              void handleRun("Look at the codebase and generate a practical todo list of things that need to be done. Use ADD_TODO: for each item.");
+            autoPlay={autoPlayTodos}
+            onToggleAutoPlay={() => setAutoPlayTodos((prev) => !prev)}
+            onClearTodos={handleClearTodos}
+            onSaveTodos={handleSaveTodos}
+            onReorder={(from, to) => {
+              setTodos((prev) => {
+                const next = [...prev];
+                const [moved] = next.splice(from, 1);
+                next.splice(to, 0, moved);
+                return next;
+              });
+            }}
+            onGenerateTodos={(goal) => {
+              void handleRun(`IMPORTANT: Do NOT ask questions, do NOT use skills, do NOT brainstorm. Just output a todo list immediately.
+
+Look at this codebase and break the following goal into 5-15 concrete, ordered steps. Output ONLY ADD_TODO: lines, nothing else. No explanation, no questions, no preamble.
+
+Goal: ${goal}
+
+Example output format:
+ADD_TODO: step one description
+ADD_TODO: step two description
+ADD_TODO: step three description`);
             }}
           />
         </div>

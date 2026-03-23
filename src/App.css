@@ -757,6 +757,12 @@ body.body-dark .search-highlight {
   font-size: 0.82rem;
   display: flex;
   gap: 14px;
+}
+
+.run-timestamp {
+  margin-left: auto;
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.72rem;
   flex-wrap: wrap;
 }
 

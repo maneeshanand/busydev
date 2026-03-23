@@ -25,6 +25,7 @@ export interface RunEntry {
   output: CodexExecOutput;
   streamRows: StreamRow[];
   stopped?: boolean;
+  completedAt?: number;
 }
 
 export interface PersistedRun {
@@ -32,6 +33,7 @@ export interface PersistedRun {
   prompt: string;
   streamRows: StreamRow[];
   exitCode: number | null;
+  completedAt?: number;
   durationMs: number;
   finalSummary: string;
   stopped?: boolean;

@@ -63,6 +63,10 @@
   background: var(--vp-c-bg-mute);
 }
 
+.todo-header-danger:hover {
+  color: var(--ev-error-accent);
+}
+
 .panel-collapse-btn svg {
   width: 15px;
   height: 15px;
@@ -103,6 +107,35 @@
 
 .todo-item:hover .todo-delete {
   opacity: 1;
+}
+
+.todo-drag-handle {
+  flex-shrink: 0;
+  cursor: grab;
+  color: var(--vp-c-text-3);
+  font-size: 0.7rem;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.1s;
+  user-select: none;
+}
+
+.todo-item:hover .todo-drag-handle {
+  opacity: 0.5;
+}
+
+.todo-drag-handle:hover {
+  opacity: 1 !important;
+  color: var(--vp-c-text-1);
+}
+
+.todo-item-dragging {
+  opacity: 0.4;
+}
+
+.todo-item-dragover {
+  border-top: 2px solid var(--vp-c-brand-1);
+  padding-top: 4px;
 }
 
 .todo-checkbox {
@@ -156,13 +189,72 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   padding: 24px 12px;
 }
 
 .todo-empty-text {
+  font-size: 0.82rem;
+  color: var(--vp-c-text-2);
+  font-weight: 500;
+}
+
+.todo-goal-input {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+
+.todo-goal-field {
+  flex: 1;
+  min-width: 0;
   font-size: 0.78rem;
+  padding: 6px 8px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 3px;
+  background: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-1);
+  font-family: inherit;
+}
+
+.todo-goal-field::placeholder {
   color: var(--vp-c-text-3);
+}
+
+.todo-goal-field:focus {
+  outline: none;
+  border-color: var(--vp-c-brand-3);
+}
+
+.todo-goal-go {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  padding: 4px 10px;
+  border-radius: 3px;
+  background: var(--vp-c-brand-1);
+  border: 1px solid var(--vp-c-brand-2);
+  color: #fff;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 500;
+}
+
+.todo-goal-go:hover:not(:disabled) {
+  background: var(--vp-c-brand-2);
+  color: #fff;
+}
+
+.todo-goal-go:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.todo-goal-bar {
+  display: flex;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--vp-c-divider);
+  flex-shrink: 0;
 }
 
 .todo-generate-button {
@@ -225,6 +317,112 @@
   display: flex;
   gap: 6px;
   padding: 8px 8px 4px;
+}
+
+.todo-player {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+}
+
+.todo-player-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 3px;
+  border: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-2);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.todo-player-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.todo-player-btn:hover:not(:disabled) {
+  border-color: var(--vp-c-brand-3);
+  color: var(--vp-c-brand-1);
+}
+
+.todo-player-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.todo-player-play {
+  background: var(--vp-c-brand-1);
+  border-color: var(--vp-c-brand-2);
+  color: #fff;
+}
+
+.todo-player-play:hover:not(:disabled) {
+  background: var(--vp-c-brand-2);
+  color: #fff;
+}
+
+.todo-player-stop {
+  background: var(--ev-error-accent);
+  border-color: var(--ev-error-accent);
+  color: #fff;
+}
+
+.todo-player-stop:hover {
+  opacity: 0.85;
+  color: #fff;
+}
+
+.todo-player-active {
+  background: var(--vp-c-brand-1);
+  border-color: var(--vp-c-brand-2);
+  color: #fff;
+}
+
+.todo-player-status {
+  font-size: 0.7rem;
+  color: var(--vp-c-text-3);
+  margin-left: 4px;
+  font-family: var(--vp-font-family-mono);
+}
+
+.todo-actions {
+  display: flex;
+  gap: 6px;
+  padding: 0 8px 4px;
+}
+
+.todo-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  padding: 3px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--vp-c-divider);
+  background: transparent;
+  color: var(--vp-c-text-3);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.todo-action-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+.todo-action-btn:hover {
+  border-color: var(--vp-c-brand-3);
+  color: var(--vp-c-text-1);
+}
+
+.todo-action-danger:hover {
+  border-color: var(--ev-error-accent);
+  color: var(--ev-error-accent);
 }
 
 .todo-run-button {
