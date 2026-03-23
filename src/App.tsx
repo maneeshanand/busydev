@@ -684,6 +684,9 @@ function App() {
   const [prompt, setPrompt] = useState("");
   const [promptHistory, setPromptHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  // Transition state for smooth session/project switching
+  const [transitioning, setTransitioning] = useState(false);
+
   // Per-session state (swapped when switching sessions)
   const [sessionRuns, setSessionRuns] = useState<PersistedRun[]>([]);
   const [runs, setRuns] = useState<RunEntry[]>([]);
@@ -1128,17 +1131,22 @@ function App() {
   }
 
   function loadSession(session: Session | null) {
-    setSessionRuns(session?.runs ?? []);
-    setRuns([]);
-    setTodos(session?.todos ?? []);
-    setActiveTabId(null);
-    setError(null);
-    setPrompt("");
-    setPromptHistory([]);
-    setHistoryIndex(-1);
-    setAutoPlayTodos(false);
-    setSearchQuery("");
-    setSearchOpen(false);
+    setTransitioning(true);
+    // Short delay lets the fade-out render before swapping content
+    setTimeout(() => {
+      setSessionRuns(session?.runs ?? []);
+      setRuns([]);
+      setTodos(session?.todos ?? []);
+      setActiveTabId(null);
+      setError(null);
+      setPrompt("");
+      setPromptHistory([]);
+      setHistoryIndex(-1);
+      setAutoPlayTodos(false);
+      setSearchQuery("");
+      setSearchOpen(false);
+      requestAnimationFrame(() => setTransitioning(false));
+    }, 120);
   }
 
   function switchSession(projectId: string, sessionId: string) {
@@ -1565,7 +1573,7 @@ function App() {
           />
         )}
 
-        <div className="stream-panel" ref={streamPanelRef}>
+        <div className={`stream-panel ${transitioning ? "stream-panel-transitioning" : ""}`} ref={streamPanelRef}>
           {error && (
             <div className="output-section">
               <h2>Error</h2>

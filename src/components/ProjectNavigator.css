@@ -20,6 +20,7 @@
   color: var(--vp-c-text-2);
   cursor: pointer;
   max-width: 180px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
 .project-chip:hover {

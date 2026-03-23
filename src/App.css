@@ -255,6 +255,7 @@ button:disabled {
   color: var(--vp-c-text-3);
   cursor: pointer;
   font-family: inherit;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
 .session-tab:hover {
@@ -334,6 +335,11 @@ button:disabled {
   background: color-mix(in srgb, var(--vp-c-bg) 78%, var(--vp-c-bg-soft));
   box-shadow: var(--vp-shadow);
   scroll-behavior: smooth;
+  transition: opacity 0.12s ease;
+}
+
+.stream-panel-transitioning {
+  opacity: 0;
 }
 
 .empty-stream {
