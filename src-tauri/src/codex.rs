@@ -29,6 +29,7 @@ fn build_agent_command(input: &CodexExecInput) -> (String, Vec<String>) {
         "claude" => {
             let mut args = vec![
                 "-p".to_string(),
+                "--continue".to_string(),
                 "--verbose".to_string(),
                 "--output-format".to_string(),
                 "stream-json".to_string(),
