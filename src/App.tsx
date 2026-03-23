@@ -6,6 +6,7 @@ import {
   CODEX_STREAM_EVENT,
   runCodexExec,
   stopCodexExec,
+  type CodexExecOutput,
   type CodexStreamEvent,
 } from "./invoke";
 import type { StreamRow, RunEntry, PersistedRun, InFlightRun, Session, TodoItem } from "./types";
@@ -109,6 +110,47 @@ function ChecklistIcon() {
       <path d="m9 14 2 2 4-4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
+}
+
+interface TurnUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
+function extractTurnUsage(value: unknown): TurnUsage | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const obj = value as Record<string, unknown>;
+  if (obj.type !== "turn.completed") return null;
+
+  const usage = obj.usage;
+  if (!usage || typeof usage !== "object" || Array.isArray(usage)) return null;
+  const usageObj = usage as Record<string, unknown>;
+
+  const inputTokens = typeof usageObj.input_tokens === "number" ? usageObj.input_tokens : null;
+  const outputTokens = typeof usageObj.output_tokens === "number" ? usageObj.output_tokens : null;
+  if (inputTokens == null || outputTokens == null) return null;
+
+  return { inputTokens, outputTokens };
+}
+
+function formatTokenCount(value: number): string {
+  return new Intl.NumberFormat("en-US").format(value);
+}
+
+function inferModelType(modelName: string): string {
+  const lower = modelName.toLowerCase();
+  if (lower.includes("codex")) return "coding";
+  if (lower.includes("mini")) return "compact";
+  if (lower.includes("gpt")) return "general";
+  return "unknown";
+}
+
+function inferContextWindow(modelName: string): number | null {
+  const hint = modelName.match(/(\d+)\s*k/i);
+  if (!hint) return null;
+  const value = Number.parseInt(hint[1], 10);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return value * 1000;
 }
 
 function summarizePrompt(prompt: string): string {
@@ -326,6 +368,50 @@ function renderPersistedRun(run: PersistedRun, debugMode: boolean) {
   );
 }
 
+function buildTodoPrompt(userPrompt: string, todos: TodoItem[]): string {
+  if (todos.length === 0) return userPrompt;
+
+  const todoLines = todos.map((t, i) =>
+    `${i + 1}. [${t.done ? "x" : " "}] ${t.text}`
+  ).join("\n");
+
+  return `## Active Todo List
+
+${todoLines}
+
+## Instructions
+
+You have a todo list above. As you work, if you complete or make progress on any item, include a line at the END of your final message in this exact format:
+
+DONE: <number>
+(where <number> is the item number you completed, e.g., "DONE: 3")
+
+You can mark multiple items:
+DONE: 1
+DONE: 3
+
+Only mark items you actually completed in this run. Do not mark items you didn't work on.
+
+---
+
+${userPrompt}`;
+}
+
+function parseTodoCompletions(output: CodexExecOutput, todos: TodoItem[]): string[] {
+  const lastMessage = extractLastAgentMessage(output.parsedJson);
+  if (!lastMessage) return [];
+
+  const completedIds: string[] = [];
+  const matches = lastMessage.matchAll(/^DONE:\s*(\d+)\s*$/gm);
+  for (const m of matches) {
+    const idx = parseInt(m[1], 10) - 1;
+    if (idx >= 0 && idx < todos.length && !todos[idx].done) {
+      completedIds.push(todos[idx].id);
+    }
+  }
+  return completedIds;
+}
+
 function App() {
   const [loading, setLoading] = useState(true);
   const [splashFading, setSplashFading] = useState(false);
@@ -342,6 +428,7 @@ function App() {
   const [runs, setRuns] = useState<RunEntry[]>([]);
   const [inFlightRun, setInFlightRun] = useState<InFlightRun | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [lastUsage, setLastUsage] = useState<TurnUsage | null>(null);
 
   // Session and panel state
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -366,6 +453,15 @@ function App() {
   const storeReadyRef = useRef(false);
 
   const canRun = !running && workingDirectory.length > 0 && prompt.length > 0;
+  const displayModel = model.trim() || "default";
+  const modelType = inferModelType(displayModel);
+  const contextWindow = inferContextWindow(displayModel);
+  const remainingContext = contextWindow != null && lastUsage
+    ? Math.max(0, contextWindow - lastUsage.inputTokens)
+    : null;
+  const remainingUsage = contextWindow != null && lastUsage
+    ? Math.max(0, contextWindow - (lastUsage.inputTokens + lastUsage.outputTokens))
+    : null;
 
   // Determine if we are viewing a past session
   const isViewingPast = viewingSessionId != null && viewingSessionId !== activeSessionId;
@@ -470,6 +566,9 @@ function App() {
       const payload = event.payload;
       if (!payload || payload.runId !== activeRunIdRef.current) return;
 
+      const usage = extractTurnUsage(payload.parsedJson);
+      if (usage) setLastUsage(usage);
+
       const classified = classifyEvent(payload);
       if (classified.hidden) return;
 
@@ -550,7 +649,9 @@ function App() {
     }]);
   }
   function handleToggleTodo(id: string) {
-    setTodos((prev) => prev.map((t) => t.id === id ? { ...t, done: !t.done } : t));
+    setTodos((prev) => prev.map((t) =>
+      t.id === id ? { ...t, done: !t.done, completedAt: !t.done ? Date.now() : undefined } : t
+    ));
   }
   function handleDeleteTodo(id: string) {
     setTodos((prev) => prev.filter((t) => t.id !== id));
@@ -592,6 +693,7 @@ function App() {
     setPrompt("");
     setRunning(true);
     setError(null);
+    setLastUsage(null);
     activeRunIdRef.current = runId;
     streamRowsRef.current = [];
     nextStreamRowIdRef.current = 1;
@@ -608,10 +710,14 @@ function App() {
     // Clear viewing past session when starting a new run
     setViewingSessionId(null);
 
+    const effectivePrompt = todoMode && todos.length > 0
+      ? buildTodoPrompt(submittedPrompt, todos)
+      : submittedPrompt;
+
     try {
       const out = await runCodexExec({
         runId,
-        prompt: submittedPrompt,
+        prompt: effectivePrompt,
         approvalPolicy,
         sandboxMode,
         workingDirectory,
@@ -631,6 +737,18 @@ function App() {
           stopped: wasStopped,
         },
       ]);
+
+      // Auto-update todos from agent output
+      if (todoMode && !wasStopped) {
+        const completedIds = parseTodoCompletions(out, todos);
+        if (completedIds.length > 0) {
+          setTodos((prev) => prev.map((t) =>
+            completedIds.includes(t.id)
+              ? { ...t, done: true, source: "agent", completedAt: Date.now() }
+              : t
+          ));
+        }
+      }
     } catch (e) {
       setError(String(e));
     } finally {
@@ -716,7 +834,7 @@ function App() {
       <div className="main-column">
         <div className="app-header">
           <h1>busydev</h1>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div className="header-controls">
             <button
               type="button"
               className={`todo-toggle ${todoMode ? "is-active" : ""}`}
@@ -727,6 +845,15 @@ function App() {
               title={todoMode ? "Hide todos" : "Show todos"}
             >
               <ChecklistIcon />
+            </button>
+            <button
+              type="button"
+              className="todo-toggle"
+              onClick={() => setSettingsOpen(true)}
+              title="Open settings"
+              aria-label="Open settings"
+            >
+              <GearIcon />
             </button>
             <button
               type="button"
@@ -847,7 +974,7 @@ function App() {
                   <div className="run-footer">
                     {debugMode && <div>Run #{inFlightRun.id}</div>}
                     <div className="run-footer-running">
-                      Running <span className="elapsed-timer">{elapsed.toFixed(2)}s</span>
+                      <span className="running-label">Running <span className="elapsed-timer">{elapsed.toFixed(2)}s</span></span>
                       <button type="button" className="stop-button" onClick={handleStop}>
                         Stop
                       </button>
@@ -870,19 +997,20 @@ function App() {
               onKeyDown={handlePromptKeyDown}
               placeholder="Get Busy..."
             />
-            <div className="prompt-left-actions">
-              <button
-                type="button"
-                className="prompt-action prompt-action-settings"
-                onClick={() => setSettingsOpen(true)}
-                title="Open settings"
-                aria-label="Open settings"
-              >
-                <GearIcon />
-              </button>
-            </div>
             <div className="composer-meta">
               <span className="meta-label">Approval Policy: {approvalPolicy}</span>
+              <span className="meta-label">Agent: Codex</span>
+              <span className="meta-label">Model: {displayModel}</span>
+              <span className="meta-label">Type: {modelType}</span>
+              <span className="meta-label">
+                Remaining Context: {remainingContext != null ? formatTokenCount(remainingContext) : "N/A"}
+              </span>
+              <span className="meta-label">
+                Remaining Usage: {remainingUsage != null ? formatTokenCount(remainingUsage) : "N/A"}
+              </span>
+              {todoMode && todos.length > 0 && (
+                <span className="meta-label">Todos: {todos.filter((t) => !t.done).length} remaining</span>
+              )}
             </div>
             <div className="prompt-actions">
               {running ? (

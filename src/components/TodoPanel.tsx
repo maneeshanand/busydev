@@ -149,6 +149,9 @@ export function TodoPanel({
                 {item.text}
               </span>
             )}
+            {item.source === "agent" && item.done && (
+              <span className="todo-agent-badge">agent</span>
+            )}
             {!readonly && editingId !== item.id && (
               <button
                 type="button"

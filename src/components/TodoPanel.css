@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: color-mix(in srgb, var(--vp-c-bg) 92%, var(--vp-c-bg-soft));
+  background: color-mix(in srgb, var(--vp-c-bg) 60%, var(--vp-c-bg-soft));
   border: 1px solid var(--vp-c-divider);
   border-radius: 12px;
   overflow: hidden;
@@ -150,6 +150,16 @@
   color: var(--vp-c-text-1);
   font-family: inherit;
   outline: none;
+}
+
+.todo-agent-badge {
+  font-size: 0.62rem;
+  color: var(--vp-c-brand-1);
+  border: 1px solid var(--vp-c-brand-3);
+  border-radius: 3px;
+  padding: 0 4px;
+  flex-shrink: 0;
+  line-height: 1.4;
 }
 
 .todo-delete {

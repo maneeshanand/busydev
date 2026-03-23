@@ -44,6 +44,7 @@ export interface TodoItem {
   done: boolean;
   source: "user" | "agent";
   createdAt: number;
+  completedAt?: number;
 }
 
 export interface Session {
