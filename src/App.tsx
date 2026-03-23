@@ -1456,13 +1456,15 @@ function App() {
               <span className="meta-label">Approval Policy: {approvalPolicy}</span>
               <span className="meta-label">Agent: {agent === "claude" ? "Claude Code" : "Codex"}</span>
               <span className="meta-label">Model: {displayModel}</span>
-              <span className="meta-label">Type: {modelType}</span>
-              <span className="meta-label">
-                Remaining Context: {remainingContext != null ? formatTokenCount(remainingContext) : "N/A"}
-              </span>
-              <span className="meta-label">
-                Remaining Usage: {remainingUsage != null ? formatTokenCount(remainingUsage) : "N/A"}
-              </span>
+              {modelType !== "unknown" && (
+                <span className="meta-label">Type: {modelType}</span>
+              )}
+              {remainingContext != null && (
+                <span className="meta-label">Context: {formatTokenCount(remainingContext)}</span>
+              )}
+              {remainingUsage != null && (
+                <span className="meta-label">Usage: {formatTokenCount(remainingUsage)}</span>
+              )}
               {todoMode && todos.length > 0 && (
                 <span className="meta-label">Todos: {todos.filter((t) => !t.done).length} remaining</span>
               )}
