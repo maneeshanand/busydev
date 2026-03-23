@@ -811,11 +811,13 @@ function App() {
 
   // Count in-flight runs per session for spinner indicators
   const sessionRunCounts: Record<string, number> = {};
+  const runningProjectIds = new Set<string>();
   for (const [rid] of Object.entries(inFlightRuns)) {
     const owner = runSessionMapRef.current[rid];
     if (owner) {
       const key = `${owner.projectId}:${owner.sessionId}`;
       sessionRunCounts[key] = (sessionRunCounts[key] || 0) + 1;
+      runningProjectIds.add(owner.projectId);
     }
   }
 
@@ -1628,6 +1630,7 @@ function App() {
           <ProjectNavigator
             projects={projects}
             activeProjectId={activeProjectId}
+            runningProjectIds={runningProjectIds}
             onSelect={switchToProject}
             onAdd={handleAddProject}
             onRemove={handleRemoveProject}
@@ -1671,9 +1674,16 @@ function App() {
           </div>
         )}
 
-        {Object.keys(inFlightRuns).length > 0 && (
+        {(() => {
+          // Filter in-flight runs to only show current session's runs
+          const currentSessionId = activeProject?.activeSessionId;
+          const sessionInFlight = Object.values(inFlightRuns).filter((r) => {
+            const owner = runSessionMapRef.current[r.runId];
+            return owner && owner.projectId === activeProjectId && owner.sessionId === currentSessionId;
+          });
+          return sessionInFlight.length > 0 ? (
           <TabBar
-            tabs={Object.values(inFlightRuns).map((r): Tab => ({
+            tabs={sessionInFlight.map((r): Tab => ({
               id: r.runId,
               label: r.prompt.length > 30 ? r.prompt.slice(0, 30) + "..." : r.prompt,
               agent,
@@ -1686,7 +1696,8 @@ function App() {
               void stopCodexExec(id);
             }}
           />
-        )}
+        ) : null;
+        })()}
 
         <div className={`stream-panel ${transitioning ? "stream-panel-transitioning" : ""}`} ref={streamPanelRef}>
           {error && (

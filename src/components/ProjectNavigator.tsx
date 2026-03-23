@@ -4,6 +4,7 @@ import "./ProjectNavigator.css";
 interface ProjectNavigatorProps {
   projects: Project[];
   activeProjectId: string | null;
+  runningProjectIds: Set<string>;
   onSelect: (id: string) => void;
   onAdd: () => void;
   onRemove: (id: string) => void;
@@ -12,6 +13,7 @@ interface ProjectNavigatorProps {
 export function ProjectNavigator({
   projects,
   activeProjectId,
+  runningProjectIds,
   onSelect,
   onAdd,
   onRemove,
@@ -26,6 +28,9 @@ export function ProjectNavigator({
           title={p.path}
         >
           <span className="project-chip-name">{p.name}</span>
+          {runningProjectIds.has(p.id) && (
+            <span className="project-chip-spinner" />
+          )}
           <button
             type="button"
             className="project-chip-remove"

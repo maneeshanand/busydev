@@ -44,6 +44,17 @@
   white-space: nowrap;
 }
 
+.project-chip-spinner {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: runSpinner 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
 .project-chip-remove {
   flex-shrink: 0;
   width: 16px;
