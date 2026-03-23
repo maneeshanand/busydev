@@ -766,7 +766,14 @@ function App() {
           if (saved.agent) setAgent(saved.agent);
           if (saved.approvalPolicy) setApprovalPolicy(saved.approvalPolicy);
           if (saved.sandboxMode) setSandboxMode(saved.sandboxMode);
-          if (saved.model != null) setModel(saved.model);
+          if (saved.model != null) {
+            // Validate model matches agent — don't restore a Claude model for Codex or vice versa
+            const restoredAgent = saved.agent || "codex";
+            const claudeModels = ["", "claude-opus-4-6", "claude-haiku-4-5"];
+            const codexModels = ["", "o3", "o4-mini"];
+            const validModels = restoredAgent === "claude" ? claudeModels : codexModels;
+            setModel(validModels.includes(saved.model) ? saved.model : "");
+          }
           if (saved.colorMode) setColorMode(saved.colorMode);
           if (saved.debugMode != null) setDebugMode(saved.debugMode);
           if (saved.workingDirectory) setWorkingDirectory(saved.workingDirectory);
@@ -1075,6 +1082,9 @@ function App() {
       ? buildTodoPrompt(submittedPrompt, todos)
       : submittedPrompt;
 
+    // Collect prompts from previous completed runs for session context
+    const previousPrompts = runs.map((r) => r.prompt);
+
     try {
       const out = await runCodexExec({
         runId,
@@ -1085,6 +1095,7 @@ function App() {
         workingDirectory,
         model: model || undefined,
         skipGitRepoCheck,
+        previousPrompts: previousPrompts.length > 0 ? previousPrompts.slice(-10) : undefined,
       });
 
       // Mark any remaining "running" commands as "done" — the agent exited without explicit completion events
@@ -1506,7 +1517,10 @@ function App() {
               <select
                 className="meta-select"
                 value={agent}
-                onChange={(e) => setAgent(e.target.value)}
+                onChange={(e) => {
+                  setAgent(e.target.value);
+                  setModel("");
+                }}
               >
                 <option value="codex">Codex</option>
                 <option value="claude">Claude Code</option>
