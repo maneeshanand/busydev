@@ -53,14 +53,12 @@ fn build_agent_command(input: &CodexExecInput) -> (String, Vec<String>) {
         "claude" => {
             let mut args = vec![
                 "-p".to_string(),
-                "--continue".to_string(),
+                "--dangerously-skip-permissions".to_string(),
                 "--verbose".to_string(),
                 "--output-format".to_string(),
                 "stream-json".to_string(),
+                "--continue".to_string(),
             ];
-            // TODO: MAN-138 interactive approval via --permission-prompt-tool stdio
-            // needs protocol investigation. For now, always auto-approve.
-            args.push("--dangerously-skip-permissions".to_string());
             if let Some(ref model) = input.model {
                 if !model.is_empty() {
                     args.push("--model".to_string());
