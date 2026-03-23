@@ -35,10 +35,10 @@ jobs:
       url: ${{ vars.SITE_URL || 'https://busydev.com' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: npm
