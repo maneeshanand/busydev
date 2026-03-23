@@ -6,6 +6,7 @@ import {
   CODEX_STREAM_EVENT,
   runCodexExec,
   stopCodexExec,
+  writeToAgent,
   type CodexExecOutput,
   type CodexStreamEvent,
 } from "./invoke";
@@ -279,6 +280,32 @@ function classifyEvent(event: CodexStreamEvent): ClassifiedRow {
       return { category: "status", text: "", hidden: true };
     }
 
+    // Claude: permission request via --permission-prompt-tool stdio
+    if (type === "control_request") {
+      const request = obj.request as Record<string, unknown> | undefined;
+      if (request?.subtype === "can_use_tool") {
+        const toolName = typeof request.tool_name === "string" ? request.tool_name : "unknown";
+        const input = request.input as Record<string, unknown> | undefined;
+        const requestId = typeof obj.request_id === "string" ? obj.request_id : "";
+
+        let summary = toolName;
+        if (toolName === "Bash" && input?.command) {
+          summary = `Bash: ${cleanCommand(String(input.command))}`;
+        } else if ((toolName === "Edit" || toolName === "Write" || toolName === "Read") && input?.file_path) {
+          summary = `${toolName}: ${shortenPath(String(input.file_path))}`;
+        }
+
+        return {
+          category: "approval",
+          text: summary,
+          toolName,
+          toolInput: input ?? {},
+          requestId,
+          approvalState: "pending" as const,
+        };
+      }
+    }
+
     // Assistant messages — thinking, tool_use, text
     if (type === "assistant") {
       const message = obj.message as Record<string, unknown> | undefined;
@@ -491,7 +518,11 @@ function highlightText(text: string, query: string): React.ReactNode {
   );
 }
 
-function renderStreamRow(row: StreamRow, searchQuery = "") {
+function renderStreamRow(
+  row: StreamRow,
+  searchQuery = "",
+  onApproval?: (requestId: string, decision: "allow" | "deny") => void,
+) {
   if (row.hidden) return null;
 
   const hl = (text: string) => highlightText(text, searchQuery);
@@ -529,6 +560,39 @@ function renderStreamRow(row: StreamRow, searchQuery = "") {
     case "error":
       return (
         <div key={row.id} className="ev-error">{hl(row.text)}</div>
+      );
+    case "approval":
+      return (
+        <div key={row.id} className="ev-approval">
+          <div className="ev-approval-header">
+            <span className="ev-approval-icon">?</span>
+            <span className="ev-approval-text">{row.text}</span>
+          </div>
+          {row.approvalState === "pending" && onApproval && row.requestId && (
+            <div className="ev-approval-actions">
+              <button
+                type="button"
+                className="ev-approval-allow"
+                onClick={() => onApproval(row.requestId!, "allow")}
+              >
+                Allow
+              </button>
+              <button
+                type="button"
+                className="ev-approval-deny"
+                onClick={() => onApproval(row.requestId!, "deny")}
+              >
+                Deny
+              </button>
+            </div>
+          )}
+          {row.approvalState === "approved" && (
+            <span className="ev-approval-badge ev-approval-approved">Allowed</span>
+          )}
+          {row.approvalState === "denied" && (
+            <span className="ev-approval-badge ev-approval-denied">Denied</span>
+          )}
+        </div>
       );
     default:
       return null;
@@ -913,6 +977,45 @@ function App() {
     // Save triggers via the effect dependency on rightPanelWidth
   }
 
+  async function handleApproval(runId: string, requestId: string, decision: "allow" | "deny") {
+    const response = JSON.stringify({
+      type: "control_response",
+      request_id: requestId,
+      permission_decision: decision === "allow"
+        ? { type: "allow", tool_name: "", updated_input: null }
+        : { type: "deny", message: "User denied permission" },
+    });
+    try {
+      await writeToAgent(runId, response);
+    } catch {
+      // Process may have exited
+    }
+    // Update the approval row state
+    setInFlightRuns((prev) => {
+      const run = prev[runId];
+      if (!run) return prev;
+      return {
+        ...prev,
+        [runId]: {
+          ...run,
+          streamRows: run.streamRows.map((r) =>
+            r.requestId === requestId
+              ? { ...r, approvalState: decision === "allow" ? "approved" as const : "denied" as const }
+              : r
+          ),
+        },
+      };
+    });
+    // Also update the ref
+    if (streamRowsMapRef.current[runId]) {
+      streamRowsMapRef.current[runId] = streamRowsMapRef.current[runId].map((r) =>
+        r.requestId === requestId
+          ? { ...r, approvalState: decision === "allow" ? "approved" as const : "denied" as const }
+          : r
+      );
+    }
+  }
+
   async function handleBrowse() {
     const dir = await open({ directory: true, multiple: false });
     if (dir) setWorkingDirectory(dir as string);
@@ -1285,7 +1388,11 @@ function App() {
                       <div className="chat-bubble chat-bubble-user">{activeInFlightRun.prompt}</div>
                     </div>
                     <div className="stream-events">
-                      {activeInFlightRun.streamRows.filter((r) => !r.hidden).map((r) => renderStreamRow(r, searchQuery))}
+                      {activeInFlightRun.streamRows.filter((r) => !r.hidden).map((r) =>
+                        renderStreamRow(r, searchQuery, (requestId, decision) =>
+                          handleApproval(activeInFlightRun.runId, requestId, decision)
+                        )
+                      )}
                       {activeInFlightRun.streamRows.filter((r) => !r.hidden).length === 0 && (
                         <div className="ev-thinking">
                           <span className="ev-thinking-dot" />

@@ -1,6 +1,6 @@
 import type { CodexExecOutput } from "./invoke";
 
-export type EventCategory = "message" | "command" | "file_change" | "status" | "error";
+export type EventCategory = "message" | "command" | "file_change" | "status" | "error" | "approval";
 
 export interface StreamRow {
   id: number;
@@ -12,6 +12,11 @@ export interface StreamRow {
   filePaths?: string[];
   hidden?: boolean;
   isTodoSummary?: boolean;
+  // Approval request fields (Claude permission prompts)
+  requestId?: string;
+  toolName?: string;
+  toolInput?: Record<string, unknown>;
+  approvalState?: "pending" | "approved" | "denied";
 }
 
 export interface RunEntry {

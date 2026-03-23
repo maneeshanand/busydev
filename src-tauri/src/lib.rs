@@ -5,12 +5,14 @@ mod terminal;
 pub fn run() {
     tauri::Builder::default()
         .manage(codex::RunningProcesses::new())
+        .manage(codex::ProcessWriters::new())
         .manage(terminal::TerminalManager::new())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             codex::run_codex_exec,
             codex::stop_codex_exec,
+            codex::write_to_agent,
             terminal::create_terminal_session,
             terminal::write_terminal,
             terminal::resize_terminal,

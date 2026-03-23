@@ -37,3 +37,7 @@ export function runCodexExec(input: CodexExecInput): Promise<CodexExecOutput> {
 export function stopCodexExec(runId?: string): Promise<void> {
   return invoke<void>("stop_codex_exec", { runId: runId ?? null });
 }
+
+export function writeToAgent(runId: string, data: string): Promise<void> {
+  return invoke<void>("write_to_agent", { runId, data });
+}

@@ -4,7 +4,7 @@ use std::process::Stdio;
 use std::sync::Mutex;
 use std::time::Instant;
 use tauri::{AppHandle, Emitter};
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 
 /// Holds PIDs of running agent processes so they can be killed.
@@ -16,6 +16,19 @@ impl RunningProcesses {
     pub fn new() -> Self {
         Self {
             processes: Mutex::new(HashMap::new()),
+        }
+    }
+}
+
+/// Holds stdin writers for running processes that support interactive input.
+pub struct ProcessWriters {
+    pub writers: tokio::sync::Mutex<HashMap<String, tokio::process::ChildStdin>>,
+}
+
+impl ProcessWriters {
+    pub fn new() -> Self {
+        Self {
+            writers: tokio::sync::Mutex::new(HashMap::new()),
         }
     }
 }
@@ -49,7 +62,13 @@ fn build_agent_command(input: &CodexExecInput) -> (String, Vec<String>) {
                 "full-auto" => {
                     args.push("--dangerously-skip-permissions".to_string());
                 }
-                _ => {}
+                _ => {
+                    // Enable interactive permission prompts via stdin/stdout JSON
+                    args.push("--permission-prompt-tool".to_string());
+                    args.push("stdio".to_string());
+                    args.push("--input-format".to_string());
+                    args.push("stream-json".to_string());
+                }
             }
             if let Some(ref model) = input.model {
                 if !model.is_empty() {
@@ -110,6 +129,29 @@ fn emit_stream_event(app: &AppHandle, payload: CodexStreamEvent) {
 }
 
 #[tauri::command]
+pub async fn write_to_agent(
+    writers: tauri::State<'_, ProcessWriters>,
+    run_id: String,
+    data: String,
+) -> Result<(), String> {
+    let mut map = writers.writers.lock().await;
+    let writer = map
+        .get_mut(&run_id)
+        .ok_or_else(|| format!("No stdin writer for run {run_id}"))?;
+
+    let bytes = format!("{data}\n");
+    writer
+        .write_all(bytes.as_bytes())
+        .await
+        .map_err(|e| format!("Failed to write to agent stdin: {e}"))?;
+    writer
+        .flush()
+        .await
+        .map_err(|e| format!("Failed to flush agent stdin: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn stop_codex_exec(
     state: tauri::State<'_, RunningProcesses>,
     run_id: Option<String>,
@@ -133,6 +175,7 @@ pub async fn stop_codex_exec(
 pub async fn run_codex_exec(
     app: AppHandle,
     state: tauri::State<'_, RunningProcesses>,
+    writers: tauri::State<'_, ProcessWriters>,
     input: CodexExecInput,
 ) -> Result<CodexExecOutput, String> {
     let (program, args) = build_agent_command(&input);
@@ -153,9 +196,12 @@ pub async fn run_codex_exec(
         },
     );
 
+    let needs_stdin = agent_name == "claude" && input.approval_policy != "full-auto";
+
     let mut child = Command::new(&program)
         .args(&args)
         .current_dir(&input.working_directory)
+        .stdin(if needs_stdin { Stdio::piped() } else { Stdio::null() })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -181,6 +227,13 @@ pub async fn run_codex_exec(
     // Store PID so it can be killed via stop_codex_exec
     if let Some(pid) = child.id() {
         state.processes.lock().unwrap().insert(run_id.clone(), pid);
+    }
+
+    // Store stdin writer for interactive approval
+    if needs_stdin {
+        if let Some(stdin) = child.stdin.take() {
+            writers.writers.lock().await.insert(run_id.clone(), stdin);
+        }
     }
 
     let stdout = child
@@ -297,6 +350,7 @@ pub async fn run_codex_exec(
         .await
         .map_err(|e| format!("Failed waiting for process: {e}"))?;
     state.processes.lock().unwrap().remove(&run_id);
+    writers.writers.lock().await.remove(&run_id);
     let exit_code = status.code();
     let duration_ms = start.elapsed().as_millis() as u64;
 
