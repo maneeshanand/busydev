@@ -1544,31 +1544,12 @@ function App() {
             </div>
             <div className="settings-grid">
               <label>
-                Agent
-                <select value={agent} onChange={(e) => setAgent(e.target.value)}>
-                  <option value="codex">Codex</option>
-                  <option value="claude">Claude Code</option>
-                </select>
-              </label>
-              <label>
-                Approval Policy
-                <select value={approvalPolicy} onChange={(e) => setApprovalPolicy(e.target.value)}>
-                  <option value="full-auto">full-auto</option>
-                  <option value="unless-allow-listed">unless-allow-listed</option>
-                  <option value="never">never</option>
-                </select>
-              </label>
-              <label>
-                Sandbox Mode
+                Sandbox Mode (Codex only)
                 <select value={sandboxMode} onChange={(e) => setSandboxMode(e.target.value)}>
                   <option value="read-only">read-only</option>
                   <option value="workspace-write">workspace-write</option>
                   <option value="danger-full-access">danger-full-access</option>
                 </select>
-              </label>
-              <label>
-                Model
-                <input type="text" value={model} onChange={(e) => setModel(e.target.value)} placeholder="(default)" />
               </label>
               <label className="checkbox">
                 <input
