@@ -4,7 +4,7 @@ layout: home
 hero:
   name: "busydev"
   text: "Run multiple AI coding agents in parallel."
-  tagline: "A desktop app for Codex, Claude Code, and other CLI agents. v0.1.7"
+  tagline: "A desktop app for Codex, Claude Code, and other CLI agents. v0.1.19"
   actions:
     - theme: brand
       text: Getting Started
