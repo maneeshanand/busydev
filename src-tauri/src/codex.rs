@@ -44,10 +44,16 @@ pub struct CodexExecInput {
     pub working_directory: String,
     pub model: Option<String>,
     pub skip_git_repo_check: bool,
+    pub previous_prompts: Option<Vec<String>>,
 }
 
 fn build_agent_command(input: &CodexExecInput) -> (String, Vec<String>) {
     let agent = input.agent.as_deref().unwrap_or("codex");
+
+    let has_previous = input
+        .previous_prompts
+        .as_ref()
+        .map_or(false, |p| !p.is_empty());
 
     match agent {
         "claude" => {
@@ -58,6 +64,10 @@ fn build_agent_command(input: &CodexExecInput) -> (String, Vec<String>) {
                 "--output-format".to_string(),
                 "stream-json".to_string(),
             ];
+            // Continue the most recent Claude session for conversational context
+            if has_previous {
+                args.push("--continue".to_string());
+            }
             if let Some(ref model) = input.model {
                 if !model.is_empty() {
                     args.push("--model".to_string());
@@ -92,7 +102,23 @@ fn build_agent_command(input: &CodexExecInput) -> (String, Vec<String>) {
                 args.push("--skip-git-repo-check".to_string());
             }
             args.push("--json".to_string());
-            args.push(input.prompt.clone());
+            // Prepend previous prompts as context for Codex (no native session continuation)
+            let effective_prompt = if has_previous {
+                let prev = input.previous_prompts.as_ref().unwrap();
+                let context: String = prev
+                    .iter()
+                    .enumerate()
+                    .map(|(i, p)| format!("{}. {}", i + 1, p))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                format!(
+                    "Previous tasks completed in this session:\n{context}\n\nCurrent task:\n{}",
+                    input.prompt
+                )
+            } else {
+                input.prompt.clone()
+            };
+            args.push(effective_prompt);
             ("codex".to_string(), args)
         }
     }

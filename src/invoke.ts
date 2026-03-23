@@ -11,6 +11,7 @@ export interface CodexExecInput {
   workingDirectory: string;
   model?: string;
   skipGitRepoCheck: boolean;
+  previousPrompts?: string[]; // prompts from earlier runs for session context
 }
 
 export interface CodexStreamEvent {
