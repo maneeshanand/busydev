@@ -1415,20 +1415,17 @@ function App() {
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
               >
-                <option value="">
-                  {agent === "claude" ? "claude-sonnet-4-6" : "codex-mini"}
-                </option>
                 {agent === "claude" ? (
                   <>
-                    <option value="claude-sonnet-4-6">claude-sonnet-4-6</option>
+                    <option value="">claude-sonnet-4-6</option>
                     <option value="claude-opus-4-6">claude-opus-4-6</option>
                     <option value="claude-haiku-4-5">claude-haiku-4-5</option>
                   </>
                 ) : (
                   <>
-                    <option value="codex-mini">codex-mini</option>
-                    <option value="o4-mini">o4-mini</option>
+                    <option value="">codex-mini</option>
                     <option value="o3">o3</option>
+                    <option value="o4-mini">o4-mini</option>
                   </>
                 )}
               </select>
