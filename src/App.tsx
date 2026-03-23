@@ -469,6 +469,7 @@ function parseTodoAdditions(output: CodexExecOutput): string[] {
 function App() {
   const [loading, setLoading] = useState(true);
   const [splashFading, setSplashFading] = useState(false);
+  const [agent, setAgent] = useState("codex");
   const [approvalPolicy, setApprovalPolicy] = useState("never");
   const [sandboxMode, setSandboxMode] = useState("read-only");
   const [model, setModel] = useState("");
@@ -525,6 +526,7 @@ function App() {
       try {
         const store = await loadStore("session.json");
         const saved = await store.get<{
+          agent?: string;
           approvalPolicy?: string;
           sandboxMode?: string;
           model?: string;
@@ -538,6 +540,7 @@ function App() {
           rightPanelWidth?: number;
         }>("session");
         if (saved) {
+          if (saved.agent) setAgent(saved.agent);
           if (saved.approvalPolicy) setApprovalPolicy(saved.approvalPolicy);
           if (saved.sandboxMode) setSandboxMode(saved.sandboxMode);
           if (saved.model != null) setModel(saved.model);
@@ -576,6 +579,7 @@ function App() {
       }));
       const allPersisted = [...restoredRuns, ...currentRunsPersisted];
       await store.set("session", {
+        agent,
         approvalPolicy,
         sandboxMode,
         model,
@@ -592,7 +596,7 @@ function App() {
     } catch {
       // Silently ignore save errors
     }
-  }, [approvalPolicy, sandboxMode, model, colorMode, debugMode, workingDirectory, skipGitRepoCheck, restoredRuns, runs, todos, todoMode, rightPanelWidth]);
+  }, [agent, approvalPolicy, sandboxMode, model, colorMode, debugMode, workingDirectory, skipGitRepoCheck, restoredRuns, runs, todos, todoMode, rightPanelWidth]);
 
   useEffect(() => {
     void saveSession();
@@ -755,6 +759,7 @@ function App() {
     try {
       const out = await runCodexExec({
         runId,
+        agent,
         prompt: effectivePrompt,
         approvalPolicy,
         sandboxMode,
@@ -1106,7 +1111,7 @@ function App() {
             />
             <div className="composer-meta">
               <span className="meta-label">Approval Policy: {approvalPolicy}</span>
-              <span className="meta-label">Agent: Codex</span>
+              <span className="meta-label">Agent: {agent === "claude" ? "Claude Code" : "Codex"}</span>
               <span className="meta-label">Model: {displayModel}</span>
               <span className="meta-label">Type: {modelType}</span>
               <span className="meta-label">
@@ -1195,6 +1200,13 @@ function App() {
               <button type="button" className="settings-close" onClick={() => setSettingsOpen(false)}>✕</button>
             </div>
             <div className="settings-grid">
+              <label>
+                Agent
+                <select value={agent} onChange={(e) => setAgent(e.target.value)}>
+                  <option value="codex">Codex</option>
+                  <option value="claude">Claude Code</option>
+                </select>
+              </label>
               <label>
                 Approval Policy
                 <select value={approvalPolicy} onChange={(e) => setApprovalPolicy(e.target.value)}>
