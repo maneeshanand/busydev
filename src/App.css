@@ -652,6 +652,14 @@ pre.json {
 }
 
 
+.terminal-panel {
+  flex-shrink: 0;
+  height: 240px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
 .bottom-panel {
   border: 1px solid var(--vp-c-divider);
   border-radius: 4px;
