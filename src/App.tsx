@@ -1032,7 +1032,10 @@ function App() {
         skipGitRepoCheck,
       });
 
-      const finalStreamRows = [...(streamRowsMapRef.current[runId] || [])];
+      // Mark any remaining "running" commands as "done" — the agent exited without explicit completion events
+      const finalStreamRows = (streamRowsMapRef.current[runId] || []).map((r) =>
+        r.category === "command" && r.status === "running" ? { ...r, status: "done" as const } : r
+      );
       const wasStopped = stoppedMapRef.current[runId] || false;
       setRuns((prev) => [
         ...prev,
