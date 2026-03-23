@@ -1231,8 +1231,10 @@ function App() {
               type="button"
               className={`todo-toggle ${todoMode ? "is-active" : ""}`}
               onClick={() => {
-                setTodoMode((prev) => !prev);
-                setRightCollapsed((prev) => !prev);
+                const next = !todoMode;
+                setTodoMode(next);
+                setRightCollapsed(!next);
+                if (next && rightPanelWidth < 220) setRightPanelWidth(280);
               }}
               title={todoMode ? "Hide todos" : "Show todos"}
             >
