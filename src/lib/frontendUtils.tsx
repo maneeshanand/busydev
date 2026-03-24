@@ -41,7 +41,10 @@ function extractLastAgentMessage(parsedJson: unknown): string | null {
 }
 
 export function stripTodoMarkers(text: string): string {
-  return text.replace(/^DONE:\s*\d+\s*$/gm, "").replace(/^ADD_TODO:\s*.+\s*$/gm, "").trim();
+  return text
+    .replace(/^\s*DONE:\s*\d+\s*[.)]?\s*$/gim, "")
+    .replace(/^\s*ADD_TODO:\s*.+\s*$/gim, "")
+    .trim();
 }
 
 export function formatTimestamp(ts: number): string {
@@ -388,11 +391,13 @@ export function parseTodoCompletions(output: CodexExecOutput, todos: TodoItem[])
   if (!lastMessage) return [];
 
   const completedIds: string[] = [];
-  const matches = lastMessage.matchAll(/^DONE:\s*(\d+)\s*$/gm);
+  const seen = new Set<string>();
+  const matches = lastMessage.matchAll(/^\s*DONE:\s*(\d+)\s*[.)]?\s*$/gim);
   for (const m of matches) {
     const idx = Number.parseInt(m[1], 10) - 1;
-    if (idx >= 0 && idx < todos.length && !todos[idx].done) {
+    if (idx >= 0 && idx < todos.length && !todos[idx].done && !seen.has(todos[idx].id)) {
       completedIds.push(todos[idx].id);
+      seen.add(todos[idx].id);
     }
   }
   return completedIds;
@@ -403,10 +408,28 @@ export function parseTodoAdditions(output: CodexExecOutput): string[] {
   if (!lastMessage) return [];
 
   const newTodos: string[] = [];
-  const matches = lastMessage.matchAll(/^ADD_TODO:\s*(.+)\s*$/gm);
+  const matches = lastMessage.matchAll(/^\s*ADD_TODO:\s*(.+)\s*$/gim);
   for (const m of matches) {
     const text = m[1].trim();
     if (text) newTodos.push(text);
   }
   return newTodos;
+}
+
+export function getTodoAutoPlayDecision(
+  todos: TodoItem[],
+  requestedTodoId: string | null,
+  todoProgressMade: boolean,
+): { nextTodo: TodoItem | null; nextIndex: number | null; shouldPauseForLoop: boolean } {
+  const remaining = todos.filter((t) => !t.done);
+  if (remaining.length === 0) {
+    return { nextTodo: null, nextIndex: null, shouldPauseForLoop: false };
+  }
+
+  const nextTodo = remaining[0];
+  const nextIndex = todos.indexOf(nextTodo);
+  const wouldRepeatSameTodo = requestedTodoId !== null && nextTodo.id === requestedTodoId;
+  const shouldPauseForLoop = !todoProgressMade && wouldRepeatSameTodo;
+
+  return { nextTodo, nextIndex, shouldPauseForLoop };
 }

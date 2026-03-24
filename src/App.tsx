@@ -14,7 +14,6 @@ import {
   deleteWorktree,
   isGitRepo,
   updateTrayBadge,
-  type CodexExecOutput,
   type CodexStreamEvent,
 } from "./invoke";
 import type { StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session } from "./types";
@@ -29,7 +28,14 @@ import { TabBar, type Tab } from "./components/TabBar";
 import { useNotificationStore } from "./stores/notificationStore";
 import { NotificationToasts } from "./components/NotificationToasts";
 import { GlobalSessionViewer } from "./components/GlobalSessionViewer";
-import { shouldRenderFinalSummary } from "./lib/frontendUtils";
+import {
+  buildTodoPrompt,
+  getTodoAutoPlayDecision,
+  parseTodoAdditions,
+  parseTodoCompletions,
+  shouldRenderFinalSummary,
+  stripTodoMarkers,
+} from "./lib/frontendUtils";
 
 function WrenchIcon() {
   return (
@@ -132,10 +138,6 @@ function extractLastAgentMessage(parsedJson: unknown): string | null {
   }
 
   return lastMessage;
-}
-
-function stripTodoMarkers(text: string): string {
-  return text.replace(/^DONE:\s*\d+\s*$/gm, "").replace(/^ADD_TODO:\s*.+\s*$/gm, "").trim();
 }
 
 function buildFinalSummary(run: RunEntry): string {
@@ -583,73 +585,6 @@ function renderPersistedRun(run: PersistedRun, debugMode: boolean, searchQuery =
   );
 }
 
-function buildTodoPrompt(userPrompt: string, todos: TodoItem[]): string {
-  if (todos.length === 0) return userPrompt;
-
-  const todoLines = todos.map((t, i) =>
-    `${i + 1}. [${t.done ? "x" : " "}] ${t.text}`
-  ).join("\n");
-
-  const pending = todos.filter((t) => !t.done);
-  const done = todos.filter((t) => t.done);
-
-  return `## Active Todo List (${done.length}/${todos.length} complete)
-
-${todoLines}
-
-## Todo Mode Instructions
-
-You are working in todo mode. Start your response by briefly acknowledging which todo item(s) you'll be working on from the list above (e.g., "Working on #3: fix the login bug").
-
-As you work, use these markers at the END of your final message:
-
-To mark items complete:
-DONE: <number>
-
-To suggest new todos:
-ADD_TODO: <description>
-
-Examples:
-DONE: 1
-DONE: 3
-ADD_TODO: write unit tests for the new auth module
-ADD_TODO: update README with setup instructions
-
-Only mark items you actually completed. Only suggest todos that are concrete next steps.${pending.length === 0 ? "\n\nAll todos are complete! Focus on the user's prompt below." : ""}
-
----
-
-${userPrompt}`;
-}
-
-function parseTodoCompletions(output: CodexExecOutput, todos: TodoItem[]): string[] {
-  const lastMessage = extractLastAgentMessage(output.parsedJson);
-  if (!lastMessage) return [];
-
-  const completedIds: string[] = [];
-  const matches = lastMessage.matchAll(/^DONE:\s*(\d+)\s*$/gm);
-  for (const m of matches) {
-    const idx = parseInt(m[1], 10) - 1;
-    if (idx >= 0 && idx < todos.length && !todos[idx].done) {
-      completedIds.push(todos[idx].id);
-    }
-  }
-  return completedIds;
-}
-
-function parseTodoAdditions(output: CodexExecOutput): string[] {
-  const lastMessage = extractLastAgentMessage(output.parsedJson);
-  if (!lastMessage) return [];
-
-  const newTodos: string[] = [];
-  const matches = lastMessage.matchAll(/^ADD_TODO:\s*(.+)\s*$/gm);
-  for (const m of matches) {
-    const text = m[1].trim();
-    if (text) newTodos.push(text);
-  }
-  return newTodos;
-}
-
 function NotificationPanel({ onClose, onNavigate }: { onClose: () => void; onNavigate?: (projectId: string, sessionId: string) => void }) {
   const notifications = useNotificationStore((s) => s.notifications);
   const clearAll = useNotificationStore((s) => s.clearNotifications);
@@ -841,6 +776,10 @@ function App() {
 
   // Track which session owns which runId (for background run completion)
   const runSessionMapRef = useRef<Record<string, { projectId: string; sessionId: string }>>({});
+  const projectsRef = useRef<Project[]>([]);
+  const activeProjectIdRef = useRef<string | null>(null);
+  const activeSessionIdRef = useRef<string | null>(null);
+  const autoPlayTodosRef = useRef(false);
 
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -878,6 +817,12 @@ function App() {
     : approvalPolicy === "never"
       ? "manual"
       : "full-auto";
+
+  // Keep refs current so async run completions don't rely on stale render state.
+  projectsRef.current = projects;
+  activeProjectIdRef.current = activeProjectId;
+  activeSessionIdRef.current = activeProject?.activeSessionId ?? null;
+  autoPlayTodosRef.current = autoPlayTodos;
 
   function openSettings(section: SectionId) {
     setSettingsSection(section);
@@ -1457,6 +1402,8 @@ function App() {
 
   async function handleRun(overridePrompt?: string) {
     const submittedPrompt = overridePrompt ?? prompt;
+    const requestedTodoMatch = submittedPrompt.match(/work on todo #(\d+)/i);
+    const requestedTodoIndex = requestedTodoMatch ? Number.parseInt(requestedTodoMatch[1], 10) : null;
     if (submittedPrompt.trim()) {
       setPromptHistory((prev) => [...prev, submittedPrompt]);
       setHistoryIndex(-1);
@@ -1558,46 +1505,63 @@ function App() {
 
       // Auto-update todos in the owning session
       if (todoMode && !wasStopped && owner) {
-        const ownerSession = projects.find((p) => p.id === owner.projectId)
+        const ownerSession = projectsRef.current.find((p) => p.id === owner.projectId)
           ?.sessions.find((s) => s.id === owner.sessionId);
         const ownerTodos = ownerSession?.todos ?? [];
+        const requestedTodoId = requestedTodoIndex !== null &&
+          requestedTodoIndex >= 1 &&
+          requestedTodoIndex <= ownerTodos.length
+          ? ownerTodos[requestedTodoIndex - 1].id
+          : null;
         const completedIds = parseTodoCompletions(out, ownerTodos);
         const newTodoTexts = parseTodoAdditions(out);
+        const todoProgressMade = completedIds.length > 0 || newTodoTexts.length > 0;
+        const updatedOwnerTodos: TodoItem[] = [
+          ...ownerTodos.map((t) =>
+            completedIds.includes(t.id)
+              ? { ...t, done: true, source: "agent" as const, completedAt: Date.now() }
+              : t
+          ),
+          ...newTodoTexts.map((text) => ({
+            id: crypto.randomUUID(),
+            text,
+            done: false,
+            source: "agent" as const,
+            createdAt: Date.now(),
+          })),
+        ];
 
-        if (completedIds.length > 0 || newTodoTexts.length > 0) {
+        if (todoProgressMade) {
           updateSession(owner.projectId, owner.sessionId, (s) => ({
             ...s,
-            todos: [
-              ...s.todos.map((t) =>
-                completedIds.includes(t.id)
-                  ? { ...t, done: true, source: "agent" as const, completedAt: Date.now() }
-                  : t
-              ),
-              ...newTodoTexts.map((text) => ({
-                id: crypto.randomUUID(),
-                text,
-                done: false,
-                source: "agent" as const,
-                createdAt: Date.now(),
-              })),
-            ],
+            todos: updatedOwnerTodos,
           }));
         }
 
         // Auto-play: if enabled and the run was for the active session
-        if (autoPlayTodos && !wasStopped && owner &&
-            owner.projectId === activeProjectId &&
-            owner.sessionId === activeProject?.activeSessionId) {
+        if (autoPlayTodosRef.current && !wasStopped &&
+            owner.projectId === activeProjectIdRef.current &&
+            owner.sessionId === activeSessionIdRef.current) {
           setTimeout(() => {
+            if (!autoPlayTodosRef.current) return;
+            if (owner.projectId !== activeProjectIdRef.current || owner.sessionId !== activeSessionIdRef.current) return;
             // Read latest todos from projects state
-            const latestTodos = projects.find((p) => p.id === owner.projectId)
+            const latestTodos = projectsRef.current.find((p) => p.id === owner.projectId)
               ?.sessions.find((s) => s.id === owner.sessionId)?.todos ?? [];
-            const remaining = latestTodos.filter((t) => !t.done);
-            if (remaining.length > 0) {
-              const next = remaining[0];
-              const nextIdx = latestTodos.indexOf(next);
-              void handleRun(`Work on todo #${nextIdx + 1}: ${next.text}\n\nComplete this single item and mark it done with DONE: ${nextIdx + 1}`);
+            const sourceTodos = latestTodos.length > 0 ? latestTodos : updatedOwnerTodos;
+            const decision = getTodoAutoPlayDecision(sourceTodos, requestedTodoId, todoProgressMade);
+            if (!decision.nextTodo || decision.nextIndex === null) return;
+            if (decision.shouldPauseForLoop) {
+              fireNotification(
+                "Todo auto-play paused",
+                "No DONE/ADD_TODO markers were detected. Run manually to continue and avoid a loop.",
+                "warning",
+                owner.projectId,
+                owner.sessionId,
+              );
+              return;
             }
+            void handleRun(`Work on todo #${decision.nextIndex + 1}: ${decision.nextTodo.text}\n\nComplete this single item and mark it done with DONE: ${decision.nextIndex + 1}`);
           }, 1000);
         }
       }
