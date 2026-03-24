@@ -157,82 +157,6 @@ svg {
   height: 16px;
 }
 
-.theme-toggle {
-  width: 112px;
-  height: 28px;
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 8px;
-  border-radius: 20px;
-  border: 1px solid var(--vp-c-divider);
-  background: var(--vp-c-bg-soft);
-  color: var(--vp-c-text-2);
-  cursor: pointer;
-  overflow: hidden;
-}
-
-.theme-toggle-option {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  justify-content: center;
-  z-index: 1;
-  font-size: 0.62rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  opacity: 0.5;
-  transition: opacity 0.15s ease, color 0.15s ease;
-}
-
-.theme-toggle-option svg {
-  width: 13px;
-  height: 13px;
-}
-
-.theme-toggle.is-light .theme-toggle-option-light,
-.theme-toggle.is-dark .theme-toggle-option-dark {
-  opacity: 1;
-  color: var(--vp-c-text-1);
-}
-
-.theme-toggle-knob {
-  position: absolute;
-  left: 2px;
-  top: 2px;
-  width: 46px;
-  height: 22px;
-  border-radius: 999px;
-  background: var(--vp-c-bg);
-  border: 1px solid var(--vp-c-divider);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
-  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--vp-c-brand-1);
-}
-
-.theme-toggle-knob svg {
-  width: 12px;
-  height: 12px;
-}
-
-.theme-toggle-knob.is-dark {
-  transform: translateX(62px);
-}
-
-.theme-toggle.is-dark .theme-toggle-knob {
-  background: color-mix(in srgb, var(--vp-c-brand-1) 18%, var(--vp-c-bg));
-  border-color: color-mix(in srgb, var(--vp-c-brand-1) 45%, var(--vp-c-divider));
-}
-
-.theme-toggle:focus-visible {
-  outline: 2px solid var(--vp-c-brand-1);
-  outline-offset: 2px;
-}
-
 .todo-toggle {
   width: 32px;
   height: 28px;
@@ -271,8 +195,7 @@ button,
 }
 
 button:hover:not(:disabled),
-.icon-button:hover:not(:disabled),
-.theme-toggle:hover {
+.icon-button:hover:not(:disabled) {
   border-color: var(--vp-c-brand-3);
   color: var(--vp-c-brand-1);
 }
