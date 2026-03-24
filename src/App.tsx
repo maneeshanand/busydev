@@ -13,6 +13,7 @@ import {
   createWorktree,
   deleteWorktree,
   isGitRepo,
+  updateTrayBadge,
   type CodexExecOutput,
   type CodexStreamEvent,
 } from "./invoke";
@@ -26,6 +27,8 @@ import { getSettings, saveSettings } from "./settingsInvoke";
 // Terminal hidden — MAN-157
 // import { TerminalPanel } from "./components/Terminal";
 import { TabBar, type Tab } from "./components/TabBar";
+import { useNotificationStore } from "./stores/notificationStore";
+import { NotificationToasts } from "./components/NotificationToasts";
 
 function SunIcon() {
   return (
@@ -675,10 +678,68 @@ function parseTodoAdditions(output: CodexExecOutput): string[] {
   return newTodos;
 }
 
-function SessionTabs({ sessions, activeSessionId, sessionRunCounts, projectId, onSelect, onNew, onRename, onDelete }: {
+function NotificationPanel({ onClose, onNavigate }: { onClose: () => void; onNavigate?: (projectId: string, sessionId: string) => void }) {
+  const notifications = useNotificationStore((s) => s.notifications);
+  const clearAll = useNotificationStore((s) => s.clearNotifications);
+  const dismiss = useNotificationStore((s) => s.dismissNotification);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(".bell-wrapper")) onClose();
+    };
+    // Use setTimeout to avoid closing on the same click that opened the panel
+    const timer = setTimeout(() => {
+      document.addEventListener("mousedown", handleClickOutside);
+    }, 0);
+    return () => { clearTimeout(timer); document.removeEventListener("mousedown", handleClickOutside); };
+  }, [onClose]);
+
+  return (
+    <div className="notif-panel">
+      <div className="notif-panel-header">
+        <span>Notifications</span>
+        {notifications.length > 0 && (
+          <button type="button" className="notif-panel-clear" onClick={clearAll}>Clear all</button>
+        )}
+      </div>
+      {notifications.length === 0 ? (
+        <div className="notif-panel-empty">No notifications</div>
+      ) : (
+        <div className="notif-panel-list">
+          {[...notifications].reverse().map((n) => {
+            const canNav = !!(n.projectId && n.sessionId && onNavigate);
+            return (
+              <div
+                key={n.id}
+                className={`notif-panel-item notif-panel-item--${n.level} ${canNav ? "notif-panel-item--clickable" : ""}`}
+                onClick={() => {
+                  if (canNav) {
+                    onNavigate(n.projectId!, n.sessionId!);
+                    dismiss(n.id);
+                    onClose();
+                  }
+                }}
+              >
+                <div className="notif-panel-item-content">
+                  <strong>{n.title}</strong>
+                  <span>{n.message}</span>
+                </div>
+                <button type="button" className="notif-panel-item-dismiss" onClick={(e) => { e.stopPropagation(); dismiss(n.id); }}>×</button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SessionTabs({ sessions, activeSessionId, sessionRunCounts, sessionAlerts, projectId, onSelect, onNew, onRename, onDelete }: {
   sessions: Session[];
   activeSessionId: string | null;
   sessionRunCounts: Record<string, number>;
+  sessionAlerts: Record<string, "done" | "approval">;
   projectId: string;
   onSelect: (id: string) => void;
   onNew: () => void;
@@ -721,6 +782,12 @@ function SessionTabs({ sessions, activeSessionId, sessionRunCounts, projectId, o
               )}
               {(sessionRunCounts[`${projectId}:${s.id}`] ?? 0) > 0 && (
                 <span className="session-tab-spinner" />
+              )}
+              {sessionAlerts[s.id] === "done" && (
+                <span className="session-tab-done" title="Agent finished">✓</span>
+              )}
+              {sessionAlerts[s.id] === "approval" && (
+                <span className="session-tab-approval" title="Needs approval">!</span>
               )}
               {sessions.length > 1 && (
                 <button
@@ -812,6 +879,9 @@ function App() {
   const nextRowIdRef = useRef<Record<string, number>>({});
   const stoppedMapRef = useRef<Record<string, boolean>>({});
   const startTimeMapRef = useRef<Record<string, number>>({});
+  const badgeCountRef = useRef(0);
+  const [missedAlerts, setMissedAlerts] = useState(0);
+  const [notifPanelOpen, setNotifPanelOpen] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const storeReadyRef = useRef(false);
   const [windowSize, setWindowSize] = useState<{ windowWidth?: number; windowHeight?: number }>({});
@@ -891,8 +961,37 @@ function App() {
     }
   }
 
+  // Compute per-session alert indicators from notification store
+  const storeNotifications = useNotificationStore((s) => s.notifications);
+  const sessionAlerts: Record<string, "done" | "approval"> = {};
+  for (const n of storeNotifications) {
+    if (!n.sessionId) continue;
+    if (n.level === "warning") {
+      sessionAlerts[n.sessionId] = "approval"; // approval takes priority
+    } else if (!sessionAlerts[n.sessionId]) {
+      sessionAlerts[n.sessionId] = "done";
+    }
+  }
 
   // Load persisted state on mount
+  // Request notification permission on mount
+  useEffect(() => {
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      void Notification.requestPermission();
+    }
+  }, []);
+
+  // Reset tray badge when window gains focus
+  useEffect(() => {
+    const handleFocus = () => {
+      badgeCountRef.current = 0;
+      void updateTrayBadge(0);
+      // Bell icon persists until user clicks it — don't reset missedAlerts here
+    };
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, []);
+
   useEffect(() => {
     (async () => {
       try {
@@ -1023,6 +1122,10 @@ function App() {
       } else {
         if (!nextRowIdRef.current[rid]) nextRowIdRef.current[rid] = 1;
         const row: StreamRow = { ...classified, id: nextRowIdRef.current[rid]++ };
+        if (classified.category === "approval") {
+          const approvalOwner = runSessionMapRef.current[rid];
+          fireNotification("Approval needed", classified.text, "warning", approvalOwner?.projectId, approvalOwner?.sessionId);
+        }
         streamRowsMapRef.current[rid] = [...(streamRowsMapRef.current[rid] || []), row];
         setInFlightRuns((prev) => {
           const run = prev[rid];
@@ -1334,6 +1437,11 @@ function App() {
     resetEphemeralState();
   }
 
+  function navigateToSession(projectId: string, sessionId: string) {
+    if (projectId !== activeProjectId) setActiveProjectId(projectId);
+    switchSession(projectId, sessionId);
+  }
+
   function handleRemoveProject(id: string) {
     setProjects((prev) => prev.filter((p) => p.id !== id));
     if (activeProjectId === id) {
@@ -1344,6 +1452,19 @@ function App() {
         setActiveProjectId(null);
       }
       resetEphemeralState();
+    }
+  }
+
+  function fireNotification(title: string, message: string, level: "success" | "error" | "warning", projectId?: string, sessionId?: string) {
+    const { addNotification } = useNotificationStore.getState();
+    addNotification({ title, message, level, projectId, sessionId });
+    if (!document.hasFocus()) {
+      badgeCountRef.current += 1;
+      setMissedAlerts(badgeCountRef.current);
+      void updateTrayBadge(badgeCountRef.current);
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        new Notification("busydev", { body: `${title}: ${message}` });
+      }
     }
   }
 
@@ -1431,6 +1552,16 @@ function App() {
 
       // Write completed run to the owning session (may be different from active if user switched)
       const owner = runSessionMapRef.current[runId];
+
+      // Fire notification for completed run
+      if (!wasStopped) {
+        if (out.exitCode === 0) {
+          fireNotification("Agent completed", submittedPrompt.slice(0, 60), "success", owner?.projectId, owner?.sessionId);
+        } else {
+          fireNotification("Agent failed", `Exit code ${out.exitCode}`, "error", owner?.projectId, owner?.sessionId);
+        }
+      }
+
       if (owner) {
         updateSession(owner.projectId, owner.sessionId, (s) => ({
           ...s,
@@ -1485,6 +1616,7 @@ function App() {
       }
     } catch (e) {
       setError(String(e));
+      fireNotification("Agent error", String(e), "error");
     } finally {
       // Clean up per-run state
       delete streamRowsMapRef.current[runId];
@@ -1619,6 +1751,28 @@ function App() {
             >
               <ChecklistIcon />
             </button>
+            <div className="bell-wrapper">
+              <button
+                type="button"
+                className={`bell-icon ${missedAlerts > 0 ? "has-alerts" : ""}`}
+                onClick={() => {
+                  setNotifPanelOpen((prev) => !prev);
+                  if (missedAlerts > 0) {
+                    setMissedAlerts(0);
+                    badgeCountRef.current = 0;
+                    void updateTrayBadge(0);
+                  }
+                }}
+                title={missedAlerts > 0 ? `${missedAlerts} missed alert${missedAlerts > 1 ? "s" : ""}` : "Notifications"}
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                </svg>
+                {missedAlerts > 0 && <span className="bell-badge">{missedAlerts}</span>}
+              </button>
+              {notifPanelOpen && <NotificationPanel onClose={() => setNotifPanelOpen(false)} onNavigate={navigateToSession} />}
+            </div>
             <button
               type="button"
               className="todo-toggle"
@@ -1658,6 +1812,7 @@ function App() {
             sessions={activeProject.sessions}
             activeSessionId={activeProject.activeSessionId}
             sessionRunCounts={sessionRunCounts}
+            sessionAlerts={sessionAlerts}
             projectId={activeProject.id}
             onSelect={(sid) => switchSession(activeProject.id, sid)}
             onNew={handleNewSession}
@@ -1976,6 +2131,7 @@ ADD_TODO: step three description`);
         rightPanelWidth={rightPanelWidth}
         setRightPanelWidth={setRightPanelWidth}
       />
+      <NotificationToasts onNavigate={navigateToSession} />
     </div>
   );
 }

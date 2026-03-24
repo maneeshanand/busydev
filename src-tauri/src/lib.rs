@@ -2,6 +2,7 @@ mod codex;
 mod git;
 mod settings;
 mod terminal;
+mod tray;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -13,6 +14,8 @@ pub fn run() {
         .setup(|app| {
             let db = settings::SettingsDb::new(app.handle())?;
             app.manage(db);
+            app.manage(tray::TrayState::new());
+            tray::setup_tray(app.handle()).map_err(|e| Box::<dyn std::error::Error>::from(e))?;
             Ok(())
         })
         .plugin(tauri_plugin_dialog::init())
@@ -35,6 +38,7 @@ pub fn run() {
             git::create_worktree,
             git::delete_worktree,
             git::is_git_repo,
+            tray::update_tray_badge,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
