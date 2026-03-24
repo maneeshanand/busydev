@@ -768,6 +768,9 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [splashFading, setSplashFading] = useState(false);
   const [colorMode, setColorMode] = useState<"light" | "dark">("light");
+  const [uiDensity, setUiDensity] = useState<"comfortable" | "compact">("comfortable");
+  const [splashEnabled, setSplashEnabled] = useState(true);
+  const [splashDurationMs, setSplashDurationMs] = useState(3000);
   const [debugMode, setDebugMode] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SectionId>("general");
@@ -785,6 +788,11 @@ function App() {
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [autoPlayTodos, setAutoPlayTodos] = useState(false);
+  const [todoAutoPlayDefault, setTodoAutoPlayDefault] = useState(false);
+  const [includeSessionHistoryInPrompt, setIncludeSessionHistoryInPrompt] = useState(true);
+  const [claudeAutoContinue, setClaudeAutoContinue] = useState(true);
+  const [terminalFontSize, setTerminalFontSize] = useState(13);
+  const [terminalLineHeight, setTerminalLineHeight] = useState(1.3);
 
   // Global state
   const [todoMode, setTodoMode] = useState(false);
@@ -835,22 +843,38 @@ function App() {
   const buildSettingsSnapshot = useCallback((): StoredSettings => ({
     settingsVersion: SETTINGS_VERSION,
     colorMode,
+    uiDensity,
+    splashEnabled,
+    splashDurationMs,
     debugMode,
     projects,
     activeProjectId,
     skipGitRepoCheck,
     todoMode,
+    todoAutoPlayDefault,
     rightPanelWidth,
+    includeSessionHistoryInPrompt,
+    claudeAutoContinue,
+    terminalFontSize,
+    terminalLineHeight,
     windowWidth: windowSize.windowWidth,
     windowHeight: windowSize.windowHeight,
   }), [
     colorMode,
+    uiDensity,
+    splashEnabled,
+    splashDurationMs,
     debugMode,
     projects,
     activeProjectId,
     skipGitRepoCheck,
     todoMode,
+    todoAutoPlayDefault,
     rightPanelWidth,
+    includeSessionHistoryInPrompt,
+    claudeAutoContinue,
+    terminalFontSize,
+    terminalLineHeight,
     windowSize.windowWidth,
     windowSize.windowHeight,
   ]);
@@ -892,13 +916,22 @@ function App() {
             void getCurrentWindow().setSize(new LogicalSize(migrated.windowWidth, migrated.windowHeight));
           }
           setColorMode(migrated.colorMode);
+          setUiDensity(migrated.uiDensity);
+          setSplashEnabled(migrated.splashEnabled);
+          setSplashDurationMs(migrated.splashDurationMs);
           setDebugMode(migrated.debugMode);
           setProjects(migrated.projects);
           setActiveProjectId(migrated.activeProjectId);
           setSkipGitRepoCheck(migrated.skipGitRepoCheck);
           setTodoMode(migrated.todoMode);
+          setTodoAutoPlayDefault(migrated.todoAutoPlayDefault);
+          setAutoPlayTodos(migrated.todoAutoPlayDefault);
           setRightCollapsed(!migrated.todoMode);
           setRightPanelWidth(migrated.rightPanelWidth);
+          setIncludeSessionHistoryInPrompt(migrated.includeSessionHistoryInPrompt);
+          setClaudeAutoContinue(migrated.claudeAutoContinue);
+          setTerminalFontSize(migrated.terminalFontSize);
+          setTerminalLineHeight(migrated.terminalLineHeight);
           setWindowSize({
             windowWidth: migrated.windowWidth,
             windowHeight: migrated.windowHeight,
@@ -1030,13 +1063,19 @@ function App() {
   }, [loading]);
 
   useEffect(() => {
-    const fadeTimer = setTimeout(() => setSplashFading(true), 3000);
-    const removeTimer = setTimeout(() => setLoading(false), 3600);
+    if (!splashEnabled) {
+      setSplashFading(true);
+      setLoading(false);
+      return;
+    }
+    const duration = Math.max(0, splashDurationMs);
+    const fadeTimer = setTimeout(() => setSplashFading(true), duration);
+    const removeTimer = setTimeout(() => setLoading(false), duration + 600);
     return () => {
       clearTimeout(fadeTimer);
       clearTimeout(removeTimer);
     };
-  }, []);
+  }, [splashEnabled, splashDurationMs]);
 
   useEffect(() => {
     if (!anyRunning || !activeTabId) return;
@@ -1198,7 +1237,7 @@ function App() {
       setPrompt("");
       setPromptHistory([]);
       setHistoryIndex(-1);
-      setAutoPlayTodos(false);
+      setAutoPlayTodos(todoAutoPlayDefault);
       setSearchQuery("");
       setSearchOpen(false);
       requestAnimationFrame(() => setTransitioning(false));
@@ -1342,10 +1381,10 @@ function App() {
     }));
     setActiveTabId(runId);
 
-    // Build session context from recent runs
+    // Build session context from recent runs (toggleable in settings)
     const recentRuns = sessionRuns.slice(-5);
     let sessionContext = "";
-    if (recentRuns.length > 0) {
+    if (includeSessionHistoryInPrompt && recentRuns.length > 0) {
       const history = recentRuns.map((r, i) => {
         const summary = r.finalSummary?.slice(0, 150) || "(no summary)";
         return `${i + 1}. Prompt: "${r.prompt.slice(0, 100)}"\n   Result: ${summary}`;
@@ -1369,6 +1408,9 @@ function App() {
         workingDirectory,
         model: model || undefined,
         skipGitRepoCheck,
+        previousPrompts: agent === "claude" && claudeAutoContinue
+          ? sessionRuns.map((r) => r.prompt).slice(-10)
+          : undefined,
       });
 
       // Mark any remaining "running" commands as "done" — the agent exited without explicit completion events
@@ -1558,7 +1600,7 @@ function App() {
   }
 
   return (
-    <div className={`container theme-${colorMode}`}>
+    <div className={`container theme-${colorMode} density-${uiDensity}`}>
       <div className="main-column">
         <div className="app-header">
           <h1>busydev</h1>
@@ -1896,6 +1938,12 @@ ADD_TODO: step three description`);
         initialSection={settingsSection}
         colorMode={colorMode}
         setColorMode={setColorMode}
+        uiDensity={uiDensity}
+        setUiDensity={setUiDensity}
+        splashEnabled={splashEnabled}
+        setSplashEnabled={setSplashEnabled}
+        splashDurationMs={splashDurationMs}
+        setSplashDurationMs={setSplashDurationMs}
         debugMode={debugMode}
         setDebugMode={setDebugMode}
         skipGitRepoCheck={skipGitRepoCheck}
@@ -1915,6 +1963,16 @@ ADD_TODO: step three description`);
           setTodoMode(enabled);
           setRightCollapsed(!enabled);
         }}
+        todoAutoPlayDefault={todoAutoPlayDefault}
+        setTodoAutoPlayDefault={setTodoAutoPlayDefault}
+        includeSessionHistoryInPrompt={includeSessionHistoryInPrompt}
+        setIncludeSessionHistoryInPrompt={setIncludeSessionHistoryInPrompt}
+        claudeAutoContinue={claudeAutoContinue}
+        setClaudeAutoContinue={setClaudeAutoContinue}
+        terminalFontSize={terminalFontSize}
+        setTerminalFontSize={setTerminalFontSize}
+        terminalLineHeight={terminalLineHeight}
+        setTerminalLineHeight={setTerminalLineHeight}
         rightPanelWidth={rightPanelWidth}
         setRightPanelWidth={setRightPanelWidth}
       />

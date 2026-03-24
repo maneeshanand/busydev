@@ -7,6 +7,7 @@ export type SectionId =
   | "session"
   | "execution"
   | "todo"
+  | "terminal"
   | "advanced";
 
 interface SettingsViewProps {
@@ -15,6 +16,12 @@ interface SettingsViewProps {
   initialSection?: SectionId;
   colorMode: "light" | "dark";
   setColorMode: (mode: "light" | "dark") => void;
+  uiDensity: "comfortable" | "compact";
+  setUiDensity: (density: "comfortable" | "compact") => void;
+  splashEnabled: boolean;
+  setSplashEnabled: (enabled: boolean) => void;
+  splashDurationMs: number;
+  setSplashDurationMs: (ms: number) => void;
   debugMode: boolean;
   setDebugMode: (enabled: boolean) => void;
   skipGitRepoCheck: boolean;
@@ -31,6 +38,16 @@ interface SettingsViewProps {
   setSandboxMode: (mode: string) => void;
   todoMode: boolean;
   setTodoMode: (enabled: boolean) => void;
+  todoAutoPlayDefault: boolean;
+  setTodoAutoPlayDefault: (enabled: boolean) => void;
+  includeSessionHistoryInPrompt: boolean;
+  setIncludeSessionHistoryInPrompt: (enabled: boolean) => void;
+  claudeAutoContinue: boolean;
+  setClaudeAutoContinue: (enabled: boolean) => void;
+  terminalFontSize: number;
+  setTerminalFontSize: (size: number) => void;
+  terminalLineHeight: number;
+  setTerminalLineHeight: (size: number) => void;
   rightPanelWidth: number;
   setRightPanelWidth: (width: number) => void;
 }
@@ -40,6 +57,7 @@ const SECTION_LABELS: Record<SectionId, string> = {
   session: "Session",
   execution: "Execution",
   todo: "Todo Panel",
+  terminal: "Terminal",
   advanced: "Advanced",
 };
 
@@ -104,6 +122,32 @@ export function SettingsView(props: SettingsViewProps) {
                   <option value="light">Light</option>
                   <option value="dark">Dark</option>
                 </select>
+              </label>
+              <label>
+                Density
+                <select value={props.uiDensity} onChange={(e) => props.setUiDensity(e.target.value as "comfortable" | "compact")}>
+                  <option value="comfortable">Comfortable</option>
+                  <option value="compact">Compact</option>
+                </select>
+              </label>
+              <label className="settings-checkbox">
+                <input
+                  type="checkbox"
+                  checked={props.splashEnabled}
+                  onChange={(e) => props.setSplashEnabled(e.target.checked)}
+                />
+                Enable splash screen
+              </label>
+              <label>
+                Splash duration: {props.splashDurationMs} ms
+                <input
+                  type="range"
+                  min={0}
+                  max={10000}
+                  step={100}
+                  value={props.splashDurationMs}
+                  onChange={(e) => props.setSplashDurationMs(Number(e.target.value))}
+                />
               </label>
               <label>
                 Active project
@@ -176,6 +220,22 @@ export function SettingsView(props: SettingsViewProps) {
                 />
                 Skip git repo check
               </label>
+              <label className="settings-checkbox">
+                <input
+                  type="checkbox"
+                  checked={props.includeSessionHistoryInPrompt}
+                  onChange={(e) => props.setIncludeSessionHistoryInPrompt(e.target.checked)}
+                />
+                Include session history in prompt context
+              </label>
+              <label className="settings-checkbox">
+                <input
+                  type="checkbox"
+                  checked={props.claudeAutoContinue}
+                  onChange={(e) => props.setClaudeAutoContinue(e.target.checked)}
+                />
+                Claude auto-continue previous session
+              </label>
             </section>
           )}
 
@@ -190,6 +250,14 @@ export function SettingsView(props: SettingsViewProps) {
                 />
                 Enable todo mode
               </label>
+              <label className="settings-checkbox">
+                <input
+                  type="checkbox"
+                  checked={props.todoAutoPlayDefault}
+                  onChange={(e) => props.setTodoAutoPlayDefault(e.target.checked)}
+                />
+                Auto-play todos by default
+              </label>
               <label>
                 Todo panel width: {props.rightPanelWidth}px
                 <input
@@ -199,6 +267,34 @@ export function SettingsView(props: SettingsViewProps) {
                   step={10}
                   value={props.rightPanelWidth}
                   onChange={(e) => props.setRightPanelWidth(Number(e.target.value))}
+                />
+              </label>
+            </section>
+          )}
+
+          {activeSection === "terminal" && (
+            <section className="settings-section">
+              <p className="settings-helper">Terminal preferences (applies when terminal panel is enabled).</p>
+              <label>
+                Terminal font size: {props.terminalFontSize}
+                <input
+                  type="range"
+                  min={10}
+                  max={24}
+                  step={1}
+                  value={props.terminalFontSize}
+                  onChange={(e) => props.setTerminalFontSize(Number(e.target.value))}
+                />
+              </label>
+              <label>
+                Terminal line height: {props.terminalLineHeight.toFixed(1)}
+                <input
+                  type="range"
+                  min={1}
+                  max={2}
+                  step={0.1}
+                  value={props.terminalLineHeight}
+                  onChange={(e) => props.setTerminalLineHeight(Number(e.target.value))}
                 />
               </label>
             </section>
