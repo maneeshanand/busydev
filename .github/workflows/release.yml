@@ -30,12 +30,15 @@ jobs:
           - os: macos-latest
             label: macos-arm64
             target: aarch64-apple-darwin
+            bundles: dmg
           - os: macos-latest
             label: macos-x86_64
             target: x86_64-apple-darwin
+            bundles: dmg
           - os: ubuntu-latest
             label: linux-x86_64
             target: x86_64-unknown-linux-gnu
+            bundles: deb
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -76,7 +79,16 @@ jobs:
         run: npm ci
 
       - name: Build Tauri bundles
-        run: npx tauri build --target ${{ matrix.target }}
+        run: npx tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+
+      - name: Debug — list target directory
+        if: always()
+        shell: bash
+        run: |
+          echo "=== Target directory contents ==="
+          find src-tauri/target/${{ matrix.target }}/release/bundle -type f 2>/dev/null || echo "Bundle dir does not exist"
+          echo "=== Checking alternative paths ==="
+          find src-tauri/target/release/bundle -type f 2>/dev/null || echo "target/release/bundle does not exist either"
 
       - name: Collect release assets
         shell: bash
