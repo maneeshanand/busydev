@@ -35,18 +35,18 @@ jobs:
             target: x86_64-apple-darwin
           - os: ubuntu-latest
             label: linux-x86_64
-            target: ""
+            target: x86_64-unknown-linux-gnu
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install Linux system dependencies
@@ -65,7 +65,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target || '' }}
+          targets: ${{ matrix.target }}
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
@@ -76,7 +76,7 @@ jobs:
         run: npm ci
 
       - name: Build Tauri bundles
-        run: npx tauri build ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
+        run: npx tauri build --target ${{ matrix.target }}
 
       - name: Collect release assets
         shell: bash
@@ -84,14 +84,10 @@ jobs:
           mkdir -p release-assets
           RELEASE_TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
           LABEL="${{ matrix.label }}"
-          TARGET="${{ matrix.target }}"
+          BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle"
 
-          # Cross-compiled builds output to target/<triple>/release, native to target/release
-          if [ -n "$TARGET" ]; then
-            BUNDLE_DIR="src-tauri/target/${TARGET}/release/bundle"
-          else
-            BUNDLE_DIR="src-tauri/target/release/bundle"
-          fi
+          echo "Looking for bundles in: ${BUNDLE_DIR}"
+          find "${BUNDLE_DIR}" -type f \( -name "*.dmg" -o -name "*.deb" \) 2>/dev/null || echo "No bundles found"
 
           if [ "${{ runner.os }}" = "macOS" ]; then
             for f in "${BUNDLE_DIR}"/dmg/*.dmg; do
@@ -107,7 +103,7 @@ jobs:
           ls -la release-assets/
 
       - name: Upload release artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.label }}
           path: release-assets/*
@@ -119,13 +115,13 @@ jobs:
     needs: build-artifacts
     steps:
       - name: Checkout full history
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
       - name: Download all release artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v4
         with:
           path: release-assets
           pattern: release-*
