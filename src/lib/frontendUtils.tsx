@@ -258,6 +258,25 @@ export function classifyEvent(event: CodexStreamEvent): ClassifiedRow {
   return { category: "status", text: "", hidden: true };
 }
 
+function normalizeMessageText(text: string): string {
+  return stripTodoMarkers(text).replace(/\s+/g, " ").trim();
+}
+
+export function shouldRenderFinalSummary(streamRows: StreamRow[], finalSummary: string): boolean {
+  const normalizedSummary = normalizeMessageText(finalSummary);
+  if (!normalizedSummary) return false;
+
+  for (let i = streamRows.length - 1; i >= 0; i -= 1) {
+    const row = streamRows[i];
+    if (row.hidden || row.category !== "message") continue;
+    const normalizedRow = normalizeMessageText(row.text);
+    if (!normalizedRow) continue;
+    return normalizedRow !== normalizedSummary;
+  }
+
+  return true;
+}
+
 export function formatInline(text: string, onOpenPath?: (path: string) => void): React.ReactNode {
   const parts: React.ReactNode[] = [];
   const regex = /(\*\*(.+?)\*\*|`([^`]+)`|\*(.+?)\*|(\/[\w./-]+\.\w+))/g;
