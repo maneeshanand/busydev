@@ -3,11 +3,6 @@ name: Site FTP Deploy
 on:
   push:
     branches: [main]
-    paths:
-      - "site/**"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/site-ftp-deploy.yml"
   workflow_dispatch:
     inputs:
       dry_run:
