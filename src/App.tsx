@@ -31,37 +31,6 @@ import { NotificationToasts } from "./components/NotificationToasts";
 import { GlobalSessionViewer } from "./components/GlobalSessionViewer";
 import { shouldRenderFinalSummary } from "./lib/frontendUtils";
 
-function SunIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M12 4V2m0 20v-2m8-8h2M2 12h2m12.95 4.95 1.41 1.41M3.64 3.64l1.41 1.41m11.9-1.41-1.41 1.41M5.05 16.95l-1.41 1.41M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function MoonIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M20 15.3A8.5 8.5 0 1 1 8.7 4a7 7 0 0 0 11.3 11.3Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-
 function WrenchIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1822,27 +1791,6 @@ function App() {
               aria-label="Open settings"
             >
               <WrenchIcon />
-            </button>
-            <button
-              type="button"
-              className={`theme-toggle ${colorMode === "dark" ? "is-dark" : "is-light"}`}
-              onClick={() => setColorMode((prev) => (prev === "light" ? "dark" : "light"))}
-              title={colorMode === "light" ? "Switch to dark mode" : "Switch to light mode"}
-              aria-label="Color theme"
-              role="switch"
-              aria-checked={colorMode === "dark"}
-            >
-              <span className="theme-toggle-option theme-toggle-option-light" aria-hidden="true">
-                <SunIcon />
-                <span>Light</span>
-              </span>
-              <span className="theme-toggle-option theme-toggle-option-dark" aria-hidden="true">
-                <MoonIcon />
-                <span>Dark</span>
-              </span>
-              <span className={`theme-toggle-knob ${colorMode === "dark" ? "is-dark" : ""}`} aria-hidden="true">
-                {colorMode === "dark" ? <MoonIcon /> : <SunIcon />}
-              </span>
             </button>
           </div>
         </div>
