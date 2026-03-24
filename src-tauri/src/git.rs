@@ -48,12 +48,26 @@ pub async fn create_worktree(
         std::fs::create_dir_all(p).map_err(|e| format!("Failed to create directory: {e}"))?;
     }
 
-    // Create worktree with new branch
-    run_git(
-        &repo_path,
-        &["worktree", "add", "-b", &branch, &worktree_path],
-    )
-    .await?;
+    // Check if branch already exists
+    let branch_exists = run_git(&repo_path, &["rev-parse", "--verify", &branch])
+        .await
+        .is_ok();
+
+    if branch_exists {
+        // Use existing branch
+        run_git(
+            &repo_path,
+            &["worktree", "add", &worktree_path, &branch],
+        )
+        .await?;
+    } else {
+        // Create worktree with new branch
+        run_git(
+            &repo_path,
+            &["worktree", "add", "-b", &branch, &worktree_path],
+        )
+        .await?;
+    }
 
     Ok(())
 }

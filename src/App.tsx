@@ -1208,8 +1208,8 @@ function App() {
           session.worktreePath = wtPath;
           session.worktreeBranch = branch;
         }
-      } catch {
-        // Non-git project or worktree creation failed — continue without
+      } catch (err) {
+        console.warn("Worktree creation failed:", err);
       }
     }
 
@@ -1728,6 +1728,13 @@ function App() {
         </div>
 
         {/* Terminal hidden — MAN-157: re-enable when scoped per project/session */}
+
+        {activeSession?.worktreeBranch && (
+          <div className="worktree-info-bar">
+            <span className="worktree-info-branch">⑂ {activeSession.worktreeBranch}</span>
+            <span className="worktree-info-path" title={activeSession.worktreePath}>{activeSession.worktreePath}</span>
+          </div>
+        )}
 
         <div className="bottom-panel">
           <div className="prompt-section">
