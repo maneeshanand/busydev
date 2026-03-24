@@ -65,21 +65,38 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build backend release binary
-        working-directory: src-tauri
-        run: cargo build --locked --release
+      - name: Build Tauri bundles
+        run: npx tauri build
 
-      - name: Prepare release asset
+      - name: Collect release assets
         shell: bash
         run: |
           mkdir -p release-assets
           RELEASE_TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
-          ASSET_NAME="busydev-${RELEASE_TAG}-${{ runner.os }}"
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            cp src-tauri/target/release/busydev.exe "release-assets/${ASSET_NAME}.exe"
-          else
-            cp src-tauri/target/release/busydev "release-assets/${ASSET_NAME}.bin"
+
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            # .dmg installer
+            cp src-tauri/target/release/bundle/dmg/*.dmg release-assets/ 2>/dev/null || true
+            # .app bundle (zip it for upload)
+            if ls src-tauri/target/release/bundle/macos/*.app 1>/dev/null 2>&1; then
+              cd src-tauri/target/release/bundle/macos
+              zip -r "../../../../../release-assets/busydev-${RELEASE_TAG}-macos.app.zip" *.app
+              cd -
+            fi
+          elif [ "${{ runner.os }}" = "Linux" ]; then
+            # .deb package
+            cp src-tauri/target/release/bundle/deb/*.deb release-assets/ 2>/dev/null || true
+            # .AppImage
+            cp src-tauri/target/release/bundle/appimage/*.AppImage release-assets/ 2>/dev/null || true
+          elif [ "${{ runner.os }}" = "Windows" ]; then
+            # .msi installer
+            cp src-tauri/target/release/bundle/msi/*.msi release-assets/ 2>/dev/null || true
+            # NSIS installer
+            cp src-tauri/target/release/bundle/nsis/*.exe release-assets/ 2>/dev/null || true
           fi
+
+          echo "Release assets:"
+          ls -la release-assets/
 
       - name: Upload release artifact
         uses: actions/upload-artifact@v5
