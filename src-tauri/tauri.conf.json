@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/nicerapp/tauri/dev/crates/tauri-config-schema/schema.json",
   "productName": "busydev",
   "version": "0.1.19",
-  "identifier": "com.busydev.app",
+  "identifier": "com.busydev.desktop",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1423",
