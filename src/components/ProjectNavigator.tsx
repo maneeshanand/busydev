@@ -5,6 +5,7 @@ interface ProjectNavigatorProps {
   projects: Project[];
   activeProjectId: string | null;
   runningProjectIds: Set<string>;
+  addingProject: boolean;
   onSelect: (id: string) => void;
   onAdd: () => void;
   onRemove: (id: string) => void;
@@ -14,6 +15,7 @@ export function ProjectNavigator({
   projects,
   activeProjectId,
   runningProjectIds,
+  addingProject,
   onSelect,
   onAdd,
   onRemove,
@@ -44,8 +46,14 @@ export function ProjectNavigator({
           </button>
         </div>
       ))}
-      <button type="button" className="project-add" onClick={onAdd} title="Add project">
-        +
+      <button
+        type="button"
+        className="project-add"
+        onClick={onAdd}
+        title={addingProject ? "Loading project..." : "Add project"}
+        disabled={addingProject}
+      >
+        {addingProject ? <span className="project-add-spinner" aria-hidden="true" /> : "+"}
       </button>
     </div>
   );
