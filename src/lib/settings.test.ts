@@ -119,5 +119,42 @@ describe("migrateStoredSettings", () => {
     });
     expect(withInvalid?.activeProjectId).toBe("p1");
   });
-});
 
+  it("applies defaults and bounds for new ui/runtime settings", () => {
+    const migratedWithDefaults = migrateStoredSettings({
+      projects: [],
+    });
+
+    expect(migratedWithDefaults).not.toBeNull();
+    expect(migratedWithDefaults?.uiDensity).toBe("comfortable");
+    expect(migratedWithDefaults?.splashEnabled).toBe(true);
+    expect(migratedWithDefaults?.splashDurationMs).toBe(3000);
+    expect(migratedWithDefaults?.todoAutoPlayDefault).toBe(false);
+    expect(migratedWithDefaults?.includeSessionHistoryInPrompt).toBe(true);
+    expect(migratedWithDefaults?.claudeAutoContinue).toBe(true);
+    expect(migratedWithDefaults?.terminalFontSize).toBe(13);
+    expect(migratedWithDefaults?.terminalLineHeight).toBe(1.3);
+
+    const migratedWithInvalids = migrateStoredSettings({
+      uiDensity: "tight",
+      splashEnabled: "yes",
+      splashDurationMs: 20000,
+      todoAutoPlayDefault: "true",
+      includeSessionHistoryInPrompt: "no",
+      claudeAutoContinue: "maybe",
+      terminalFontSize: 2,
+      terminalLineHeight: 9,
+      projects: [],
+    });
+
+    expect(migratedWithInvalids).not.toBeNull();
+    expect(migratedWithInvalids?.uiDensity).toBe("comfortable");
+    expect(migratedWithInvalids?.splashEnabled).toBe(true);
+    expect(migratedWithInvalids?.splashDurationMs).toBe(10000);
+    expect(migratedWithInvalids?.todoAutoPlayDefault).toBe(false);
+    expect(migratedWithInvalids?.includeSessionHistoryInPrompt).toBe(true);
+    expect(migratedWithInvalids?.claudeAutoContinue).toBe(true);
+    expect(migratedWithInvalids?.terminalFontSize).toBe(10);
+    expect(migratedWithInvalids?.terminalLineHeight).toBe(2);
+  });
+});

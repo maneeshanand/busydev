@@ -5,12 +5,20 @@ export const SETTINGS_VERSION = 1;
 export interface StoredSettings {
   settingsVersion: number;
   colorMode: "light" | "dark";
+  uiDensity: "comfortable" | "compact";
+  splashEnabled: boolean;
+  splashDurationMs: number;
   debugMode: boolean;
   projects: Project[];
   activeProjectId: string | null;
   skipGitRepoCheck: boolean;
   todoMode: boolean;
+  todoAutoPlayDefault: boolean;
   rightPanelWidth: number;
+  includeSessionHistoryInPrompt: boolean;
+  claudeAutoContinue: boolean;
+  terminalFontSize: number;
+  terminalLineHeight: number;
   windowWidth?: number;
   windowHeight?: number;
 }
@@ -22,6 +30,9 @@ type LegacyStoredSettings = {
   sandboxMode?: string;
   model?: string;
   colorMode?: "light" | "dark";
+  uiDensity?: "comfortable" | "compact";
+  splashEnabled?: boolean;
+  splashDurationMs?: number;
   debugMode?: boolean;
   workingDirectory?: string;
   projects?: Project[];
@@ -30,7 +41,12 @@ type LegacyStoredSettings = {
   persistedRuns?: PersistedRun[];
   todos?: TodoItem[];
   todoMode?: boolean;
+  todoAutoPlayDefault?: boolean;
   rightPanelWidth?: number;
+  includeSessionHistoryInPrompt?: boolean;
+  claudeAutoContinue?: boolean;
+  terminalFontSize?: number;
+  terminalLineHeight?: number;
   windowWidth?: number;
   windowHeight?: number;
 };
@@ -50,6 +66,10 @@ function toColorMode(value: unknown, fallback: "light" | "dark" = "light"): "lig
 
 function toBoolean(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
+}
+
+function toUiDensity(value: unknown, fallback: "comfortable" | "compact" = "comfortable"): "comfortable" | "compact" {
+  return value === "compact" || value === "comfortable" ? value : fallback;
 }
 
 function toNumberInRange(value: unknown, min: number, max: number, fallback: number): number {
@@ -213,14 +233,21 @@ export function migrateStoredSettings(saved: unknown): StoredSettings | null {
   return {
     settingsVersion: SETTINGS_VERSION,
     colorMode: toColorMode(legacy.colorMode),
+    uiDensity: toUiDensity(legacy.uiDensity),
+    splashEnabled: toBoolean(legacy.splashEnabled, true),
+    splashDurationMs: toNumberInRange(legacy.splashDurationMs, 0, 10000, 3000),
     debugMode: toBoolean(legacy.debugMode, false),
     projects,
     activeProjectId,
     skipGitRepoCheck: toBoolean(legacy.skipGitRepoCheck, true),
     todoMode: toBoolean(legacy.todoMode, false),
+    todoAutoPlayDefault: toBoolean(legacy.todoAutoPlayDefault, false),
     rightPanelWidth: toNumberInRange(legacy.rightPanelWidth, 220, 500, 280),
+    includeSessionHistoryInPrompt: toBoolean(legacy.includeSessionHistoryInPrompt, true),
+    claudeAutoContinue: toBoolean(legacy.claudeAutoContinue, true),
+    terminalFontSize: toNumberInRange(legacy.terminalFontSize, 10, 24, 13),
+    terminalLineHeight: toNumberInRange(legacy.terminalLineHeight, 1, 2, 1.3),
     windowWidth: typeof legacy.windowWidth === "number" ? legacy.windowWidth : undefined,
     windowHeight: typeof legacy.windowHeight === "number" ? legacy.windowHeight : undefined,
   };
 }
-
