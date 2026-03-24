@@ -13,6 +13,7 @@ import {
   highlightText,
   parseTodoAdditions,
   parseTodoCompletions,
+  shouldRenderFinalSummary,
   stripTodoMarkers,
 } from "./frontendUtils";
 
@@ -185,5 +186,34 @@ describe("formatters", () => {
   it("highlights matching text", () => {
     const html = renderNode(highlightText("Hello world", "world"));
     expect(html).toContain("<mark class=\"search-highlight\">world</mark>");
+  });
+});
+
+describe("shouldRenderFinalSummary", () => {
+  it("hides final summary when it duplicates the last visible message", () => {
+    const shouldRender = shouldRenderFinalSummary(
+      [
+        { id: 1, category: "status", text: "Done", hidden: true },
+        { id: 2, category: "message", text: "Implemented the feature and added tests." },
+      ],
+      "Implemented the feature and added tests.",
+    );
+    expect(shouldRender).toBe(false);
+  });
+
+  it("renders final summary when no visible message exists", () => {
+    const shouldRender = shouldRenderFinalSummary(
+      [{ id: 1, category: "status", text: "Done", hidden: true }],
+      "Run completed successfully.",
+    );
+    expect(shouldRender).toBe(true);
+  });
+
+  it("renders final summary when last message text is different", () => {
+    const shouldRender = shouldRenderFinalSummary(
+      [{ id: 1, category: "message", text: "Working on it..." }],
+      "All steps completed.",
+    );
+    expect(shouldRender).toBe(true);
   });
 });

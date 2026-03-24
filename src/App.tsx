@@ -29,6 +29,7 @@ import { getSettings, saveSettings } from "./settingsInvoke";
 import { TabBar, type Tab } from "./components/TabBar";
 import { useNotificationStore } from "./stores/notificationStore";
 import { NotificationToasts } from "./components/NotificationToasts";
+import { shouldRenderFinalSummary } from "./lib/frontendUtils";
 
 function SunIcon() {
   return (
@@ -596,9 +597,11 @@ function renderPersistedRun(run: PersistedRun, debugMode: boolean, searchQuery =
           </div>
         )}
 
-        <div className="chat-row chat-row-agent chat-row-final">
-          <div className="ev-message ev-message-final">{searchQuery ? hl(run.finalSummary) : formatMessage(run.finalSummary)}</div>
-        </div>
+        {shouldRenderFinalSummary(run.streamRows, run.finalSummary) && (
+          <div className="chat-row chat-row-agent chat-row-final">
+            <div className="ev-message ev-message-final">{searchQuery ? hl(run.finalSummary) : formatMessage(run.finalSummary)}</div>
+          </div>
+        )}
       </div>
 
       <div className="run-footer">
