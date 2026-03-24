@@ -18,7 +18,6 @@ import {
   type CodexStreamEvent,
 } from "./invoke";
 import type { StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session } from "./types";
-import { ProjectNavigator } from "./components/ProjectNavigator";
 import { TodoPanel } from "./components/TodoPanel";
 import { ResizeHandle } from "./components/ResizeHandle";
 import { SettingsView, type SectionId } from "./components/SettingsView";
@@ -1812,16 +1811,24 @@ function App() {
           </div>
         </div>
 
-        <div className="project-container">
-          <ProjectNavigator
-            projects={projects}
-            activeProjectId={activeProjectId}
-            runningProjectIds={runningProjectIds}
-            addingProject={addingProject}
-            onSelect={switchToProject}
-            onAdd={handleAddProject}
-            onRemove={handleRemoveProject}
-          />
+        <div className="project-bar">
+          {projects.map((p) => (
+            <div
+              key={p.id}
+              className={`project-tab ${p.id === activeProjectId ? "project-tab-active" : ""}`}
+              onClick={() => switchToProject(p.id)}
+            >
+              {runningProjectIds.has(p.id) && <span className="project-tab-spinner" />}
+              <span>{p.name}</span>
+              <button
+                type="button"
+                className="project-tab-remove"
+                onClick={(e) => { e.stopPropagation(); handleRemoveProject(p.id); }}
+                title="Remove project"
+              >×</button>
+            </div>
+          ))}
+          <button type="button" className="project-tab-add" onClick={handleAddProject}>+</button>
         </div>
 
         {activeProject && activeProject.sessions.length > 0 && (
