@@ -21,13 +21,18 @@ concurrency:
 
 jobs:
   build-artifacts:
-    name: Build Release Artifact (${{ matrix.os }})
+    name: Build Release Artifact (${{ matrix.label }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        # TODO: Re-enable windows-latest once Windows release builds are stabilized.
-        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: macos-latest
+            label: macos-arm64
+          - os: macos-13
+            label: macos-x86_64
+          - os: ubuntu-latest
+            label: linux-x86_64
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -65,26 +70,35 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build backend release binary
-        working-directory: src-tauri
-        run: cargo build --locked --release
+      - name: Build Tauri bundles
+        run: npx tauri build
 
-      - name: Prepare release asset
+      - name: Collect release assets
         shell: bash
         run: |
           mkdir -p release-assets
           RELEASE_TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
-          ASSET_NAME="busydev-${RELEASE_TAG}-${{ runner.os }}"
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            cp src-tauri/target/release/busydev.exe "release-assets/${ASSET_NAME}.exe"
-          else
-            cp src-tauri/target/release/busydev "release-assets/${ASSET_NAME}.bin"
+          LABEL="${{ matrix.label }}"
+
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            # .dmg installer — rename to include arch
+            for f in src-tauri/target/release/bundle/dmg/*.dmg; do
+              [ -f "$f" ] && cp "$f" "release-assets/busydev-${RELEASE_TAG}-${LABEL}.dmg"
+            done
+          elif [ "${{ runner.os }}" = "Linux" ]; then
+            # .deb package
+            for f in src-tauri/target/release/bundle/deb/*.deb; do
+              [ -f "$f" ] && cp "$f" "release-assets/"
+            done
           fi
+
+          echo "Release assets:"
+          ls -la release-assets/
 
       - name: Upload release artifact
         uses: actions/upload-artifact@v5
         with:
-          name: release-${{ runner.os }}
+          name: release-${{ matrix.label }}
           path: release-assets/*
           if-no-files-found: error
 
