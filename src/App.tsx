@@ -847,6 +847,7 @@ function App() {
   const [prompt, setPrompt] = useState("");
   const [promptHistory, setPromptHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [addingProject, setAddingProject] = useState(false);
   // Transition state for smooth session/project switching
   const [transitioning, setTransitioning] = useState(false);
 
@@ -1418,21 +1419,29 @@ function App() {
   }
 
   async function handleAddProject() {
-    const dir = await open({ directory: true, multiple: false });
-    if (!dir) return;
-    const path = dir as string;
-    const existing = projects.find((p) => p.path === path);
-    if (existing) { switchToProject(existing.id); return; }
-    const name = path.split("/").pop() || "project";
-    const projId = crypto.randomUUID();
-    const firstSession = makeSession(projId, 0);
-    const project: Project = {
-      id: projId, name, path, createdAt: Date.now(),
-      sessions: [firstSession], activeSessionId: firstSession.id,
-    };
-    setProjects((prev) => [...prev, project]);
-    setActiveProjectId(projId);
-    resetEphemeralState();
+    if (addingProject) return;
+    setAddingProject(true);
+    try {
+      const dir = await open({ directory: true, multiple: false });
+      if (!dir) return;
+      const path = dir as string;
+      const existing = projects.find((p) => p.path === path);
+      if (existing) { switchToProject(existing.id); return; }
+      const name = path.split("/").pop() || "project";
+      const projId = crypto.randomUUID();
+      const firstSession = makeSession(projId, 0);
+      const project: Project = {
+        id: projId, name, path, createdAt: Date.now(),
+        sessions: [firstSession], activeSessionId: firstSession.id,
+      };
+      setProjects((prev) => [...prev, project]);
+      setActiveProjectId(projId);
+      resetEphemeralState();
+    } catch (err) {
+      setError(`Failed to load project directory: ${String(err)}`);
+    } finally {
+      setAddingProject(false);
+    }
   }
 
   function switchToProject(projectId: string) {
@@ -1805,6 +1814,7 @@ function App() {
             projects={projects}
             activeProjectId={activeProjectId}
             runningProjectIds={runningProjectIds}
+            addingProject={addingProject}
             onSelect={switchToProject}
             onAdd={handleAddProject}
             onRemove={handleRemoveProject}
