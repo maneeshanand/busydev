@@ -50,6 +50,7 @@ interface SettingsViewProps {
   setTerminalLineHeight: (size: number) => void;
   rightPanelWidth: number;
   setRightPanelWidth: (width: number) => void;
+  onResetEnvironment: () => void;
 }
 
 const SECTION_LABELS: Record<SectionId, string> = {
@@ -63,6 +64,7 @@ const SECTION_LABELS: Record<SectionId, string> = {
 
 export function SettingsView(props: SettingsViewProps) {
   const [activeSection, setActiveSection] = useState<SectionId>("general");
+  const [confirmReset, setConfirmReset] = useState(false);
 
   useEffect(() => {
     if (!props.open) return;
@@ -311,6 +313,43 @@ export function SettingsView(props: SettingsViewProps) {
                 />
                 Debug mode
               </label>
+
+              <div className="settings-danger-zone">
+                <h4>Danger Zone</h4>
+                <p className="settings-helper">Permanently remove all projects, sessions, run history, and todos.</p>
+                <button
+                  type="button"
+                  className="settings-reset-btn"
+                  onClick={() => setConfirmReset(true)}
+                >
+                  Reset Environment
+                </button>
+              </div>
+
+              {confirmReset && (
+                <div className="confirm-overlay" onClick={() => setConfirmReset(false)}>
+                  <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+                    <div className="confirm-title">Reset Environment?</div>
+                    <p className="confirm-body">
+                      This will permanently delete all projects, sessions, run history, and todos. This action cannot be undone.
+                    </p>
+                    <div className="confirm-actions">
+                      <button type="button" className="confirm-cancel" onClick={() => setConfirmReset(false)}>Cancel</button>
+                      <button
+                        type="button"
+                        className="confirm-danger"
+                        onClick={() => {
+                          setConfirmReset(false);
+                          props.onResetEnvironment();
+                          props.onClose();
+                        }}
+                      >
+                        Reset Everything
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </section>
           )}
         </main>

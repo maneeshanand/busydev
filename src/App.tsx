@@ -1344,6 +1344,10 @@ function App() {
       setAutoPlayTodos(todoAutoPlayDefault);
       setSearchQuery("");
       setSearchOpen(false);
+      setTodoMode(false);
+      setRightCollapsed(true);
+      setNotifPanelOpen(false);
+      setElapsed(0);
       requestAnimationFrame(() => setTransitioning(false));
     }, 120);
   }
@@ -2140,6 +2144,16 @@ ADD_TODO: step three description`);
         setTerminalLineHeight={setTerminalLineHeight}
         rightPanelWidth={rightPanelWidth}
         setRightPanelWidth={setRightPanelWidth}
+        onResetEnvironment={() => {
+          setProjects([]);
+          setActiveProjectId(null);
+          setInFlightRuns({});
+          useNotificationStore.getState().clearNotifications();
+          setMissedAlerts(0);
+          badgeCountRef.current = 0;
+          void updateTrayBadge(0);
+          resetEphemeralState();
+        }}
       />
       <NotificationToasts onNavigate={navigateToSession} />
     </div>

@@ -189,3 +189,46 @@
     flex-wrap: wrap;
   }
 }
+
+.settings-danger-zone {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--vp-c-divider);
+}
+
+.settings-danger-zone h4 {
+  color: #ef4444;
+  margin: 0 0 4px;
+  font-size: 0.85rem;
+}
+
+.settings-reset-btn {
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 2px;
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 8px;
+}
+
+.settings-reset-btn:hover {
+  background: #dc2626;
+}
+
+.confirm-danger {
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 2px;
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.confirm-danger:hover {
+  background: #dc2626;
+}
