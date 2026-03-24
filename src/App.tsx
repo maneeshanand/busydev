@@ -1343,6 +1343,10 @@ function App() {
       setAutoPlayTodos(todoAutoPlayDefault);
       setSearchQuery("");
       setSearchOpen(false);
+      setTodoMode(false);
+      setRightCollapsed(true);
+      setNotifPanelOpen(false);
+      setElapsed(0);
       requestAnimationFrame(() => setTransitioning(false));
     }, 120);
   }
