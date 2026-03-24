@@ -1692,6 +1692,17 @@ function App() {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      // Cmd/Ctrl+K to toggle Global Session Viewer
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setGlobalViewOpen((prev) => !prev);
+        return;
+      }
+      if (globalViewOpen && e.key === "Escape") {
+        e.preventDefault();
+        setGlobalViewOpen(false);
+        return;
+      }
       if (settingsOpen && e.key === "Escape") {
         e.preventDefault();
         setSettingsOpen(false);
@@ -1760,7 +1771,7 @@ function App() {
               type="button"
               className="todo-toggle"
               onClick={() => setGlobalViewOpen(true)}
-              title="All sessions"
+              title="All sessions (⌘K)"
               aria-label="All sessions"
             >
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">

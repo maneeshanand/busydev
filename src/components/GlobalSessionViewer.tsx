@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Project } from "../types";
 import "./GlobalSessionViewer.css";
 
@@ -20,7 +20,9 @@ export function GlobalSessionViewer({
   onClose,
 }: GlobalSessionViewerProps) {
   const [filter, setFilter] = useState("");
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const lowerFilter = filter.toLowerCase();
+  const listRef = useRef<HTMLDivElement>(null);
 
   const rows: {
     projectId: string;
@@ -31,7 +33,21 @@ export function GlobalSessionViewer({
     isActive: boolean;
     isRunning: boolean;
     runCount: number;
+    age: string;
   }[] = [];
+
+  function formatAge(ms: number): string {
+    const sec = Math.floor(ms / 1000);
+    if (sec < 60) return "just now";
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min}m`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr}h`;
+    const days = Math.floor(hr / 24);
+    return `${days}d`;
+  }
+
+  const now = Date.now();
 
   for (const p of projects) {
     for (const s of p.sessions) {
@@ -54,19 +70,49 @@ export function GlobalSessionViewer({
         isActive,
         isRunning,
         runCount: s.runs.length,
+        age: formatAge(now - s.createdAt),
       });
     }
   }
 
+  // Reset selection when filter changes
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [filter]);
+
+  // Scroll selected row into view
+  useEffect(() => {
+    if (!listRef.current) return;
+    const selected = listRef.current.children[selectedIndex] as HTMLElement | undefined;
+    selected?.scrollIntoView({ block: "nearest" });
+  }, [selectedIndex]);
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIndex((prev) => Math.min(prev + 1, rows.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIndex((prev) => Math.max(prev - 1, 0));
+    } else if (e.key === "Enter" && rows.length > 0) {
+      e.preventDefault();
+      const row = rows[selectedIndex];
+      if (row) {
+        onNavigate(row.projectId, row.sessionId);
+        onClose();
+      }
+    }
+  }
+
   return (
-    <div className="gsv-overlay">
+    <div className="gsv-overlay" onKeyDown={handleKeyDown}>
       <div className="gsv-header">
         <h2>All Sessions</h2>
         <div className="gsv-header-controls">
           <input
             className="gsv-search"
             type="text"
-            placeholder="Filter sessions..."
+            placeholder="Filter sessions... (↑↓ to navigate, Enter to select)"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             autoFocus
@@ -84,20 +130,24 @@ export function GlobalSessionViewer({
           {projects.length === 0 ? "No projects yet" : "No sessions match your filter"}
         </div>
       ) : (
-        <div className="gsv-list">
-          {rows.map((row) => (
+        <div className="gsv-list" ref={listRef}>
+          {rows.map((row, i) => (
             <button
               key={`${row.projectId}:${row.sessionId}`}
               type="button"
-              className={`gsv-row ${row.isActive ? "gsv-row-active" : ""}`}
+              className={`gsv-row ${row.isActive ? "gsv-row-active" : ""} ${i === selectedIndex ? "gsv-row-selected" : ""}`}
               onClick={() => { onNavigate(row.projectId, row.sessionId); onClose(); }}
+              onMouseEnter={() => setSelectedIndex(i)}
             >
               <div className="gsv-row-meta">
                 <span className="gsv-row-project">{row.projectName}</span>
                 <span className="gsv-row-separator">/</span>
                 <span className="gsv-row-session">{row.sessionName}</span>
                 {row.isRunning && <span className="gsv-row-running" title="Agent running" />}
-                {row.runCount > 0 && <span className="gsv-row-count">{row.runCount} run{row.runCount !== 1 ? "s" : ""}</span>}
+                <span className="gsv-row-right">
+                  {row.runCount > 0 && <span className="gsv-row-count">{row.runCount} run{row.runCount !== 1 ? "s" : ""}</span>}
+                  <span className="gsv-row-age">{row.age}</span>
+                </span>
               </div>
               {row.lastPrompt && (
                 <div className="gsv-row-prompt">{row.lastPrompt}</div>
