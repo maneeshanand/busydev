@@ -29,10 +29,13 @@ jobs:
         include:
           - os: macos-latest
             label: macos-arm64
-          - os: macos-13
+            target: aarch64-apple-darwin
+          - os: macos-latest
             label: macos-x86_64
+            target: x86_64-apple-darwin
           - os: ubuntu-latest
             label: linux-x86_64
+            target: ""
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -61,6 +64,8 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target || '' }}
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
@@ -71,7 +76,7 @@ jobs:
         run: npm ci
 
       - name: Build Tauri bundles
-        run: npx tauri build
+        run: npx tauri build ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
 
       - name: Collect release assets
         shell: bash
@@ -79,15 +84,21 @@ jobs:
           mkdir -p release-assets
           RELEASE_TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
           LABEL="${{ matrix.label }}"
+          TARGET="${{ matrix.target }}"
+
+          # Cross-compiled builds output to target/<triple>/release, native to target/release
+          if [ -n "$TARGET" ]; then
+            BUNDLE_DIR="src-tauri/target/${TARGET}/release/bundle"
+          else
+            BUNDLE_DIR="src-tauri/target/release/bundle"
+          fi
 
           if [ "${{ runner.os }}" = "macOS" ]; then
-            # .dmg installer — rename to include arch
-            for f in src-tauri/target/release/bundle/dmg/*.dmg; do
+            for f in "${BUNDLE_DIR}"/dmg/*.dmg; do
               [ -f "$f" ] && cp "$f" "release-assets/busydev-${RELEASE_TAG}-${LABEL}.dmg"
             done
           elif [ "${{ runner.os }}" = "Linux" ]; then
-            # .deb package
-            for f in src-tauri/target/release/bundle/deb/*.deb; do
+            for f in "${BUNDLE_DIR}"/deb/*.deb; do
               [ -f "$f" ] && cp "$f" "release-assets/"
             done
           fi
