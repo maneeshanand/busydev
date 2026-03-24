@@ -54,3 +54,7 @@ export function deleteWorktree(repoPath: string, worktreePath: string): Promise<
 export function isGitRepo(path: string): Promise<boolean> {
   return invoke<boolean>("is_git_repo", { path });
 }
+
+export function updateTrayBadge(count: number): Promise<void> {
+  return invoke<void>("update_tray_badge", { count });
+}
