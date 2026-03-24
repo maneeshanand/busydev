@@ -1799,14 +1799,24 @@ function App() {
             </button>
             <button
               type="button"
-              className="theme-toggle"
+              className={`theme-toggle ${colorMode === "dark" ? "is-dark" : "is-light"}`}
               onClick={() => setColorMode((prev) => (prev === "light" ? "dark" : "light"))}
               title={colorMode === "light" ? "Switch to dark mode" : "Switch to light mode"}
-              aria-label={colorMode === "light" ? "Switch to dark mode" : "Switch to light mode"}
+              aria-label="Color theme"
+              role="switch"
+              aria-checked={colorMode === "dark"}
             >
-              <span className="theme-toggle-icon"><SunIcon /></span>
-              <span className="theme-toggle-icon"><MoonIcon /></span>
-              <span className={`theme-toggle-knob ${colorMode === "dark" ? "is-dark" : ""}`} />
+              <span className="theme-toggle-option theme-toggle-option-light" aria-hidden="true">
+                <SunIcon />
+                <span>Light</span>
+              </span>
+              <span className="theme-toggle-option theme-toggle-option-dark" aria-hidden="true">
+                <MoonIcon />
+                <span>Dark</span>
+              </span>
+              <span className={`theme-toggle-knob ${colorMode === "dark" ? "is-dark" : ""}`} aria-hidden="true">
+                {colorMode === "dark" ? <MoonIcon /> : <SunIcon />}
+              </span>
             </button>
           </div>
         </div>
