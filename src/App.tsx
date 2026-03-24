@@ -1223,7 +1223,8 @@ function App() {
         if (isGit) {
           const slug = session.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
           const branch = `busydev/${slug}`;
-          const wtPath = `${activeProject.path}/.worktrees/${session.id}`;
+          const projectSlug = activeProject.path.replace(/\//g, "-").replace(/^-/, "");
+          const wtPath = `/tmp/busydev-worktrees/${projectSlug}/${session.id}`;
           await createWorktree(activeProject.path, wtPath, branch);
           session.worktreePath = wtPath;
           session.worktreeBranch = branch;
