@@ -28,6 +28,7 @@ import { getSettings, saveSettings } from "./settingsInvoke";
 import { TabBar, type Tab } from "./components/TabBar";
 import { useNotificationStore } from "./stores/notificationStore";
 import { NotificationToasts } from "./components/NotificationToasts";
+import { GlobalSessionViewer } from "./components/GlobalSessionViewer";
 import { shouldRenderFinalSummary } from "./lib/frontendUtils";
 
 function SunIcon() {
@@ -885,6 +886,7 @@ function App() {
   const badgeCountRef = useRef(0);
   const [missedAlerts, setMissedAlerts] = useState(0);
   const [notifPanelOpen, setNotifPanelOpen] = useState(false);
+  const [globalViewOpen, setGlobalViewOpen] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const storeReadyRef = useRef(false);
   const [windowSize, setWindowSize] = useState<{ windowWidth?: number; windowHeight?: number }>({});
@@ -963,6 +965,7 @@ function App() {
       runningProjectIds.add(owner.projectId);
     }
   }
+  const runningSessionKeys = new Set(Object.keys(sessionRunCounts));
 
   // Compute per-session alert indicators from notification store
   const storeNotifications = useNotificationStore((s) => s.notifications);
@@ -1755,6 +1758,18 @@ function App() {
             {/* Terminal hidden — MAN-157: re-enable when scoped per project/session */}
             <button
               type="button"
+              className="todo-toggle"
+              onClick={() => setGlobalViewOpen(true)}
+              title="All sessions"
+              aria-label="All sessions"
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
+              </svg>
+            </button>
+            <button
+              type="button"
               className={`todo-toggle ${todoMode ? "is-active" : ""}`}
               onClick={() => {
                 const next = !todoMode;
@@ -2165,6 +2180,16 @@ ADD_TODO: step three description`);
           resetEphemeralState();
         }}
       />
+      {globalViewOpen && (
+        <GlobalSessionViewer
+          projects={projects}
+          activeProjectId={activeProjectId}
+          activeSessionId={activeProject?.activeSessionId ?? null}
+          runningSessionKeys={runningSessionKeys}
+          onNavigate={navigateToSession}
+          onClose={() => setGlobalViewOpen(false)}
+        />
+      )}
       <NotificationToasts onNavigate={navigateToSession} />
     </div>
   );

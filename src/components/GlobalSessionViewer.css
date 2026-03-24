@@ -1,0 +1,143 @@
+.gsv-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: var(--vp-c-bg);
+  display: flex;
+  flex-direction: column;
+}
+
+.gsv-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--vp-c-divider);
+  flex-shrink: 0;
+}
+
+.gsv-header h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--vp-c-text-1);
+}
+
+.gsv-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.gsv-search {
+  width: 240px;
+  padding: 5px 10px;
+  font-size: 0.8rem;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 2px;
+  background: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-1);
+  font-family: inherit;
+}
+
+.gsv-search:focus {
+  outline: none;
+  border-color: var(--vp-c-brand-1);
+}
+
+.gsv-close {
+  background: transparent;
+  border: none;
+  color: var(--vp-c-text-3);
+  cursor: pointer;
+  padding: 4px;
+}
+
+.gsv-close:hover {
+  color: var(--vp-c-text-1);
+}
+
+.gsv-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--vp-c-text-3);
+  font-size: 0.85rem;
+}
+
+.gsv-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.gsv-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 20px;
+  border: none;
+  border-bottom: 1px solid var(--vp-c-divider);
+  background: transparent;
+  color: var(--vp-c-text-1);
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.82rem;
+}
+
+.gsv-row:hover {
+  background: var(--vp-c-bg-soft);
+}
+
+.gsv-row-active {
+  border-left: 3px solid var(--vp-c-brand-1);
+}
+
+.gsv-row-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gsv-row-project {
+  font-weight: 600;
+  color: var(--vp-c-text-1);
+}
+
+.gsv-row-separator {
+  color: var(--vp-c-text-3);
+}
+
+.gsv-row-session {
+  color: var(--vp-c-text-2);
+}
+
+.gsv-row-running {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid var(--vp-c-brand-1);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: runSpinner 0.7s linear infinite;
+}
+
+.gsv-row-count {
+  margin-left: auto;
+  color: var(--vp-c-text-3);
+  font-size: 0.72rem;
+}
+
+.gsv-row-prompt {
+  color: var(--vp-c-text-3);
+  font-size: 0.75rem;
+  font-family: var(--vp-font-family-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
