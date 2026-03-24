@@ -66,6 +66,8 @@ export interface Session {
   model?: string;
   approvalPolicy?: string;
   sandboxMode?: string;
+  worktreePath?: string;
+  worktreeBranch?: string;
 }
 
 export interface Project {

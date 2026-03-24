@@ -1,4 +1,5 @@
 mod codex;
+mod git;
 mod settings;
 mod terminal;
 use tauri::Manager;
@@ -31,6 +32,9 @@ pub fn run() {
             terminal::write_terminal,
             terminal::resize_terminal,
             terminal::close_terminal_session,
+            git::create_worktree,
+            git::delete_worktree,
+            git::is_git_repo,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -310,6 +310,12 @@ button:disabled {
   font-weight: 500;
 }
 
+.session-tab-branch {
+  font-size: 0.68rem;
+  color: var(--vp-c-text-3);
+  cursor: help;
+}
+
 .session-tab-spinner {
   display: inline-block;
   width: 8px;
@@ -1026,6 +1032,32 @@ pre.json {
   border: 1px solid var(--vp-c-divider);
   border-radius: 3px;
   overflow: hidden;
+}
+
+.worktree-info-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 12px;
+  background: var(--vp-c-bg-soft);
+  border-top: 1px solid var(--vp-c-divider);
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.75rem;
+  color: var(--vp-c-text-2);
+  flex-shrink: 0;
+}
+
+.worktree-info-branch {
+  font-weight: 600;
+  color: var(--vp-c-brand-1);
+  white-space: nowrap;
+}
+
+.worktree-info-path {
+  color: var(--vp-c-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .bottom-panel {
