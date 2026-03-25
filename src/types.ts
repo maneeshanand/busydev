@@ -58,6 +58,7 @@ export interface TodoItem {
 export interface SavedPromptEntry {
   id: string;
   name: string;
+  alias: string;
   kind: "prompt" | "function";
   content: string;
   createdAt: number;

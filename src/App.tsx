@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
@@ -116,6 +116,34 @@ function summarizePrompt(prompt: string): string {
   const compact = prompt.trim().replace(/\s+/g, " ");
   if (!compact) return "complete the requested task";
   return compact.length > 90 ? `${compact.slice(0, 90)}...` : compact;
+}
+
+function normalizeAlias(raw: string): string {
+  return raw
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function fuzzyAliasScore(target: string, query: string): number | null {
+  const t = target.toLowerCase();
+  const q = query.toLowerCase();
+  if (!q) return 1;
+  if (t.startsWith(q)) return 1000 - (t.length - q.length);
+  if (t.includes(q)) return 700 - (t.length - q.length);
+  let qi = 0;
+  let penalty = 0;
+  for (let ti = 0; ti < t.length && qi < q.length; ti++) {
+    if (t[ti] === q[qi]) {
+      qi += 1;
+    } else {
+      penalty += 1;
+    }
+  }
+  if (qi !== q.length) return null;
+  return 400 - penalty;
 }
 
 function extractLastAgentMessage(parsedJson: unknown): string | null {
@@ -770,6 +798,10 @@ function App() {
   const [prompt, setPrompt] = useState("");
   const [promptLibrary, setPromptLibrary] = useState<SavedPromptEntry[]>([]);
   const [selectedPromptLibraryId, setSelectedPromptLibraryId] = useState("");
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionStart, setMentionStart] = useState<number | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
   const [promptHistory, setPromptHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [addingProject, setAddingProject] = useState(false);
@@ -809,6 +841,7 @@ function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
   const streamPanelRef = useRef<HTMLDivElement | null>(null);
   const streamBottomRef = useRef<HTMLDivElement | null>(null);
   const streamRowsMapRef = useRef<Record<string, StreamRow[]>>({});
@@ -836,6 +869,43 @@ function App() {
   const workingDirectory = activeSession?.worktreePath ?? activeProject?.path ?? "";
   const canRun = workingDirectory.length > 0 && prompt.length > 0;
   const selectedPromptLibraryEntry = promptLibrary.find((entry) => entry.id === selectedPromptLibraryId) ?? null;
+  const aliasMap = useMemo(() => {
+    const map = new Map<string, SavedPromptEntry>();
+    for (const entry of promptLibrary) {
+      const alias = normalizeAlias(entry.alias || entry.name);
+      if (!alias || map.has(alias)) continue;
+      map.set(alias, { ...entry, alias });
+    }
+    return map;
+  }, [promptLibrary]);
+  const mentionedAliases = useMemo(() => {
+    const out: SavedPromptEntry[] = [];
+    const seen = new Set<string>();
+    const mentionRegex = /(^|\s)@([a-zA-Z0-9_-]+)/g;
+    let match: RegExpExecArray | null;
+    while ((match = mentionRegex.exec(prompt)) !== null) {
+      const alias = normalizeAlias(match[2]);
+      const entry = aliasMap.get(alias);
+      if (!entry || seen.has(entry.id)) continue;
+      seen.add(entry.id);
+      out.push(entry);
+    }
+    return out;
+  }, [aliasMap, prompt]);
+  const mentionSuggestions = useMemo(() => {
+    const query = normalizeAlias(mentionQuery);
+    const scored = Array.from(aliasMap.values())
+      .map((entry) => {
+        const aliasScore = fuzzyAliasScore(entry.alias, query);
+        const nameScore = fuzzyAliasScore(normalizeAlias(entry.name), query);
+        const score = Math.max(aliasScore ?? -1, nameScore ?? -1);
+        return { entry, score };
+      })
+      .filter((item) => item.score >= 0)
+      .sort((a, b) => b.score - a.score || a.entry.alias.localeCompare(b.entry.alias))
+      .slice(0, 8);
+    return scored.map((item) => item.entry);
+  }, [aliasMap, mentionQuery]);
   const modelLabel = model || (agent === "claude" ? "claude-sonnet-4-6" : "codex-mini");
   const approvalLabel = approvalPolicy === "unless-allow-listed"
     ? "allow-listed"
@@ -1276,13 +1346,23 @@ function App() {
   function setModel(v: string) { updateActiveSession((s) => ({ ...s, model: v })); }
   function setApprovalPolicy(v: string) { updateActiveSession((s) => ({ ...s, approvalPolicy: v })); }
   function setSandboxMode(v: string) { updateActiveSession((s) => ({ ...s, sandboxMode: v })); }
-  function createPromptLibraryEntry(entry: { name: string; kind: "prompt" | "function"; content: string }) {
+  function createPromptLibraryEntry(entry: { name: string; alias: string; kind: "prompt" | "function"; content: string }) {
     const now = Date.now();
     const id = crypto.randomUUID();
+    const aliasBase = normalizeAlias(entry.alias || entry.name);
+    const usedAliases = new Set(promptLibrary.map((item) => normalizeAlias(item.alias || item.name)));
+    let alias = aliasBase;
+    let suffix = 2;
+    while (usedAliases.has(alias)) {
+      alias = `${aliasBase}-${suffix}`;
+      suffix += 1;
+    }
+    if (!alias) return;
     setPromptLibrary((prev) => [
       {
         id,
         name: entry.name,
+        alias,
         kind: entry.kind,
         content: entry.content,
         createdAt: now,
@@ -1293,7 +1373,22 @@ function App() {
     setSelectedPromptLibraryId(id);
   }
   function updatePromptLibraryEntry(entry: SavedPromptEntry) {
-    setPromptLibrary((prev) => prev.map((item) => (item.id === entry.id ? entry : item)));
+    const aliasBase = normalizeAlias(entry.alias || entry.name);
+    const usedAliases = new Set(
+      promptLibrary
+        .filter((item) => item.id !== entry.id)
+        .map((item) => normalizeAlias(item.alias || item.name)),
+    );
+    let alias = aliasBase;
+    let suffix = 2;
+    while (usedAliases.has(alias)) {
+      alias = `${aliasBase}-${suffix}`;
+      suffix += 1;
+    }
+    if (!alias) return;
+    setPromptLibrary((prev) =>
+      prev.map((item) => (item.id === entry.id ? { ...entry, alias } : item)),
+    );
   }
   function deletePromptLibraryEntry(id: string) {
     setPromptLibrary((prev) => prev.filter((item) => item.id !== id));
@@ -1301,6 +1396,7 @@ function App() {
   }
   function applyPromptLibraryEntry(entry: SavedPromptEntry, runAfterApply = false) {
     setPrompt(entry.content);
+    setMentionOpen(false);
     if (runAfterApply) {
       void handleRun(entry.content);
     }
@@ -1309,10 +1405,49 @@ function App() {
     const content = prompt.trim();
     if (!content) return;
     const summary = content.replace(/\s+/g, " ").slice(0, 48).trim() || (kind === "function" ? "New function" : "New prompt");
+    const alias = normalizeAlias(summary);
+    if (!alias) return;
     createPromptLibraryEntry({
       name: summary,
+      alias,
       kind,
       content,
+    });
+  }
+
+  function detectMentionAtCursor(nextPrompt: string, cursor: number) {
+    const beforeCursor = nextPrompt.slice(0, cursor);
+    const match = beforeCursor.match(/(^|\s)@([a-zA-Z0-9_-]*)$/);
+    if (!match) {
+      setMentionOpen(false);
+      setMentionQuery("");
+      setMentionStart(null);
+      setMentionIndex(0);
+      return;
+    }
+    const query = match[2] ?? "";
+    setMentionOpen(true);
+    setMentionQuery(query);
+    setMentionStart(cursor - query.length - 1);
+    setMentionIndex(0);
+  }
+
+  function insertMentionAlias(alias: string) {
+    if (mentionStart === null) return;
+    const textarea = promptInputRef.current;
+    const cursor = textarea?.selectionStart ?? prompt.length;
+    const before = prompt.slice(0, mentionStart);
+    const after = prompt.slice(cursor);
+    const next = `${before}@${alias} ${after}`;
+    setPrompt(next);
+    setMentionOpen(false);
+    setMentionQuery("");
+    setMentionStart(null);
+    requestAnimationFrame(() => {
+      if (!textarea) return;
+      const nextCursor = before.length + alias.length + 2;
+      textarea.focus();
+      textarea.setSelectionRange(nextCursor, nextCursor);
     });
   }
 
@@ -1489,6 +1624,12 @@ function App() {
 
   async function handleRun(overridePrompt?: string) {
     const submittedPrompt = overridePrompt ?? prompt;
+    const expandedPrompt = submittedPrompt.replace(/(^|\s)@([a-zA-Z0-9_-]+)/g, (full, prefix: string, rawAlias: string) => {
+      const alias = normalizeAlias(rawAlias);
+      const entry = aliasMap.get(alias);
+      if (!entry) return full;
+      return `${prefix}${entry.content}`;
+    });
     const requestedTodoMatch = submittedPrompt.match(/work on todo #(\d+)/i);
     const requestedTodoIndex = requestedTodoMatch ? Number.parseInt(requestedTodoMatch[1], 10) : null;
     if (submittedPrompt.trim()) {
@@ -1544,8 +1685,8 @@ function App() {
     }
 
     const basePrompt = todoMode && todos.length > 0
-      ? buildTodoPrompt(submittedPrompt, todos)
-      : submittedPrompt;
+      ? buildTodoPrompt(expandedPrompt, todos)
+      : expandedPrompt;
 
     const effectivePrompt = sessionContext + basePrompt;
 
@@ -1707,6 +1848,29 @@ function App() {
   }
 
   function handlePromptKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (mentionOpen && mentionSuggestions.length > 0) {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setMentionIndex((prev) => (prev + 1) % mentionSuggestions.length);
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setMentionIndex((prev) => (prev <= 0 ? mentionSuggestions.length - 1 : prev - 1));
+        return;
+      }
+      if (event.key === "Enter" || event.key === "Tab") {
+        event.preventDefault();
+        const picked = mentionSuggestions[Math.max(0, Math.min(mentionIndex, mentionSuggestions.length - 1))];
+        if (picked) insertMentionAlias(picked.alias);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMentionOpen(false);
+        return;
+      }
+    }
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       if (canRun) void handleRun();
@@ -2041,12 +2205,53 @@ function App() {
         <div className="bottom-panel">
           <div className="prompt-section">
             <textarea
+              ref={promptInputRef}
               rows={3}
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value;
+                setPrompt(next);
+                detectMentionAtCursor(next, e.target.selectionStart ?? next.length);
+              }}
+              onClick={(e) => {
+                const el = e.currentTarget;
+                detectMentionAtCursor(el.value, el.selectionStart ?? el.value.length);
+              }}
+              onKeyUp={(e) => {
+                const el = e.currentTarget;
+                detectMentionAtCursor(el.value, el.selectionStart ?? el.value.length);
+              }}
               onKeyDown={handlePromptKeyDown}
               placeholder="Get Busy..."
             />
+            {mentionOpen && mentionSuggestions.length > 0 && (
+              <div className="composer-mention-menu">
+                {mentionSuggestions.map((entry, idx) => (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    className={`composer-mention-item ${idx === mentionIndex ? "is-active" : ""}`}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      insertMentionAlias(entry.alias);
+                    }}
+                  >
+                    <span className="composer-mention-alias">@{entry.alias}</span>
+                    <span className="composer-mention-name">{entry.name}</span>
+                    <span className="composer-mention-kind">{entry.kind}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {mentionedAliases.length > 0 && (
+              <div className="composer-mentions">
+                {mentionedAliases.map((entry) => (
+                  <span key={entry.id} className="composer-mention-chip">
+                    @{entry.alias}
+                  </span>
+                ))}
+              </div>
+            )}
             <div className="composer-library">
               <select
                 value={selectedPromptLibraryId}
@@ -2057,7 +2262,7 @@ function App() {
                 <option value="">Saved prompts & functions</option>
                 {promptLibrary.map((entry) => (
                   <option key={entry.id} value={entry.id}>
-                    [{entry.kind}] {entry.name}
+                    [{entry.kind}] @{entry.alias} - {entry.name}
                   </option>
                 ))}
               </select>

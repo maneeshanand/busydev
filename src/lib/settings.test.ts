@@ -164,21 +164,24 @@ describe("migrateStoredSettings", () => {
     const migrated = migrateStoredSettings({
       projects: [],
       promptLibrary: [
-        { id: "a", name: "Ship It", kind: "function", content: "commit and push", createdAt: 1, updatedAt: 2 },
+        { id: "a", name: "Ship It", alias: "shipit", kind: "function", content: "commit and push", createdAt: 1, updatedAt: 2 },
+        { id: "d", name: "Release Notes", kind: "prompt", content: "draft notes", createdAt: 3, updatedAt: 4 },
         { id: "b", name: "  ", kind: "prompt", content: "valid content" },
         { id: "c", name: "Valid Prompt", kind: "prompt", content: "   " },
       ],
     });
 
     expect(migrated).not.toBeNull();
-    expect(migrated?.promptLibrary).toHaveLength(1);
+    expect(migrated?.promptLibrary).toHaveLength(2);
     expect(migrated?.promptLibrary[0]).toEqual({
       id: "a",
       name: "Ship It",
+      alias: "shipit",
       kind: "function",
       content: "commit and push",
       createdAt: 1,
       updatedAt: 2,
     });
+    expect(migrated?.promptLibrary[1].alias).toBe("release-notes");
   });
 });

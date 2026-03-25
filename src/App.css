@@ -1278,8 +1278,86 @@ pre.json {
   border: 1px solid var(--vp-c-divider);
   color: var(--vp-c-text-1);
   border-radius: 2px;
-  padding: 10px 58px 72px 12px;
+  padding: 10px 58px 96px 12px;
   font-size: 0.86rem;
+}
+
+.composer-mention-menu {
+  position: absolute;
+  left: 10px;
+  bottom: 66px;
+  width: min(420px, calc(100% - 74px));
+  max-height: 220px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 10px;
+  background: var(--vp-c-bg);
+  box-shadow: var(--vp-shadow);
+  z-index: 5;
+}
+
+.composer-mention-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: transparent;
+  color: var(--vp-c-text-2);
+  font-size: 0.75rem;
+}
+
+.composer-mention-item.is-active,
+.composer-mention-item:hover {
+  border-color: var(--vp-c-brand-3);
+  background: color-mix(in srgb, var(--vp-c-brand-1) 10%, var(--vp-c-bg-soft));
+  color: var(--vp-c-text-1);
+}
+
+.composer-mention-alias {
+  font-family: var(--vp-font-family-mono);
+  color: var(--vp-c-brand-1);
+}
+
+.composer-mention-name {
+  text-align: left;
+}
+
+.composer-mention-kind {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.65rem;
+  color: var(--vp-c-text-3);
+}
+
+.composer-mentions {
+  position: absolute;
+  left: 10px;
+  right: 52px;
+  bottom: 66px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.composer-mention-chip {
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.7rem;
+  color: var(--vp-c-brand-1);
+  background: color-mix(in srgb, var(--vp-c-brand-1) 12%, var(--vp-c-bg-soft));
+  border: 1px solid var(--vp-c-brand-3);
+  border-radius: 999px;
+  padding: 2px 8px;
 }
 
 .composer-library {

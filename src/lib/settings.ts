@@ -148,10 +148,21 @@ function sanitizeSavedPromptEntry(value: unknown): SavedPromptEntry | null {
   const name = typeof obj.name === "string" ? obj.name.trim() : "";
   const content = typeof obj.content === "string" ? obj.content.trim() : "";
   if (!name || !content) return null;
+  const normalizeAlias = (raw: string) =>
+    raw
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9_-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+  const explicitAlias = typeof obj.alias === "string" ? obj.alias : "";
+  const alias = normalizeAlias(explicitAlias || name);
+  if (!alias) return null;
   const now = Date.now();
   return {
     id: typeof obj.id === "string" ? obj.id : makeId(),
     name,
+    alias,
     kind: obj.kind === "function" ? "function" : "prompt",
     content,
     createdAt: typeof obj.createdAt === "number" ? obj.createdAt : now,

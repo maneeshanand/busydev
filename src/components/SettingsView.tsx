@@ -54,7 +54,7 @@ interface SettingsViewProps {
   rightPanelWidth: number;
   setRightPanelWidth: (width: number) => void;
   promptLibrary: SavedPromptEntry[];
-  onCreatePromptLibraryEntry: (entry: { name: string; kind: "prompt" | "function"; content: string }) => void;
+  onCreatePromptLibraryEntry: (entry: { name: string; alias: string; kind: "prompt" | "function"; content: string }) => void;
   onUpdatePromptLibraryEntry: (entry: SavedPromptEntry) => void;
   onDeletePromptLibraryEntry: (id: string) => void;
   onResetEnvironment: () => void;
@@ -75,9 +75,11 @@ export function SettingsView(props: SettingsViewProps) {
   const [confirmReset, setConfirmReset] = useState(false);
   const [newEntryKind, setNewEntryKind] = useState<"prompt" | "function">("prompt");
   const [newEntryName, setNewEntryName] = useState("");
+  const [newEntryAlias, setNewEntryAlias] = useState("");
   const [newEntryContent, setNewEntryContent] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [editAlias, setEditAlias] = useState("");
   const [editKind, setEditKind] = useState<"prompt" | "function">("prompt");
   const [editContent, setEditContent] = useState("");
 
@@ -340,14 +342,15 @@ export function SettingsView(props: SettingsViewProps) {
                 <h4>How to use saved prompts/functions</h4>
                 <ul>
                   <li>
-                    <strong>Recommended:</strong> use short alias-style names for functions (example: <code>shipit</code>),
-                    then use the composer picker to Insert or Run quickly.
+                    <strong>Recommended:</strong> call saved entries using <code>@alias</code> (example: <code>@shipit</code>)
+                    directly in the composer prompt.
                   </li>
                   <li>
-                    Add lightweight tags in the name for grouping (example: <code>[release] shipit</code>, <code>[docs] changelog</code>).
+                    Aliases should be short and stable; use name prefixes as optional tags for grouping
+                    (example: <code>[release] Ship It</code>, alias <code>shipit</code>).
                   </li>
                   <li>
-                    Keep prompts descriptive and functions action-oriented so they stay reusable across sessions.
+                    Type <code>@</code> in composer to open fuzzy typeahead and choose a saved alias quickly.
                   </li>
                 </ul>
               </div>
@@ -368,6 +371,14 @@ export function SettingsView(props: SettingsViewProps) {
                   />
                 </label>
                 <label>
+                  Alias
+                  <input
+                    value={newEntryAlias}
+                    onChange={(e) => setNewEntryAlias(e.target.value)}
+                    placeholder={newEntryKind === "function" ? "shipit" : "release-notes"}
+                  />
+                </label>
+                <label>
                   Content
                   <textarea
                     value={newEntryContent}
@@ -381,13 +392,16 @@ export function SettingsView(props: SettingsViewProps) {
                   onClick={() => {
                     const name = newEntryName.trim();
                     const content = newEntryContent.trim();
-                    if (!name || !content) return;
+                    const alias = newEntryAlias.trim();
+                    if (!name || !content || !alias) return;
                     props.onCreatePromptLibraryEntry({
                       name,
+                      alias,
                       kind: newEntryKind,
                       content,
                     });
                     setNewEntryName("");
+                    setNewEntryAlias("");
                     setNewEntryContent("");
                     setNewEntryKind("prompt");
                   }}
@@ -418,6 +432,10 @@ export function SettingsView(props: SettingsViewProps) {
                             <input value={editName} onChange={(e) => setEditName(e.target.value)} />
                           </label>
                           <label>
+                            Alias
+                            <input value={editAlias} onChange={(e) => setEditAlias(e.target.value)} />
+                          </label>
+                          <label>
                             Content
                             <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={4} />
                           </label>
@@ -427,10 +445,12 @@ export function SettingsView(props: SettingsViewProps) {
                               onClick={() => {
                                 const name = editName.trim();
                                 const content = editContent.trim();
-                                if (!name || !content) return;
+                                const alias = editAlias.trim();
+                                if (!name || !content || !alias) return;
                                 props.onUpdatePromptLibraryEntry({
                                   ...entry,
                                   name,
+                                  alias,
                                   kind: editKind,
                                   content,
                                   updatedAt: Date.now(),
@@ -446,7 +466,7 @@ export function SettingsView(props: SettingsViewProps) {
                       ) : (
                         <>
                           <div className="settings-library-item-header">
-                            <div className="settings-library-item-name">{entry.name}</div>
+                            <div className="settings-library-item-name">{entry.name} <code>@{entry.alias}</code></div>
                             <span className="settings-library-kind">{entry.kind}</span>
                           </div>
                           <pre className="settings-library-content-preview">{entry.content}</pre>
@@ -456,6 +476,7 @@ export function SettingsView(props: SettingsViewProps) {
                               onClick={() => {
                                 setEditingId(entry.id);
                                 setEditName(entry.name);
+                                setEditAlias(entry.alias);
                                 setEditKind(entry.kind);
                                 setEditContent(entry.content);
                               }}
