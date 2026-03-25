@@ -828,12 +828,6 @@ function App() {
   const canRun = workingDirectory.length > 0 && prompt.length > 0;
   const todoMode = activeSession?.todoMode ?? false;
   const rightCollapsed = !todoMode;
-  const modelLabel = model || (agent === "claude" ? "claude-sonnet-4-6" : "codex-mini");
-  const executionLabel =
-    approvalPolicy === "full-auto" && sandboxMode === "danger-full-access" ? "Full Auto"
-    : approvalPolicy === "never" && sandboxMode === "read-only" ? "Safe"
-    : approvalPolicy === "unless-allow-listed" && sandboxMode === "workspace-write" ? "Balanced"
-    : `${approvalPolicy} / ${sandboxMode}`;
 
   // Keep refs current so async run completions don't rely on stale render state.
   projectsRef.current = projects;
@@ -1987,44 +1981,60 @@ function App() {
               placeholder="Get Busy..."
             />
             <div className="composer-meta">
-              <button
-                type="button"
-                className="meta-chip-button"
-                onClick={() => openSettings("session")}
+              <select
+                className="meta-chip-select"
+                value={agent}
+                onChange={(e) => setAgent(e.target.value)}
                 title="Agent"
               >
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z" /><path d="M16 14H8a4 4 0 0 0-4 4v2h16v-2a4 4 0 0 0-4-4z" />
-                </svg>
-                {agent === "claude" ? "Claude" : "Codex"}
-              </button>
-              <button
-                type="button"
-                className="meta-chip-button"
-                onClick={() => openSettings("session")}
+                <option value="codex">Codex</option>
+                <option value="claude">Claude</option>
+              </select>
+              <select
+                className="meta-chip-select"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
                 title="Model"
               >
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                </svg>
-                {modelLabel}
-              </button>
-              <button
-                type="button"
-                className="meta-chip-button"
-                onClick={() => openSettings("execution")}
+                {agent === "claude" ? (
+                  <>
+                    <option value="">claude-sonnet-4-6</option>
+                    <option value="claude-opus-4-6">claude-opus-4-6</option>
+                    <option value="claude-haiku-4-5">claude-haiku-4-5</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="">codex-mini</option>
+                    <option value="o3">o3</option>
+                    <option value="o4-mini">o4-mini</option>
+                  </>
+                )}
+              </select>
+              <select
+                className="meta-chip-select"
+                value={
+                  approvalPolicy === "full-auto" && sandboxMode === "danger-full-access" ? "full-auto"
+                  : approvalPolicy === "never" && sandboxMode === "read-only" ? "safe"
+                  : approvalPolicy === "unless-allow-listed" && sandboxMode === "workspace-write" ? "balanced"
+                  : "custom"
+                }
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === "safe") { setApprovalPolicy("never"); setSandboxMode("read-only"); }
+                  else if (v === "balanced") { setApprovalPolicy("unless-allow-listed"); setSandboxMode("workspace-write"); }
+                  else if (v === "full-auto") { setApprovalPolicy("full-auto"); setSandboxMode("danger-full-access"); }
+                }}
                 title="Execution mode"
               >
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                </svg>
-                {executionLabel}
-              </button>
+                <option value="safe">Safe</option>
+                <option value="balanced">Balanced</option>
+                <option value="full-auto">Full Auto</option>
+                {approvalPolicy !== "full-auto" && approvalPolicy !== "never" && approvalPolicy !== "unless-allow-listed" && (
+                  <option value="custom">Custom</option>
+                )}
+              </select>
               {todoMode && todos.length > 0 && (
                 <span className="meta-label" title="Remaining todos">
-                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-                  </svg>
                   {todos.filter((t) => !t.done).length} left
                 </span>
               )}
