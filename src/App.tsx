@@ -177,6 +177,21 @@ function shortenPath(path: string): string {
 
 type ClassifiedRow = Omit<StreamRow, "id">;
 
+/** Clean up robotic/inner-monologue phrasing from agent output */
+function sanitizeAgentText(text: string): string {
+  return text
+    // "The user wants me to X. Let me Y." → "Y."
+    .replace(/^The user (?:wants|asked|is asking) me to .+?\. (?:Let me |I'll |I will )/gi, "")
+    // "I need to X" → "X" (at start of text)
+    .replace(/^I (?:need to|should|will|am going to|'ll) /gi, "")
+    // "Let me X" at start → "X"
+    .replace(/^Let me /gi, "")
+    // "I'll now X" → "X"
+    .replace(/^I'll now /gi, "")
+    // Clean up any resulting lowercase start
+    .replace(/^([a-z])/, (_, c) => c.toUpperCase());
+}
+
 function classifyEvent(event: CodexStreamEvent): ClassifiedRow {
   // Handle non-stdout lifecycle events from the runner
   if (event.kind === "completed") {
@@ -248,10 +263,8 @@ function classifyEvent(event: CodexStreamEvent): ClassifiedRow {
         const blockType = typeof block.type === "string" ? block.type : "";
 
         if (blockType === "thinking") {
-          const thinking = typeof block.thinking === "string" ? block.thinking.trim() : "";
-          if (!thinking) return { category: "status", text: "", hidden: true };
-          const display = thinking.length > 200 ? `${thinking.slice(0, 200)}...` : thinking;
-          return { category: "message", text: display };
+          // Hide agent inner monologue from the stream — just show a status indicator
+          return { category: "status", text: "", hidden: true };
         }
 
         if (blockType === "tool_use") {
@@ -280,7 +293,7 @@ function classifyEvent(event: CodexStreamEvent): ClassifiedRow {
 
         if (blockType === "text") {
           const raw = typeof block.text === "string" ? block.text.trim() : "";
-          const text = stripTodoMarkers(raw);
+          const text = sanitizeAgentText(stripTodoMarkers(raw));
           if (!text) return { category: "status", text: "", hidden: true };
           const isTodoSummary = /working on #\d/i.test(text) || (/todo/i.test(text) && /#\d/.test(text));
           return { category: "message", text, isTodoSummary };
@@ -327,7 +340,7 @@ function classifyEvent(event: CodexStreamEvent): ClassifiedRow {
 
       if (itemType === "agent_message") {
         const raw = typeof item.text === "string" ? item.text.trim() : "";
-        const text = stripTodoMarkers(raw);
+        const text = sanitizeAgentText(stripTodoMarkers(raw));
         const isTodoSummary = /working on #\d/i.test(text) || (/todo/i.test(text) && /#\d/.test(text));
         return { category: "message", text: text || "Thinking...", isTodoSummary };
       }
@@ -377,7 +390,7 @@ function classifyEvent(event: CodexStreamEvent): ClassifiedRow {
   if (event.line && event.line.trim().length > 0) {
     const trimmed = event.line.trim();
     const text = trimmed.length > 220 ? `${trimmed.slice(0, 220)}...` : trimmed;
-    return { category: "message", text };
+    return { category: "message", text: sanitizeAgentText(text) };
   }
 
   return { category: "status", text: "", hidden: true };
