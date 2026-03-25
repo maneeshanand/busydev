@@ -1309,10 +1309,13 @@ pre.json {
 
 .meta-label {
   color: var(--vp-c-text-3);
-  border: 1px solid var(--vp-c-divider);
-  background: color-mix(in srgb, var(--vp-c-bg-soft) 88%, transparent);
-  border-radius: 999px;
+  border: none;
+  background: var(--vp-c-bg-mute);
+  border-radius: 2px;
   padding: 2px 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .meta-chip-button {
@@ -1323,6 +1326,14 @@ pre.json {
   padding: 2px 8px;
   font-size: inherit;
   line-height: 1.35;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.meta-chip-button svg {
+  flex-shrink: 0;
+  opacity: 0.7;
 }
 
 .meta-chip-button:hover {

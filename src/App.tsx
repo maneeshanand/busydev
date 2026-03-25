@@ -1991,25 +1991,42 @@ function App() {
                 type="button"
                 className="meta-chip-button"
                 onClick={() => openSettings("session")}
+                title="Agent"
               >
-                Agent: {agent === "claude" ? "Claude Code" : "Codex"}
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z" /><path d="M16 14H8a4 4 0 0 0-4 4v2h16v-2a4 4 0 0 0-4-4z" />
+                </svg>
+                {agent === "claude" ? "Claude" : "Codex"}
               </button>
               <button
                 type="button"
                 className="meta-chip-button"
                 onClick={() => openSettings("session")}
+                title="Model"
               >
-                Model: {modelLabel}
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                </svg>
+                {modelLabel}
               </button>
               <button
                 type="button"
                 className="meta-chip-button"
                 onClick={() => openSettings("execution")}
+                title="Execution mode"
               >
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
                 {executionLabel}
               </button>
               {todoMode && todos.length > 0 && (
-                <span className="meta-label">Todos: {todos.filter((t) => !t.done).length} remaining</span>
+                <span className="meta-label" title="Remaining todos">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                  </svg>
+                  {todos.filter((t) => !t.done).length} left
+                </span>
               )}
             </div>
             <div className="prompt-actions">
