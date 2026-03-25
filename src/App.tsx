@@ -1547,10 +1547,12 @@ function App() {
         }));
       }
 
-      // Auto-update todos in the owning session
-      if (todoMode && !wasStopped && owner) {
-        const ownerSession = projectsRef.current.find((p) => p.id === owner.projectId)
-          ?.sessions.find((s) => s.id === owner.sessionId);
+      // Auto-update todos in the owning session (check the OWNER's todoMode, not the active session's)
+      const ownerSession = owner
+        ? projectsRef.current.find((p) => p.id === owner.projectId)
+            ?.sessions.find((s) => s.id === owner.sessionId)
+        : null;
+      if (ownerSession?.todoMode && !wasStopped && owner) {
         const ownerTodos = ownerSession?.todos ?? [];
         const requestedTodoId = runTodoIdRef.current[runId] ?? null;
         const completedIds = parseTodoCompletions(out, ownerTodos);
@@ -1589,19 +1591,19 @@ function App() {
           }
         }
 
-        // Auto-play: if enabled and the run was for the active session
-        const autoPlayProjectId = activeProjectIdRef.current;
-        const autoPlaySessionId = activeSessionIdRef.current;
-        if (autoPlayTodosRef.current && !wasStopped &&
-            owner.projectId === autoPlayProjectId &&
-            owner.sessionId === autoPlaySessionId) {
+        // Auto-play: check the OWNER session's autoPlay, not the active session
+        if (ownerSession?.autoPlay && !wasStopped) {
           setTimeout(() => {
-            // Verify auto-play is still enabled AND we're still on the same session
-            if (!autoPlayTodosRef.current) return;
-            if (autoPlayProjectId !== activeProjectIdRef.current || autoPlaySessionId !== activeSessionIdRef.current) return;
-            // Read latest todos from projects state
-            const latestTodos = projectsRef.current.find((p) => p.id === owner.projectId)
-              ?.sessions.find((s) => s.id === owner.sessionId)?.todos ?? [];
+            // Re-read owner session to verify auto-play and todoMode are still enabled
+            const latestOwner = projectsRef.current.find((p) => p.id === owner.projectId)
+              ?.sessions.find((s) => s.id === owner.sessionId);
+            if (!latestOwner?.autoPlay || !latestOwner?.todoMode) return;
+            // handleRun targets the active session — only continue if owner is still active
+            if (owner.projectId !== activeProjectIdRef.current || owner.sessionId !== activeSessionIdRef.current) {
+              fireNotification("Auto-play paused", "Session is no longer active. Switch back to continue.", "warning", owner.projectId, owner.sessionId);
+              return;
+            }
+            const latestTodos = latestOwner.todos ?? [];
             const sourceTodos = latestTodos.length > 0 ? latestTodos : updatedOwnerTodos;
             const decision = getTodoAutoPlayDecision(sourceTodos, requestedTodoId, todoProgressMade);
             if (!decision.nextTodo || decision.nextIndex === null) return;
