@@ -1405,13 +1405,16 @@ function App() {
 
   function fireNotification(title: string, message: string, level: "success" | "error" | "warning", projectId?: string, sessionId?: string) {
     const { addNotification } = useNotificationStore.getState();
-    addNotification({ title, message, level, projectId, sessionId });
+    const notification = addNotification({ title, message, level, projectId, sessionId });
     if (!document.hasFocus()) {
       badgeCountRef.current += 1;
       setMissedAlerts(badgeCountRef.current);
       void updateTrayBadge(badgeCountRef.current);
       if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-        new Notification("busydev", { body: `${title}: ${message}` });
+        new Notification(notification.title, {
+          body: notification.message,
+          tag: notification.id,
+        });
       }
     }
   }

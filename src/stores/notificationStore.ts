@@ -31,13 +31,18 @@ function createNotificationId() {
   return `notif-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
 }
 
+function sanitizeText(value: string, fallback: string): string {
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : fallback;
+}
+
 export const useNotificationStore = create<NotificationStoreState>((set) => ({
   notifications: [],
   addNotification: ({ title, message, level = "info", projectId, sessionId }) => {
     const notification: AppNotification = {
       id: createNotificationId(),
-      title,
-      message,
+      title: sanitizeText(title, "Notification"),
+      message: sanitizeText(message, "No details available."),
       level,
       timestampMs: Date.now(),
       projectId,
