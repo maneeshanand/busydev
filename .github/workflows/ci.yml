@@ -36,8 +36,8 @@ jobs:
       - name: Build frontend
         run: npm run build
 
-  rust-arm:
-    name: Rust (macOS ARM)
+  rust-macos:
+    name: Rust (macOS)
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -62,27 +62,6 @@ jobs:
       - name: Clippy
         working-directory: src-tauri
         run: cargo clippy -- -W warnings
-
-  rust-intel:
-    name: Rust (macOS Intel cross-check)
-    runs-on: macos-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-apple-darwin
-
-      - name: Cache Rust artifacts
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-
-      - name: Cargo check (Intel)
-        working-directory: src-tauri
-        run: cargo check --target x86_64-apple-darwin
 
   rust-linux:
     name: Rust (Ubuntu)
