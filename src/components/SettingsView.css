@@ -190,6 +190,20 @@
   }
 }
 
+.settings-link-button {
+  background: transparent;
+  border: none;
+  color: var(--vp-c-text-3);
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.settings-link-button:hover {
+  color: var(--vp-c-text-1);
+}
+
 .settings-danger-zone {
   margin-top: 24px;
   padding-top: 16px;

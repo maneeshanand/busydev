@@ -817,11 +817,11 @@ function App() {
   const todoMode = activeSession?.todoMode ?? false;
   const rightCollapsed = !todoMode;
   const modelLabel = model || (agent === "claude" ? "claude-sonnet-4-6" : "codex-mini");
-  const approvalLabel = approvalPolicy === "unless-allow-listed"
-    ? "allow-listed"
-    : approvalPolicy === "never"
-      ? "manual"
-      : "full-auto";
+  const executionLabel =
+    approvalPolicy === "full-auto" && sandboxMode === "danger-full-access" ? "Full Auto"
+    : approvalPolicy === "never" && sandboxMode === "read-only" ? "Safe"
+    : approvalPolicy === "unless-allow-listed" && sandboxMode === "workspace-write" ? "Balanced"
+    : `${approvalPolicy} / ${sandboxMode}`;
 
   // Keep refs current so async run completions don't rely on stale render state.
   projectsRef.current = projects;
@@ -1994,17 +1994,8 @@ function App() {
                 className="meta-chip-button"
                 onClick={() => openSettings("execution")}
               >
-                Approval: {approvalLabel}
+                {executionLabel}
               </button>
-              {agent === "codex" && (
-                <button
-                  type="button"
-                  className="meta-chip-button"
-                  onClick={() => openSettings("execution")}
-                >
-                  Sandbox: {sandboxMode === "danger-full-access" ? "full-access" : sandboxMode}
-                </button>
-              )}
               {todoMode && todos.length > 0 && (
                 <span className="meta-label">Todos: {todos.filter((t) => !t.done).length} remaining</span>
               )}

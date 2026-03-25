@@ -64,9 +64,17 @@ const SECTION_LABELS: Record<SectionId, string> = {
   advanced: "Advanced",
 };
 
+function getExecutionPreset(approval: string, sandbox: string): string {
+  if (approval === "never" && sandbox === "read-only") return "safe";
+  if (approval === "unless-allow-listed" && sandbox === "workspace-write") return "balanced";
+  if (approval === "full-auto" && sandbox === "danger-full-access") return "full-auto";
+  return "custom";
+}
+
 export function SettingsView(props: SettingsViewProps) {
   const [activeSection, setActiveSection] = useState<SectionId>("general");
   const [confirmReset, setConfirmReset] = useState(false);
+  const [showAdvancedExec, setShowAdvancedExec] = useState(false);
 
   useEffect(() => {
     if (!props.open) return;
@@ -199,22 +207,60 @@ export function SettingsView(props: SettingsViewProps) {
             <section className="settings-section">
               <p className="settings-helper">Run behavior and safety controls.</p>
               <label>
-                Approval policy
-                <select value={props.approvalPolicy} onChange={(e) => props.setApprovalPolicy(e.target.value)}>
-                  <option value="full-auto">full-auto</option>
-                  <option value="unless-allow-listed">allow-listed</option>
-                  <option value="never">manual</option>
+                Execution mode
+                <select
+                  value={getExecutionPreset(props.approvalPolicy, props.sandboxMode)}
+                  onChange={(e) => {
+                    const preset = e.target.value;
+                    if (preset === "safe") {
+                      props.setApprovalPolicy("never");
+                      props.setSandboxMode("read-only");
+                    } else if (preset === "balanced") {
+                      props.setApprovalPolicy("unless-allow-listed");
+                      props.setSandboxMode("workspace-write");
+                    } else if (preset === "full-auto") {
+                      props.setApprovalPolicy("full-auto");
+                      props.setSandboxMode("danger-full-access");
+                    }
+                    setShowAdvancedExec(false);
+                  }}
+                >
+                  <option value="safe">Safe — manual approval, read-only sandbox</option>
+                  <option value="balanced">Balanced — allow-listed approval, workspace writes</option>
+                  <option value="full-auto">Full Auto — no approval, full access</option>
+                  {getExecutionPreset(props.approvalPolicy, props.sandboxMode) === "custom" && (
+                    <option value="custom">Custom</option>
+                  )}
                 </select>
               </label>
-              {props.agent === "codex" && (
-                <label>
-                  Sandbox mode
-                  <select value={props.sandboxMode} onChange={(e) => props.setSandboxMode(e.target.value)}>
-                    <option value="read-only">read-only</option>
-                    <option value="workspace-write">workspace-write</option>
-                    <option value="danger-full-access">full-access</option>
-                  </select>
-                </label>
+              <button
+                type="button"
+                className="settings-link-button"
+                onClick={() => setShowAdvancedExec((prev) => !prev)}
+              >
+                {showAdvancedExec ? "Hide" : "Show"} advanced
+              </button>
+              {showAdvancedExec && (
+                <>
+                  <label>
+                    Approval policy
+                    <select value={props.approvalPolicy} onChange={(e) => props.setApprovalPolicy(e.target.value)}>
+                      <option value="full-auto">full-auto</option>
+                      <option value="unless-allow-listed">allow-listed</option>
+                      <option value="never">manual</option>
+                    </select>
+                  </label>
+                  {props.agent === "codex" && (
+                    <label>
+                      Sandbox mode
+                      <select value={props.sandboxMode} onChange={(e) => props.setSandboxMode(e.target.value)}>
+                        <option value="read-only">read-only</option>
+                        <option value="workspace-write">workspace-write</option>
+                        <option value="danger-full-access">full-access</option>
+                      </select>
+                    </label>
+                  )}
+                </>
               )}
               <label className="settings-checkbox">
                 <input
