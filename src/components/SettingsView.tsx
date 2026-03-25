@@ -40,6 +40,8 @@ interface SettingsViewProps {
   setTodoMode: (enabled: boolean) => void;
   todoAutoPlayDefault: boolean;
   setTodoAutoPlayDefault: (enabled: boolean) => void;
+  todoMaxRetries: number;
+  setTodoMaxRetries: (n: number) => void;
   includeSessionHistoryInPrompt: boolean;
   setIncludeSessionHistoryInPrompt: (enabled: boolean) => void;
   claudeAutoContinue: boolean;
@@ -259,6 +261,17 @@ export function SettingsView(props: SettingsViewProps) {
                   onChange={(e) => props.setTodoAutoPlayDefault(e.target.checked)}
                 />
                 Auto-play todos by default
+              </label>
+              <label>
+                Max retries per todo: {props.todoMaxRetries}
+                <input
+                  type="range"
+                  min={1}
+                  max={10}
+                  step={1}
+                  value={props.todoMaxRetries}
+                  onChange={(e) => props.setTodoMaxRetries(Number(e.target.value))}
+                />
               </label>
               <label>
                 Todo panel width: {props.rightPanelWidth}px

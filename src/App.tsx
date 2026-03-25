@@ -764,6 +764,7 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [autoPlayTodos, setAutoPlayTodos] = useState(false);
   const [todoAutoPlayDefault, setTodoAutoPlayDefault] = useState(false);
+  const [todoMaxRetries, setTodoMaxRetries] = useState(3);
   const [includeSessionHistoryInPrompt, setIncludeSessionHistoryInPrompt] = useState(true);
   const [claudeAutoContinue, setClaudeAutoContinue] = useState(true);
   const [terminalFontSize, setTerminalFontSize] = useState(13);
@@ -776,6 +777,11 @@ function App() {
 
   // Track which session owns which runId (for background run completion)
   const runSessionMapRef = useRef<Record<string, { projectId: string; sessionId: string }>>({});
+  // Track which todo ID was requested for each run (stable identity across reorders)
+  const runTodoIdRef = useRef<Record<string, string | null>>({});
+  // Track retry count per todo ID (resets when a different todo is attempted)
+  const todoRetryCountRef = useRef<Record<string, number>>({});
+  const todoMaxRetriesRef = useRef(3);
   const projectsRef = useRef<Project[]>([]);
   const activeProjectIdRef = useRef<string | null>(null);
   const activeSessionIdRef = useRef<string | null>(null);
@@ -823,6 +829,7 @@ function App() {
   activeProjectIdRef.current = activeProjectId;
   activeSessionIdRef.current = activeProject?.activeSessionId ?? null;
   autoPlayTodosRef.current = autoPlayTodos;
+  todoMaxRetriesRef.current = todoMaxRetries;
 
   function openSettings(section: SectionId) {
     setSettingsSection(section);
@@ -841,6 +848,7 @@ function App() {
     skipGitRepoCheck,
     todoMode,
     todoAutoPlayDefault,
+    todoMaxRetries,
     rightPanelWidth,
     includeSessionHistoryInPrompt,
     claudeAutoContinue,
@@ -859,6 +867,7 @@ function App() {
     skipGitRepoCheck,
     todoMode,
     todoAutoPlayDefault,
+    todoMaxRetries,
     rightPanelWidth,
     includeSessionHistoryInPrompt,
     claudeAutoContinue,
@@ -944,6 +953,7 @@ function App() {
           setSkipGitRepoCheck(migrated.skipGitRepoCheck);
           setTodoMode(migrated.todoMode);
           setTodoAutoPlayDefault(migrated.todoAutoPlayDefault);
+          setTodoMaxRetries(migrated.todoMaxRetries);
           setAutoPlayTodos(migrated.todoAutoPlayDefault);
           setRightCollapsed(!migrated.todoMode);
           setRightPanelWidth(migrated.rightPanelWidth);
@@ -1427,6 +1437,15 @@ function App() {
     }
     stoppedMapRef.current[runId] = false;
     startTimeMapRef.current[runId] = Date.now();
+
+    // Capture the requested todo ID at run start for stable loop-guard identity
+    if (requestedTodoIndex !== null && activeSession) {
+      const todos = activeSession.todos ?? [];
+      const idx = requestedTodoIndex - 1;
+      runTodoIdRef.current[runId] = idx >= 0 && idx < todos.length ? todos[idx].id : null;
+    } else {
+      runTodoIdRef.current[runId] = null;
+    }
     setElapsed(0);
 
     // Add to in-flight runs and switch to this tab
@@ -1508,11 +1527,7 @@ function App() {
         const ownerSession = projectsRef.current.find((p) => p.id === owner.projectId)
           ?.sessions.find((s) => s.id === owner.sessionId);
         const ownerTodos = ownerSession?.todos ?? [];
-        const requestedTodoId = requestedTodoIndex !== null &&
-          requestedTodoIndex >= 1 &&
-          requestedTodoIndex <= ownerTodos.length
-          ? ownerTodos[requestedTodoIndex - 1].id
-          : null;
+        const requestedTodoId = runTodoIdRef.current[runId] ?? null;
         const completedIds = parseTodoCompletions(out, ownerTodos);
         const newTodoTexts = parseTodoAdditions(out);
         const todoProgressMade = completedIds.length > 0 || newTodoTexts.length > 0;
@@ -1538,6 +1553,17 @@ function App() {
           }));
         }
 
+        // Track retries per todo for auto-play loop guard
+        if (requestedTodoId) {
+          if (todoProgressMade) {
+            // Progress was made — reset retry counter
+            todoRetryCountRef.current[requestedTodoId] = 0;
+          } else {
+            // No progress — increment retry counter
+            todoRetryCountRef.current[requestedTodoId] = (todoRetryCountRef.current[requestedTodoId] ?? 0) + 1;
+          }
+        }
+
         // Auto-play: if enabled and the run was for the active session
         if (autoPlayTodosRef.current && !wasStopped &&
             owner.projectId === activeProjectIdRef.current &&
@@ -1551,10 +1577,15 @@ function App() {
             const sourceTodos = latestTodos.length > 0 ? latestTodos : updatedOwnerTodos;
             const decision = getTodoAutoPlayDecision(sourceTodos, requestedTodoId, todoProgressMade);
             if (!decision.nextTodo || decision.nextIndex === null) return;
-            if (decision.shouldPauseForLoop) {
+
+            // Check retry cap
+            const retries = todoRetryCountRef.current[decision.nextTodo.id] ?? 0;
+            if (decision.shouldPauseForLoop || retries >= todoMaxRetriesRef.current) {
               fireNotification(
                 "Todo auto-play paused",
-                "No DONE/ADD_TODO markers were detected. Run manually to continue and avoid a loop.",
+                retries >= todoMaxRetriesRef.current
+                  ? `Todo #${decision.nextIndex + 1} failed ${retries} times. Run manually to continue.`
+                  : "No DONE/ADD_TODO markers were detected. Run manually to continue.",
                 "warning",
                 owner.projectId,
                 owner.sessionId,
@@ -1574,6 +1605,7 @@ function App() {
       delete nextRowIdRef.current[runId];
       delete stoppedMapRef.current[runId];
       delete startTimeMapRef.current[runId];
+      delete runTodoIdRef.current[runId];
       setInFlightRuns((prev) => {
         const next = { ...prev };
         delete next[runId];
@@ -2092,6 +2124,8 @@ ADD_TODO: step three description`);
         }}
         todoAutoPlayDefault={todoAutoPlayDefault}
         setTodoAutoPlayDefault={setTodoAutoPlayDefault}
+        todoMaxRetries={todoMaxRetries}
+        setTodoMaxRetries={setTodoMaxRetries}
         includeSessionHistoryInPrompt={includeSessionHistoryInPrompt}
         setIncludeSessionHistoryInPrompt={setIncludeSessionHistoryInPrompt}
         claudeAutoContinue={claudeAutoContinue}
