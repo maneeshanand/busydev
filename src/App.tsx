@@ -858,12 +858,6 @@ function App() {
   const aliasMap = useMemo(() => buildAliasMap(promptLibrary), [promptLibrary]);
   const mentionedAliases = useMemo(() => getMentionedAliases(prompt, aliasMap), [aliasMap, prompt]);
   const mentionSuggestions = useMemo(() => getMentionSuggestions(aliasMap, mentionQuery), [aliasMap, mentionQuery]);
-  const modelLabel = model || (agent === "claude" ? "claude-sonnet-4-6" : "codex-mini");
-  const approvalLabel = approvalPolicy === "unless-allow-listed"
-    ? "allow-listed"
-    : approvalPolicy === "never"
-      ? "manual"
-      : "full-auto";
   const todoMode = activeSession?.todoMode ?? false;
   const autoPlayTodos = activeSession?.autoPlay ?? false;
   const [todoPanelOpen, setTodoPanelOpen] = useState(false);
@@ -1943,7 +1937,7 @@ function App() {
               onClick={() => {
                 const next = !todoMode;
                 setTodoMode(next);
-                setRightCollapsed(!next);
+                setTodoPanelOpen(next);
                 if (next && rightPanelWidth < 220) setRightPanelWidth(280);
               }}
               title={todoMode ? "Hide todos" : "Show todos"}
