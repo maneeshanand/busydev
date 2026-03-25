@@ -28,12 +28,8 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            label: macos-arm64
-            target: aarch64-apple-darwin
-            bundles: dmg
-          - os: macos-latest
-            label: macos-x86_64
-            target: x86_64-apple-darwin
+            label: macos-universal
+            target: universal-apple-darwin
             bundles: dmg
           - os: ubuntu-latest
             label: linux-x86_64
@@ -68,7 +64,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: ${{ matrix.target == 'universal-apple-darwin' && 'aarch64-apple-darwin,x86_64-apple-darwin' || matrix.target }}
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
