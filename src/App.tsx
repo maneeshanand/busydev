@@ -1461,10 +1461,23 @@ function App() {
     }
     setElapsed(0);
 
+    // Strip system instructions from display — keep only the user-visible portion
+    let displayPrompt = submittedPrompt;
+    // Todo generation prompt → show just the goal
+    const goalMatch = submittedPrompt.match(/\nGoal: (.+)\n/);
+    if (goalMatch && submittedPrompt.includes("ADD_TODO:")) {
+      displayPrompt = `Generate todos: ${goalMatch[1]}`;
+    }
+    // Auto-play prompt → show just the task
+    const todoWorkMatch = submittedPrompt.match(/^Work on todo #(\d+): (.+?)(?:\n|$)/);
+    if (todoWorkMatch) {
+      displayPrompt = `Todo #${todoWorkMatch[1]}: ${todoWorkMatch[2]}`;
+    }
+
     // Add to in-flight runs and switch to this tab
     setInFlightRuns((prev) => ({
       ...prev,
-      [runId]: { id: runNumber, runId, prompt: submittedPrompt, streamRows: [] },
+      [runId]: { id: runNumber, runId, prompt: displayPrompt, streamRows: [] },
     }));
     setActiveTabId(runId);
 
@@ -1507,11 +1520,11 @@ function App() {
       const wasStopped = stoppedMapRef.current[runId] || false;
       const persistedRun: PersistedRun = {
         id: runNumber,
-        prompt: submittedPrompt,
+        prompt: displayPrompt,
         streamRows: finalStreamRows,
         exitCode: out.exitCode,
         durationMs: out.durationMs,
-        finalSummary: buildFinalSummary({ id: runNumber, prompt: submittedPrompt, output: out, streamRows: finalStreamRows, stopped: wasStopped }),
+        finalSummary: buildFinalSummary({ id: runNumber, prompt: displayPrompt, output: out, streamRows: finalStreamRows, stopped: wasStopped }),
         stopped: wasStopped,
         completedAt: Date.now(),
       };
@@ -1522,7 +1535,7 @@ function App() {
       // Fire notification for completed run
       if (!wasStopped) {
         if (out.exitCode === 0) {
-          fireNotification("Agent completed", submittedPrompt.slice(0, 60), "success", owner?.projectId, owner?.sessionId);
+          fireNotification("Agent completed", displayPrompt.slice(0, 60), "success", owner?.projectId, owner?.sessionId);
         } else {
           fireNotification("Agent failed", `Exit code ${out.exitCode}`, "error", owner?.projectId, owner?.sessionId);
         }
