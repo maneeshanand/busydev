@@ -1263,6 +1263,12 @@ function App() {
   // Switching just resets ephemeral UI state; derived values auto-update from projects.
 
   function resetEphemeralState() {
+    // Immediately kill auto-play to prevent race with delayed callbacks
+    autoPlayTodosRef.current = false;
+    setAutoPlayTodos(false);
+    // Clear retry counters for the previous session
+    todoRetryCountRef.current = {};
+
     setTransitioning(true);
     setTimeout(() => {
       setActiveTabId(null);
@@ -1565,12 +1571,15 @@ function App() {
         }
 
         // Auto-play: if enabled and the run was for the active session
+        const autoPlayProjectId = activeProjectIdRef.current;
+        const autoPlaySessionId = activeSessionIdRef.current;
         if (autoPlayTodosRef.current && !wasStopped &&
-            owner.projectId === activeProjectIdRef.current &&
-            owner.sessionId === activeSessionIdRef.current) {
+            owner.projectId === autoPlayProjectId &&
+            owner.sessionId === autoPlaySessionId) {
           setTimeout(() => {
+            // Verify auto-play is still enabled AND we're still on the same session
             if (!autoPlayTodosRef.current) return;
-            if (owner.projectId !== activeProjectIdRef.current || owner.sessionId !== activeSessionIdRef.current) return;
+            if (autoPlayProjectId !== activeProjectIdRef.current || autoPlaySessionId !== activeSessionIdRef.current) return;
             // Read latest todos from projects state
             const latestTodos = projectsRef.current.find((p) => p.id === owner.projectId)
               ?.sessions.find((s) => s.id === owner.sessionId)?.todos ?? [];
