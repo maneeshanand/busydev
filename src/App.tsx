@@ -774,7 +774,6 @@ function App() {
   const [inFlightRuns, setInFlightRuns] = useState<Record<string, InFlightRun>>({});
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [autoPlayTodos, setAutoPlayTodos] = useState(false);
   const [todoAutoPlayDefault, setTodoAutoPlayDefault] = useState(false);
   const [todoMaxRetries, setTodoMaxRetries] = useState(3);
   const [includeSessionHistoryInPrompt, setIncludeSessionHistoryInPrompt] = useState(true);
@@ -827,6 +826,7 @@ function App() {
   const workingDirectory = activeSession?.worktreePath ?? activeProject?.path ?? "";
   const canRun = workingDirectory.length > 0 && prompt.length > 0;
   const todoMode = activeSession?.todoMode ?? false;
+  const autoPlayTodos = activeSession?.autoPlay ?? false;
   const [todoPanelOpen, setTodoPanelOpen] = useState(false);
   const [confirmTodoMode, setConfirmTodoMode] = useState(false);
   const rightCollapsed = !todoPanelOpen;
@@ -960,7 +960,6 @@ function App() {
           setSkipGitRepoCheck(migrated.skipGitRepoCheck);
           setTodoAutoPlayDefault(migrated.todoAutoPlayDefault);
           setTodoMaxRetries(migrated.todoMaxRetries);
-          setAutoPlayTodos(migrated.todoAutoPlayDefault);
           setRightPanelWidth(migrated.rightPanelWidth);
           setIncludeSessionHistoryInPrompt(migrated.includeSessionHistoryInPrompt);
           setClaudeAutoContinue(migrated.claudeAutoContinue);
@@ -1253,6 +1252,7 @@ function App() {
   function setApprovalPolicy(v: string) { updateActiveSession((s) => ({ ...s, approvalPolicy: v })); }
   function setSandboxMode(v: string) { updateActiveSession((s) => ({ ...s, sandboxMode: v })); }
   function setTodoMode(enabled: boolean) { updateActiveSession((s) => ({ ...s, todoMode: enabled })); }
+  function setAutoPlayTodos(enabled: boolean) { updateActiveSession((s) => ({ ...s, autoPlay: enabled })); }
 
   function makeSession(projectId: string, index: number): Session {
     return {
@@ -1269,9 +1269,8 @@ function App() {
   // Switching just resets ephemeral UI state; derived values auto-update from projects.
 
   function resetEphemeralState() {
-    // Immediately kill auto-play to prevent race with delayed callbacks
+    // Immediately kill auto-play ref to prevent race with delayed callbacks
     autoPlayTodosRef.current = false;
-    setAutoPlayTodos(false);
     // Clear retry counters for the previous session
     todoRetryCountRef.current = {};
 
@@ -1282,7 +1281,6 @@ function App() {
       setPrompt("");
       setPromptHistory([]);
       setHistoryIndex(-1);
-      setAutoPlayTodos(todoAutoPlayDefault);
       setSearchQuery("");
       setSearchOpen(false);
       setNotifPanelOpen(false);
@@ -2154,7 +2152,7 @@ function App() {
             }}
             onStopTodos={handleStop}
             autoPlay={autoPlayTodos}
-            onToggleAutoPlay={() => setAutoPlayTodos((prev) => !prev)}
+            onToggleAutoPlay={() => setAutoPlayTodos(!autoPlayTodos)}
             onClearTodos={handleClearTodos}
             onSaveTodos={handleSaveTodos}
             onReorder={(from, to) => {

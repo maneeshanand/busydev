@@ -69,6 +69,7 @@ export interface Session {
   worktreePath?: string;
   worktreeBranch?: string;
   todoMode?: boolean;
+  autoPlay?: boolean;
 }
 
 export interface Project {
