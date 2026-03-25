@@ -1993,15 +1993,9 @@ function App() {
                 onClick={() => openSettings("session")}
                 title="Agent"
               >
-                {agent === "claude" ? (
-                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="#d4a27a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10" /><path d="M8 12h8M12 8v8" />
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="#19c37d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5" />
-                  </svg>
-                )}
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z" /><path d="M16 14H8a4 4 0 0 0-4 4v2h16v-2a4 4 0 0 0-4-4z" />
+                </svg>
                 {agent === "claude" ? "Claude" : "Codex"}
               </button>
               <button
