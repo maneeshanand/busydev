@@ -55,6 +55,16 @@ export interface TodoItem {
   completedAt?: number;
 }
 
+export interface SavedPromptEntry {
+  id: string;
+  name: string;
+  alias: string;
+  kind: "prompt" | "function";
+  content: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface Session {
   id: string;
   projectId: string;

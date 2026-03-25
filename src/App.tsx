@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
@@ -16,7 +16,7 @@ import {
   updateTrayBadge,
   type CodexStreamEvent,
 } from "./invoke";
-import type { StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session } from "./types";
+import type { StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session, SavedPromptEntry } from "./types";
 import { TodoPanel } from "./components/TodoPanel";
 import { ResizeHandle } from "./components/ResizeHandle";
 import { SettingsView, type SectionId } from "./components/SettingsView";
@@ -36,6 +36,13 @@ import {
   shouldRenderFinalSummary,
   stripTodoMarkers,
 } from "./lib/frontendUtils";
+import {
+  buildAliasMap,
+  expandPromptAliases,
+  getMentionedAliases,
+  getMentionSuggestions,
+  normalizeAlias,
+} from "./lib/promptAliases";
 
 function WrenchIcon() {
   return (
@@ -88,6 +95,23 @@ function ChecklistIcon() {
         fill="none" stroke="currentColor" strokeWidth="1.7"
       />
       <path d="m9 14 2 2 4-4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function BookIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M6 4h11a2 2 0 0 1 2 2v13H8a2 2 0 0 0-2 2V4Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M8 19V7a2 2 0 0 1 2-2h9" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="M10.5 10h5.5M10.5 13h5.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
     </svg>
   );
 }
@@ -764,6 +788,11 @@ function App() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [skipGitRepoCheck, setSkipGitRepoCheck] = useState(true);
   const [prompt, setPrompt] = useState("");
+  const [promptLibrary, setPromptLibrary] = useState<SavedPromptEntry[]>([]);
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionStart, setMentionStart] = useState<number | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
   const [promptHistory, setPromptHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [addingProject, setAddingProject] = useState(false);
@@ -799,6 +828,7 @@ function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
   const streamPanelRef = useRef<HTMLDivElement | null>(null);
   const streamBottomRef = useRef<HTMLDivElement | null>(null);
   const streamRowsMapRef = useRef<Record<string, StreamRow[]>>({});
@@ -825,6 +855,9 @@ function App() {
   const sandboxMode = activeSession?.sandboxMode ?? "read-only";
   const workingDirectory = activeSession?.worktreePath ?? activeProject?.path ?? "";
   const canRun = workingDirectory.length > 0 && prompt.length > 0;
+  const aliasMap = useMemo(() => buildAliasMap(promptLibrary), [promptLibrary]);
+  const mentionedAliases = useMemo(() => getMentionedAliases(prompt, aliasMap), [aliasMap, prompt]);
+  const mentionSuggestions = useMemo(() => getMentionSuggestions(aliasMap, mentionQuery), [aliasMap, mentionQuery]);
   const todoMode = activeSession?.todoMode ?? false;
   const autoPlayTodos = activeSession?.autoPlay ?? false;
   const [todoPanelOpen, setTodoPanelOpen] = useState(false);
@@ -861,6 +894,7 @@ function App() {
     claudeAutoContinue,
     terminalFontSize,
     terminalLineHeight,
+    promptLibrary,
     windowWidth: windowSize.windowWidth,
     windowHeight: windowSize.windowHeight,
   }), [
@@ -880,6 +914,7 @@ function App() {
     claudeAutoContinue,
     terminalFontSize,
     terminalLineHeight,
+    promptLibrary,
     windowSize.windowWidth,
     windowSize.windowHeight,
   ]);
@@ -965,6 +1000,7 @@ function App() {
           setClaudeAutoContinue(migrated.claudeAutoContinue);
           setTerminalFontSize(migrated.terminalFontSize);
           setTerminalLineHeight(migrated.terminalLineHeight);
+          setPromptLibrary(migrated.promptLibrary);
           setWindowSize({
             windowWidth: migrated.windowWidth,
             windowHeight: migrated.windowHeight,
@@ -1251,6 +1287,88 @@ function App() {
   function setModel(v: string) { updateActiveSession((s) => ({ ...s, model: v })); }
   function setApprovalPolicy(v: string) { updateActiveSession((s) => ({ ...s, approvalPolicy: v })); }
   function setSandboxMode(v: string) { updateActiveSession((s) => ({ ...s, sandboxMode: v })); }
+  function createPromptLibraryEntry(entry: { name: string; alias: string; kind: "prompt" | "function"; content: string }) {
+    const now = Date.now();
+    const id = crypto.randomUUID();
+    const aliasBase = normalizeAlias(entry.alias || entry.name);
+    const usedAliases = new Set(promptLibrary.map((item) => normalizeAlias(item.alias || item.name)));
+    let alias = aliasBase;
+    let suffix = 2;
+    while (usedAliases.has(alias)) {
+      alias = `${aliasBase}-${suffix}`;
+      suffix += 1;
+    }
+    if (!alias) return;
+    setPromptLibrary((prev) => [
+      {
+        id,
+        name: entry.name,
+        alias,
+        kind: entry.kind,
+        content: entry.content,
+        createdAt: now,
+        updatedAt: now,
+      },
+      ...prev,
+    ]);
+  }
+  function updatePromptLibraryEntry(entry: SavedPromptEntry) {
+    const aliasBase = normalizeAlias(entry.alias || entry.name);
+    const usedAliases = new Set(
+      promptLibrary
+        .filter((item) => item.id !== entry.id)
+        .map((item) => normalizeAlias(item.alias || item.name)),
+    );
+    let alias = aliasBase;
+    let suffix = 2;
+    while (usedAliases.has(alias)) {
+      alias = `${aliasBase}-${suffix}`;
+      suffix += 1;
+    }
+    if (!alias) return;
+    setPromptLibrary((prev) =>
+      prev.map((item) => (item.id === entry.id ? { ...entry, alias } : item)),
+    );
+  }
+  function deletePromptLibraryEntry(id: string) {
+    setPromptLibrary((prev) => prev.filter((item) => item.id !== id));
+  }
+
+  function detectMentionAtCursor(nextPrompt: string, cursor: number) {
+    const beforeCursor = nextPrompt.slice(0, cursor);
+    const match = beforeCursor.match(/(^|\s)@([a-zA-Z0-9_-]*)$/);
+    if (!match) {
+      setMentionOpen(false);
+      setMentionQuery("");
+      setMentionStart(null);
+      setMentionIndex(0);
+      return;
+    }
+    const query = match[2] ?? "";
+    setMentionOpen(true);
+    setMentionQuery(query);
+    setMentionStart(cursor - query.length - 1);
+    setMentionIndex(0);
+  }
+
+  function insertMentionAlias(alias: string) {
+    if (mentionStart === null) return;
+    const textarea = promptInputRef.current;
+    const cursor = textarea?.selectionStart ?? prompt.length;
+    const before = prompt.slice(0, mentionStart);
+    const after = prompt.slice(cursor);
+    const next = `${before}@${alias} ${after}`;
+    setPrompt(next);
+    setMentionOpen(false);
+    setMentionQuery("");
+    setMentionStart(null);
+    requestAnimationFrame(() => {
+      if (!textarea) return;
+      const nextCursor = before.length + alias.length + 2;
+      textarea.focus();
+      textarea.setSelectionRange(nextCursor, nextCursor);
+    });
+  }
   function setTodoMode(enabled: boolean) { updateActiveSession((s) => ({ ...s, todoMode: enabled })); }
   function setAutoPlayTodos(enabled: boolean) { updateActiveSession((s) => ({ ...s, autoPlay: enabled })); }
 
@@ -1424,6 +1542,7 @@ function App() {
 
   async function handleRun(overridePrompt?: string) {
     const submittedPrompt = overridePrompt ?? prompt;
+    const expandedPrompt = expandPromptAliases(submittedPrompt, aliasMap);
     const requestedTodoMatch = submittedPrompt.match(/work on todo #(\d+)/i);
     const requestedTodoIndex = requestedTodoMatch ? Number.parseInt(requestedTodoMatch[1], 10) : null;
     if (submittedPrompt.trim()) {
@@ -1492,8 +1611,8 @@ function App() {
     }
 
     const basePrompt = todoMode && todos.length > 0
-      ? buildTodoPrompt(submittedPrompt, todos)
-      : submittedPrompt;
+      ? buildTodoPrompt(expandedPrompt, todos)
+      : expandedPrompt;
 
     const effectivePrompt = sessionContext + basePrompt;
 
@@ -1657,6 +1776,29 @@ function App() {
   }
 
   function handlePromptKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (mentionOpen && mentionSuggestions.length > 0) {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setMentionIndex((prev) => (prev + 1) % mentionSuggestions.length);
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setMentionIndex((prev) => (prev <= 0 ? mentionSuggestions.length - 1 : prev - 1));
+        return;
+      }
+      if (event.key === "Enter" || event.key === "Tab") {
+        event.preventDefault();
+        const picked = mentionSuggestions[Math.max(0, Math.min(mentionIndex, mentionSuggestions.length - 1))];
+        if (picked) insertMentionAlias(picked.alias);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMentionOpen(false);
+        return;
+      }
+    }
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       if (canRun) void handleRun();
@@ -1701,6 +1843,12 @@ function App() {
       if (settingsOpen && e.key === "Escape") {
         e.preventDefault();
         setSettingsOpen(false);
+        return;
+      }
+      // Cmd/Ctrl+L opens Prompt Library
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "l") {
+        e.preventDefault();
+        openSettings("library");
         return;
       }
       // Cmd/Ctrl+F to toggle search
@@ -1773,6 +1921,28 @@ function App() {
                 <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
                 <rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
               </svg>
+            </button>
+            <button
+              type="button"
+              className="todo-toggle"
+              onClick={() => openSettings("library")}
+              title="Prompt library (⌘L)"
+              aria-label="Prompt library"
+            >
+              <BookIcon />
+            </button>
+            <button
+              type="button"
+              className={`todo-toggle ${todoMode ? "is-active" : ""}`}
+              onClick={() => {
+                const next = !todoMode;
+                setTodoMode(next);
+                setTodoPanelOpen(next);
+                if (next && rightPanelWidth < 220) setRightPanelWidth(280);
+              }}
+              title={todoMode ? "Hide todos" : "Show todos"}
+            >
+              <ChecklistIcon />
             </button>
             <div className="bell-wrapper">
               <button
@@ -1978,12 +2148,53 @@ function App() {
         <div className="bottom-panel">
           <div className="prompt-section">
             <textarea
+              ref={promptInputRef}
               rows={3}
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value;
+                setPrompt(next);
+                detectMentionAtCursor(next, e.target.selectionStart ?? next.length);
+              }}
+              onClick={(e) => {
+                const el = e.currentTarget;
+                detectMentionAtCursor(el.value, el.selectionStart ?? el.value.length);
+              }}
+              onKeyUp={(e) => {
+                const el = e.currentTarget;
+                detectMentionAtCursor(el.value, el.selectionStart ?? el.value.length);
+              }}
               onKeyDown={handlePromptKeyDown}
               placeholder="Get Busy..."
             />
+            {mentionOpen && mentionSuggestions.length > 0 && (
+              <div className="composer-mention-menu">
+                {mentionSuggestions.map((entry, idx) => (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    className={`composer-mention-item ${idx === mentionIndex ? "is-active" : ""}`}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      insertMentionAlias(entry.alias);
+                    }}
+                  >
+                    <span className="composer-mention-alias">@{entry.alias}</span>
+                    <span className="composer-mention-name">{entry.name}</span>
+                    <span className="composer-mention-kind">{entry.kind}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {mentionedAliases.length > 0 && (
+              <div className="composer-mentions">
+                {mentionedAliases.map((entry) => (
+                  <span key={entry.id} className="composer-mention-chip">
+                    @{entry.alias}
+                  </span>
+                ))}
+              </div>
+            )}
             <div className="composer-meta">
               <select
                 className="meta-chip-select"
@@ -2210,10 +2421,15 @@ ADD_TODO: step three description`);
         setTerminalLineHeight={setTerminalLineHeight}
         rightPanelWidth={rightPanelWidth}
         setRightPanelWidth={setRightPanelWidth}
+        promptLibrary={promptLibrary}
+        onCreatePromptLibraryEntry={createPromptLibraryEntry}
+        onUpdatePromptLibraryEntry={updatePromptLibraryEntry}
+        onDeletePromptLibraryEntry={deletePromptLibraryEntry}
         onResetEnvironment={() => {
           setProjects([]);
           setActiveProjectId(null);
           setInFlightRuns({});
+          setPromptLibrary([]);
           useNotificationStore.getState().clearNotifications();
           setMissedAlerts(0);
           badgeCountRef.current = 0;
