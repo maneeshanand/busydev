@@ -46,6 +46,12 @@ export interface InFlightRun {
   streamRows: StreamRow[];
 }
 
+export interface SubTask {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
 export interface TodoItem {
   id: string;
   text: string;
@@ -53,6 +59,10 @@ export interface TodoItem {
   source: "user" | "agent";
   createdAt: number;
   completedAt?: number;
+  notes?: string;
+  agent?: string;
+  model?: string;
+  subtasks?: SubTask[];
 }
 
 export interface SavedPromptEntry {

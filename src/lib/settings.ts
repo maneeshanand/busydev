@@ -1,4 +1,4 @@
-import type { PersistedRun, Project, SavedPromptEntry, Session, TodoItem } from "../types";
+import type { PersistedRun, Project, SavedPromptEntry, Session, SubTask, TodoItem } from "../types";
 
 export const SETTINGS_VERSION = 2;
 
@@ -139,6 +139,24 @@ function sanitizeTodoItem(value: unknown): TodoItem | null {
     source: obj.source === "agent" ? "agent" : "user",
     createdAt: typeof obj.createdAt === "number" ? obj.createdAt : Date.now(),
     completedAt: typeof obj.completedAt === "number" ? obj.completedAt : undefined,
+    notes: typeof obj.notes === "string" ? obj.notes : undefined,
+    agent: typeof obj.agent === "string" && obj.agent.trim() ? obj.agent.trim() : undefined,
+    model: typeof obj.model === "string" && obj.model.trim() ? obj.model.trim() : undefined,
+    subtasks: Array.isArray(obj.subtasks)
+      ? (obj.subtasks as unknown[])
+          .map((st) => {
+            const s = typeof st === "object" && st !== null ? st as Record<string, unknown> : null;
+            if (!s) return null;
+            const text = typeof s.text === "string" ? (s.text as string).trim() : "";
+            if (!text) return null;
+            return {
+              id: typeof s.id === "string" ? s.id : crypto.randomUUID(),
+              text,
+              done: typeof s.done === "boolean" ? s.done : false,
+            };
+          })
+          .filter(Boolean) as SubTask[]
+      : undefined,
   };
 }
 
