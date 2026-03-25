@@ -285,6 +285,29 @@
   gap: 8px;
 }
 
+.settings-library-create > button,
+.settings-library-actions button {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid var(--vp-c-divider);
+  background: color-mix(in srgb, var(--vp-c-bg-soft) 78%, var(--vp-c-bg));
+  color: var(--vp-c-text-1);
+}
+
+.settings-library-create > button {
+  background: color-mix(in srgb, var(--vp-c-brand-1) 18%, var(--vp-c-bg-soft));
+  border-color: color-mix(in srgb, var(--vp-c-brand-3) 62%, var(--vp-c-divider));
+}
+
+.settings-library-create > button:hover,
+.settings-library-actions button:hover {
+  border-color: var(--vp-c-brand-3);
+  color: var(--vp-c-brand-1);
+}
+
 @media (max-width: 900px) {
   .settings-page {
     grid-template-columns: 1fr;
