@@ -14,6 +14,7 @@ export interface StoredSettings {
   skipGitRepoCheck: boolean;
   todoMode: boolean;
   todoAutoPlayDefault: boolean;
+  todoMaxRetries: number;
   rightPanelWidth: number;
   includeSessionHistoryInPrompt: boolean;
   claudeAutoContinue: boolean;
@@ -42,6 +43,7 @@ type LegacyStoredSettings = {
   todos?: TodoItem[];
   todoMode?: boolean;
   todoAutoPlayDefault?: boolean;
+  todoMaxRetries?: number;
   rightPanelWidth?: number;
   includeSessionHistoryInPrompt?: boolean;
   claudeAutoContinue?: boolean;
@@ -242,6 +244,7 @@ export function migrateStoredSettings(saved: unknown): StoredSettings | null {
     skipGitRepoCheck: toBoolean(legacy.skipGitRepoCheck, true),
     todoMode: toBoolean(legacy.todoMode, false),
     todoAutoPlayDefault: toBoolean(legacy.todoAutoPlayDefault, false),
+    todoMaxRetries: toNumberInRange(legacy.todoMaxRetries, 1, 10, 3),
     rightPanelWidth: toNumberInRange(legacy.rightPanelWidth, 220, 500, 280),
     includeSessionHistoryInPrompt: toBoolean(legacy.includeSessionHistoryInPrompt, true),
     claudeAutoContinue: toBoolean(legacy.claudeAutoContinue, true),

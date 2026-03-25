@@ -10,6 +10,7 @@ import {
   formatInline,
   formatMessage,
   formatTimestamp,
+  getTodoAutoPlayDecision,
   highlightText,
   parseTodoAdditions,
   parseTodoCompletions,
@@ -44,7 +45,7 @@ describe("cleanCommand", () => {
 describe("stripTodoMarkers", () => {
   it("removes DONE and ADD_TODO marker lines", () => {
     const input = "Working\nDONE: 1\nADD_TODO: write tests\nThanks";
-    expect(stripTodoMarkers(input)).toBe("Working\n\n\nThanks".trim());
+    expect(stripTodoMarkers(input)).toBe("Working\n\nThanks".trim());
   });
 });
 
@@ -166,6 +167,101 @@ describe("todo marker parsers", () => {
     ]);
 
     expect(parseTodoAdditions(output)).toEqual(["write docs", "add tests"]);
+  });
+
+  it("parses markers with spacing/case variants and trailing punctuation", () => {
+    const todos: TodoItem[] = [
+      { id: "a", text: "one", done: false, source: "user", createdAt: 1 },
+      { id: "b", text: "two", done: false, source: "user", createdAt: 1 },
+    ];
+
+    const output = makeOutput([
+      {
+        item: {
+          type: "agent_message",
+          text: " done: 2.\nADD_TODO:   add logging",
+        },
+      },
+    ]);
+
+    expect(parseTodoCompletions(output, todos)).toEqual(["b"]);
+    expect(parseTodoAdditions(output)).toEqual(["add logging"]);
+    expect(stripTodoMarkers("Work complete\n done: 2.\nADD_TODO: test")).toBe("Work complete");
+  });
+
+  it("ignores DONE markers for already-complete todos", () => {
+    const todos: TodoItem[] = [
+      { id: "a", text: "one", done: true, source: "user", createdAt: 1 },
+      { id: "b", text: "two", done: false, source: "user", createdAt: 1 },
+    ];
+
+    const output = makeOutput([
+      {
+        item: {
+          type: "agent_message",
+          text: "DONE: 1",
+        },
+      },
+    ]);
+
+    expect(parseTodoCompletions(output, todos)).toEqual([]);
+  });
+
+  it("deduplicates repeated DONE markers for the same todo", () => {
+    const todos: TodoItem[] = [
+      { id: "a", text: "one", done: false, source: "user", createdAt: 1 },
+      { id: "b", text: "two", done: false, source: "user", createdAt: 1 },
+    ];
+
+    const output = makeOutput([
+      {
+        item: {
+          type: "agent_message",
+          text: "DONE: 2\nDONE: 2\nDONE: 2",
+        },
+      },
+    ]);
+
+    expect(parseTodoCompletions(output, todos)).toEqual(["b"]);
+  });
+});
+
+describe("getTodoAutoPlayDecision", () => {
+  const todos: TodoItem[] = [
+    { id: "a", text: "one", done: false, source: "user", createdAt: 1 },
+    { id: "b", text: "two", done: false, source: "user", createdAt: 1 },
+  ];
+
+  it("pauses auto-play when no progress was made and next todo repeats the requested one", () => {
+    const decision = getTodoAutoPlayDecision(todos, "a", false);
+    expect(decision.nextTodo?.id).toBe("a");
+    expect(decision.nextIndex).toBe(0);
+    expect(decision.shouldPauseForLoop).toBe(true);
+  });
+
+  it("continues auto-play when progress was made even if next todo matches requested", () => {
+    const decision = getTodoAutoPlayDecision(todos, "a", true);
+    expect(decision.shouldPauseForLoop).toBe(false);
+    expect(decision.nextTodo?.id).toBe("a");
+  });
+
+  it("continues auto-play when next todo differs from requested", () => {
+    const updatedTodos: TodoItem[] = [
+      { ...todos[0], done: true },
+      todos[1],
+    ];
+    const decision = getTodoAutoPlayDecision(updatedTodos, "a", false);
+    expect(decision.shouldPauseForLoop).toBe(false);
+    expect(decision.nextTodo?.id).toBe("b");
+    expect(decision.nextIndex).toBe(1);
+  });
+
+  it("returns no next todo when all todos are complete", () => {
+    const doneTodos: TodoItem[] = todos.map((t) => ({ ...t, done: true }));
+    const decision = getTodoAutoPlayDecision(doneTodos, "a", false);
+    expect(decision.nextTodo).toBeNull();
+    expect(decision.nextIndex).toBeNull();
+    expect(decision.shouldPauseForLoop).toBe(false);
   });
 });
 
