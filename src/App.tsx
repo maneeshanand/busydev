@@ -770,10 +770,7 @@ function App() {
   const [terminalFontSize, setTerminalFontSize] = useState(13);
   const [terminalLineHeight, setTerminalLineHeight] = useState(1.3);
 
-  // Global state
-  const [todoMode, setTodoMode] = useState(false);
   const [rightPanelWidth, setRightPanelWidth] = useState(280);
-  const [rightCollapsed, setRightCollapsed] = useState(true);
 
   // Track which session owns which runId (for background run completion)
   const runSessionMapRef = useRef<Record<string, { projectId: string; sessionId: string }>>({});
@@ -817,6 +814,8 @@ function App() {
   const sandboxMode = activeSession?.sandboxMode ?? "read-only";
   const workingDirectory = activeSession?.worktreePath ?? activeProject?.path ?? "";
   const canRun = workingDirectory.length > 0 && prompt.length > 0;
+  const todoMode = activeSession?.todoMode ?? false;
+  const rightCollapsed = !todoMode;
   const modelLabel = model || (agent === "claude" ? "claude-sonnet-4-6" : "codex-mini");
   const approvalLabel = approvalPolicy === "unless-allow-listed"
     ? "allow-listed"
@@ -951,11 +950,9 @@ function App() {
           setProjects(migrated.projects);
           setActiveProjectId(migrated.activeProjectId);
           setSkipGitRepoCheck(migrated.skipGitRepoCheck);
-          setTodoMode(migrated.todoMode);
           setTodoAutoPlayDefault(migrated.todoAutoPlayDefault);
           setTodoMaxRetries(migrated.todoMaxRetries);
           setAutoPlayTodos(migrated.todoAutoPlayDefault);
-          setRightCollapsed(!migrated.todoMode);
           setRightPanelWidth(migrated.rightPanelWidth);
           setIncludeSessionHistoryInPrompt(migrated.includeSessionHistoryInPrompt);
           setClaudeAutoContinue(migrated.claudeAutoContinue);
@@ -1247,6 +1244,7 @@ function App() {
   function setModel(v: string) { updateActiveSession((s) => ({ ...s, model: v })); }
   function setApprovalPolicy(v: string) { updateActiveSession((s) => ({ ...s, approvalPolicy: v })); }
   function setSandboxMode(v: string) { updateActiveSession((s) => ({ ...s, sandboxMode: v })); }
+  function setTodoMode(enabled: boolean) { updateActiveSession((s) => ({ ...s, todoMode: enabled })); }
 
   function makeSession(projectId: string, index: number): Session {
     return {
@@ -1279,8 +1277,6 @@ function App() {
       setAutoPlayTodos(todoAutoPlayDefault);
       setSearchQuery("");
       setSearchOpen(false);
-      setTodoMode(false);
-      setRightCollapsed(true);
       setNotifPanelOpen(false);
       setElapsed(0);
       requestAnimationFrame(() => setTransitioning(false));
@@ -1762,7 +1758,6 @@ function App() {
               onClick={() => {
                 const next = !todoMode;
                 setTodoMode(next);
-                setRightCollapsed(!next);
                 if (next && rightPanelWidth < 220) setRightPanelWidth(280);
               }}
               title={todoMode ? "Hide todos" : "Show todos"}
@@ -2049,7 +2044,7 @@ function App() {
         <div
           className={`session-todo ${rightCollapsed ? "session-todo-collapsed" : ""}`}
           style={rightCollapsed ? undefined : { width: rightPanelWidth }}
-          onClick={() => { if (rightCollapsed) { setRightCollapsed(false); setTodoMode(true); } }}
+          onClick={() => { if (rightCollapsed) { setTodoMode(true); } }}
         >
             <TodoPanel
             todos={todos}
@@ -2061,7 +2056,6 @@ function App() {
             onDelete={handleDeleteTodo}
             onEdit={handleEditTodo}
             onCollapse={() => {
-              setRightCollapsed(true);
               setTodoMode(false);
             }}
             onRunTodos={() => {
@@ -2130,10 +2124,7 @@ ADD_TODO: step three description`);
         sandboxMode={sandboxMode}
         setSandboxMode={setSandboxMode}
         todoMode={todoMode}
-        setTodoMode={(enabled) => {
-          setTodoMode(enabled);
-          setRightCollapsed(!enabled);
-        }}
+        setTodoMode={setTodoMode}
         todoAutoPlayDefault={todoAutoPlayDefault}
         setTodoAutoPlayDefault={setTodoAutoPlayDefault}
         todoMaxRetries={todoMaxRetries}
