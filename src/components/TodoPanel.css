@@ -381,6 +381,10 @@
   color: #fff;
 }
 
+.todo-player-disabled {
+  opacity: 0.5;
+}
+
 .todo-player-status {
   font-size: 0.7rem;
   color: var(--vp-c-text-3);

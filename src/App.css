@@ -1122,6 +1122,18 @@ body.body-dark .search-highlight {
   text-decoration-color: var(--vp-c-brand-1);
 }
 
+.fmt-link {
+  color: var(--vp-c-brand-1);
+  text-decoration: underline;
+  text-decoration-color: var(--vp-c-brand-3);
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.fmt-link:hover {
+  text-decoration-color: var(--vp-c-brand-1);
+}
+
 .fmt-bullet {
   display: flex;
   align-items: baseline;
@@ -1375,10 +1387,13 @@ pre.json {
 
 .meta-label {
   color: var(--vp-c-text-3);
-  border: 1px solid var(--vp-c-divider);
-  background: color-mix(in srgb, var(--vp-c-bg-soft) 88%, transparent);
-  border-radius: 999px;
+  border: none;
+  background: var(--vp-c-bg-mute);
+  border-radius: 2px;
   padding: 2px 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .meta-chip-button {
@@ -1389,11 +1404,39 @@ pre.json {
   padding: 2px 8px;
   font-size: inherit;
   line-height: 1.35;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.meta-chip-button svg {
+  flex-shrink: 0;
+  opacity: 0.7;
 }
 
 .meta-chip-button:hover {
-  border-color: var(--vp-c-brand-3);
   color: var(--vp-c-brand-1);
+}
+
+.meta-chip-select {
+  appearance: none;
+  -webkit-appearance: none;
+  color: var(--vp-c-text-3);
+  border: none;
+  background: var(--vp-c-bg-mute);
+  border-radius: 2px;
+  padding: 2px 8px;
+  font-size: inherit;
+  font-family: inherit;
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.meta-chip-select:hover,
+.meta-chip-select:focus {
+  color: var(--vp-c-text-1);
+  outline: none;
 }
 
 .meta-select {
@@ -1428,6 +1471,9 @@ pre.json {
   right: 10px;
   bottom: 10px;
   z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .prompt-action,
@@ -1439,6 +1485,23 @@ pre.json {
 
 .prompt-section textarea {
   padding-bottom: 76px;
+}
+
+.prompt-action-todo {
+  background: transparent;
+  border: 1px solid var(--vp-c-divider);
+  color: var(--vp-c-text-3);
+}
+
+.prompt-action-todo:hover {
+  color: var(--vp-c-text-1);
+  border-color: var(--vp-c-text-3);
+}
+
+.prompt-action-todo.is-active {
+  background: var(--ev-success);
+  border-color: var(--ev-success);
+  color: #fff;
 }
 
 .prompt-action-run {

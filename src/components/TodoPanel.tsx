@@ -8,6 +8,7 @@ interface TodoPanelProps {
   readonly?: boolean;
   canRun?: boolean;
   running?: boolean;
+  todoMode?: boolean;
   autoPlay?: boolean;
   onAdd: (text: string) => void;
   onToggle: (id: string) => void;
@@ -108,6 +109,7 @@ export function TodoPanel({
   onToggleAutoPlay,
   canRun,
   running,
+  todoMode,
   autoPlay,
   onReorder,
 }: TodoPanelProps) {
@@ -355,13 +357,13 @@ export function TodoPanel({
             </button>
           </div>
           {pending.length > 0 && (
-            <div className="todo-player">
+            <div className={`todo-player ${!todoMode ? "todo-player-disabled" : ""}`}>
               {running ? (
-                <button type="button" className="todo-player-btn todo-player-stop" onClick={onStopTodos} title="Stop">
+                <button type="button" className="todo-player-btn todo-player-stop" onClick={onStopTodos} disabled={!todoMode} title={todoMode ? "Stop" : "Enable todo mode to use player"}>
                   <PauseIcon />
                 </button>
               ) : (
-                <button type="button" className="todo-player-btn todo-player-play" onClick={onRunTodos} disabled={!canRun} title="Run next todo">
+                <button type="button" className="todo-player-btn todo-player-play" onClick={onRunTodos} disabled={!todoMode || !canRun} title={todoMode ? "Run next todo" : "Enable todo mode to use player"}>
                   <PlayIcon />
                 </button>
               )}
@@ -369,12 +371,13 @@ export function TodoPanel({
                 type="button"
                 className={`todo-player-btn ${autoPlay ? "todo-player-active" : ""}`}
                 onClick={onToggleAutoPlay}
-                title={autoPlay ? "Auto-play ON — will run all todos" : "Auto-play OFF — pauses between todos"}
+                disabled={!todoMode}
+                title={!todoMode ? "Enable todo mode to use auto-play" : autoPlay ? "Auto-play ON — will run all todos" : "Auto-play OFF — pauses between todos"}
               >
                 <SkipIcon />
               </button>
               <span className="todo-player-status">
-                {running ? "Running..." : `${pending.length} left`}
+                {!todoMode ? "Mode off" : running ? "Running..." : `${pending.length} left`}
               </span>
             </div>
           )}

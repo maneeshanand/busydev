@@ -439,9 +439,9 @@ function handleOpenPath(path: string) {
 }
 
 function formatInline(text: string): React.ReactNode {
-  // Process inline: **bold**, `code`, *italic*, /absolute/file/paths
+  // Process inline: **bold**, `code`, *italic*, /absolute/file/paths, URLs
   const parts: React.ReactNode[] = [];
-  const regex = /(\*\*(.+?)\*\*|`([^`]+)`|\*(.+?)\*|(\/[\w./-]+\.\w+))/g;
+  const regex = /(\*\*(.+?)\*\*|`([^`]+)`|\*(.+?)\*|(https?:\/\/[^\s<>)"']+)|(\/[\w./-]+\.\w+))/g;
   let lastIndex = 0;
   let match;
   let key = 0;
@@ -467,10 +467,22 @@ function formatInline(text: string): React.ReactNode {
     } else if (match[4]) {
       parts.push(<em key={key++}>{match[4]}</em>);
     } else if (match[5]) {
+      // URL — strip trailing punctuation that's likely not part of the URL
+      let url = match[5];
+      const trailingPunct = /[.,;:!?)]+$/.exec(url);
+      if (trailingPunct) url = url.slice(0, -trailingPunct[0].length);
+      parts.push(
+        <a key={key++} className="fmt-link" href={url} target="_blank" rel="noopener noreferrer" title={url}>
+          {url}
+        </a>
+      );
+      // Push back any stripped trailing punctuation as plain text
+      if (trailingPunct) parts.push(trailingPunct[0]);
+    } else if (match[6]) {
       // Bare file path
       parts.push(
-        <span key={key++} className="fmt-path" onClick={() => handleOpenPath(match![5])} title="Open file">
-          {match[5]}
+        <span key={key++} className="fmt-path" onClick={() => handleOpenPath(match![6])} title="Open file">
+          {match[6]}
         </span>
       );
     }
@@ -791,7 +803,6 @@ function App() {
   const [inFlightRuns, setInFlightRuns] = useState<Record<string, InFlightRun>>({});
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [autoPlayTodos, setAutoPlayTodos] = useState(false);
   const [todoAutoPlayDefault, setTodoAutoPlayDefault] = useState(false);
   const [todoMaxRetries, setTodoMaxRetries] = useState(3);
   const [includeSessionHistoryInPrompt, setIncludeSessionHistoryInPrompt] = useState(true);
@@ -799,10 +810,7 @@ function App() {
   const [terminalFontSize, setTerminalFontSize] = useState(13);
   const [terminalLineHeight, setTerminalLineHeight] = useState(1.3);
 
-  // Global state
-  const [todoMode, setTodoMode] = useState(false);
   const [rightPanelWidth, setRightPanelWidth] = useState(280);
-  const [rightCollapsed, setRightCollapsed] = useState(true);
 
   // Track which session owns which runId (for background run completion)
   const runSessionMapRef = useRef<Record<string, { projectId: string; sessionId: string }>>({});
@@ -856,6 +864,11 @@ function App() {
     : approvalPolicy === "never"
       ? "manual"
       : "full-auto";
+  const todoMode = activeSession?.todoMode ?? false;
+  const autoPlayTodos = activeSession?.autoPlay ?? false;
+  const [todoPanelOpen, setTodoPanelOpen] = useState(false);
+  const [confirmTodoMode, setConfirmTodoMode] = useState(false);
+  const rightCollapsed = !todoPanelOpen;
 
   // Keep refs current so async run completions don't rely on stale render state.
   projectsRef.current = projects;
@@ -986,11 +999,8 @@ function App() {
           setProjects(migrated.projects);
           setActiveProjectId(migrated.activeProjectId);
           setSkipGitRepoCheck(migrated.skipGitRepoCheck);
-          setTodoMode(migrated.todoMode);
           setTodoAutoPlayDefault(migrated.todoAutoPlayDefault);
           setTodoMaxRetries(migrated.todoMaxRetries);
-          setAutoPlayTodos(migrated.todoAutoPlayDefault);
-          setRightCollapsed(!migrated.todoMode);
           setRightPanelWidth(migrated.rightPanelWidth);
           setIncludeSessionHistoryInPrompt(migrated.includeSessionHistoryInPrompt);
           setClaudeAutoContinue(migrated.claudeAutoContinue);
@@ -1365,6 +1375,8 @@ function App() {
       textarea.setSelectionRange(nextCursor, nextCursor);
     });
   }
+  function setTodoMode(enabled: boolean) { updateActiveSession((s) => ({ ...s, todoMode: enabled })); }
+  function setAutoPlayTodos(enabled: boolean) { updateActiveSession((s) => ({ ...s, autoPlay: enabled })); }
 
   function makeSession(projectId: string, index: number): Session {
     return {
@@ -1381,9 +1393,8 @@ function App() {
   // Switching just resets ephemeral UI state; derived values auto-update from projects.
 
   function resetEphemeralState() {
-    // Immediately kill auto-play to prevent race with delayed callbacks
+    // Immediately kill auto-play ref to prevent race with delayed callbacks
     autoPlayTodosRef.current = false;
-    setAutoPlayTodos(false);
     // Clear retry counters for the previous session
     todoRetryCountRef.current = {};
 
@@ -1394,12 +1405,10 @@ function App() {
       setPrompt("");
       setPromptHistory([]);
       setHistoryIndex(-1);
-      setAutoPlayTodos(todoAutoPlayDefault);
       setSearchQuery("");
       setSearchOpen(false);
-      setTodoMode(false);
-      setRightCollapsed(true);
       setNotifPanelOpen(false);
+      setTodoPanelOpen(false);
       setElapsed(0);
       requestAnimationFrame(() => setTransitioning(false));
     }, 120);
@@ -1576,10 +1585,23 @@ function App() {
     }
     setElapsed(0);
 
+    // Strip system instructions from display — keep only the user-visible portion
+    let displayPrompt = submittedPrompt;
+    // Todo generation prompt → show just the goal
+    const goalMatch = submittedPrompt.match(/\nGoal: (.+)\n/);
+    if (goalMatch && submittedPrompt.includes("ADD_TODO:")) {
+      displayPrompt = `Generate todos: ${goalMatch[1]}`;
+    }
+    // Auto-play prompt → show just the task
+    const todoWorkMatch = submittedPrompt.match(/^Work on todo #(\d+): (.+?)(?:\n|$)/);
+    if (todoWorkMatch) {
+      displayPrompt = `Todo #${todoWorkMatch[1]}: ${todoWorkMatch[2]}`;
+    }
+
     // Add to in-flight runs and switch to this tab
     setInFlightRuns((prev) => ({
       ...prev,
-      [runId]: { id: runNumber, runId, prompt: submittedPrompt, streamRows: [] },
+      [runId]: { id: runNumber, runId, prompt: displayPrompt, streamRows: [] },
     }));
     setActiveTabId(runId);
 
@@ -1622,11 +1644,11 @@ function App() {
       const wasStopped = stoppedMapRef.current[runId] || false;
       const persistedRun: PersistedRun = {
         id: runNumber,
-        prompt: submittedPrompt,
+        prompt: displayPrompt,
         streamRows: finalStreamRows,
         exitCode: out.exitCode,
         durationMs: out.durationMs,
-        finalSummary: buildFinalSummary({ id: runNumber, prompt: submittedPrompt, output: out, streamRows: finalStreamRows, stopped: wasStopped }),
+        finalSummary: buildFinalSummary({ id: runNumber, prompt: displayPrompt, output: out, streamRows: finalStreamRows, stopped: wasStopped }),
         stopped: wasStopped,
         completedAt: Date.now(),
       };
@@ -1637,7 +1659,7 @@ function App() {
       // Fire notification for completed run
       if (!wasStopped) {
         if (out.exitCode === 0) {
-          fireNotification("Agent completed", submittedPrompt.slice(0, 60), "success", owner?.projectId, owner?.sessionId);
+          fireNotification("Agent completed", displayPrompt.slice(0, 60), "success", owner?.projectId, owner?.sessionId);
         } else {
           fireNotification("Agent failed", `Exit code ${out.exitCode}`, "error", owner?.projectId, owner?.sessionId);
         }
@@ -1650,10 +1672,12 @@ function App() {
         }));
       }
 
-      // Auto-update todos in the owning session
-      if (todoMode && !wasStopped && owner) {
-        const ownerSession = projectsRef.current.find((p) => p.id === owner.projectId)
-          ?.sessions.find((s) => s.id === owner.sessionId);
+      // Auto-update todos in the owning session (check the OWNER's todoMode, not the active session's)
+      const ownerSession = owner
+        ? projectsRef.current.find((p) => p.id === owner.projectId)
+            ?.sessions.find((s) => s.id === owner.sessionId)
+        : null;
+      if (ownerSession?.todoMode && !wasStopped && owner) {
         const ownerTodos = ownerSession?.todos ?? [];
         const requestedTodoId = runTodoIdRef.current[runId] ?? null;
         const completedIds = parseTodoCompletions(out, ownerTodos);
@@ -1692,19 +1716,19 @@ function App() {
           }
         }
 
-        // Auto-play: if enabled and the run was for the active session
-        const autoPlayProjectId = activeProjectIdRef.current;
-        const autoPlaySessionId = activeSessionIdRef.current;
-        if (autoPlayTodosRef.current && !wasStopped &&
-            owner.projectId === autoPlayProjectId &&
-            owner.sessionId === autoPlaySessionId) {
+        // Auto-play: check the OWNER session's autoPlay, not the active session
+        if (ownerSession?.autoPlay && !wasStopped) {
           setTimeout(() => {
-            // Verify auto-play is still enabled AND we're still on the same session
-            if (!autoPlayTodosRef.current) return;
-            if (autoPlayProjectId !== activeProjectIdRef.current || autoPlaySessionId !== activeSessionIdRef.current) return;
-            // Read latest todos from projects state
-            const latestTodos = projectsRef.current.find((p) => p.id === owner.projectId)
-              ?.sessions.find((s) => s.id === owner.sessionId)?.todos ?? [];
+            // Re-read owner session to verify auto-play and todoMode are still enabled
+            const latestOwner = projectsRef.current.find((p) => p.id === owner.projectId)
+              ?.sessions.find((s) => s.id === owner.sessionId);
+            if (!latestOwner?.autoPlay || !latestOwner?.todoMode) return;
+            // handleRun targets the active session — only continue if owner is still active
+            if (owner.projectId !== activeProjectIdRef.current || owner.sessionId !== activeSessionIdRef.current) {
+              fireNotification("Auto-play paused", "Session is no longer active. Switch back to continue.", "warning", owner.projectId, owner.sessionId);
+              return;
+            }
+            const latestTodos = latestOwner.todos ?? [];
             const sourceTodos = latestTodos.length > 0 ? latestTodos : updatedOwnerTodos;
             const decision = getTodoAutoPlayDecision(sourceTodos, requestedTodoId, todoProgressMade);
             if (!decision.nextTodo || decision.nextIndex === null) return;
@@ -2178,41 +2202,81 @@ function App() {
               </div>
             )}
             <div className="composer-meta">
-              <button
-                type="button"
-                className="meta-chip-button"
-                onClick={() => openSettings("session")}
+              <select
+                className="meta-chip-select"
+                value={agent}
+                onChange={(e) => setAgent(e.target.value)}
+                title="Agent"
               >
-                Agent: {agent === "claude" ? "Claude Code" : "Codex"}
-              </button>
-              <button
-                type="button"
-                className="meta-chip-button"
-                onClick={() => openSettings("session")}
+                <option value="codex">Codex</option>
+                <option value="claude">Claude</option>
+              </select>
+              <select
+                className="meta-chip-select"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                title="Model"
               >
-                Model: {modelLabel}
-              </button>
-              <button
-                type="button"
-                className="meta-chip-button"
-                onClick={() => openSettings("execution")}
+                {agent === "claude" ? (
+                  <>
+                    <option value="">claude-sonnet-4-6</option>
+                    <option value="claude-opus-4-6">claude-opus-4-6</option>
+                    <option value="claude-haiku-4-5">claude-haiku-4-5</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="">codex-mini</option>
+                    <option value="o3">o3</option>
+                    <option value="o4-mini">o4-mini</option>
+                  </>
+                )}
+              </select>
+              <select
+                className="meta-chip-select"
+                value={
+                  approvalPolicy === "full-auto" && sandboxMode === "danger-full-access" ? "full-auto"
+                  : approvalPolicy === "never" && sandboxMode === "read-only" ? "safe"
+                  : approvalPolicy === "unless-allow-listed" && sandboxMode === "workspace-write" ? "balanced"
+                  : "custom"
+                }
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === "safe") { setApprovalPolicy("never"); setSandboxMode("read-only"); }
+                  else if (v === "balanced") { setApprovalPolicy("unless-allow-listed"); setSandboxMode("workspace-write"); }
+                  else if (v === "full-auto") { setApprovalPolicy("full-auto"); setSandboxMode("danger-full-access"); }
+                }}
+                title="Execution mode"
               >
-                Approval: {approvalLabel}
-              </button>
-              {agent === "codex" && (
-                <button
-                  type="button"
-                  className="meta-chip-button"
-                  onClick={() => openSettings("execution")}
-                >
-                  Sandbox: {sandboxMode === "danger-full-access" ? "full-access" : sandboxMode}
-                </button>
-              )}
+                <option value="safe">Safe</option>
+                <option value="balanced">Balanced</option>
+                <option value="full-auto">Full Auto</option>
+                {approvalPolicy !== "full-auto" && approvalPolicy !== "never" && approvalPolicy !== "unless-allow-listed" && (
+                  <option value="custom">Custom</option>
+                )}
+              </select>
               {todoMode && todos.length > 0 && (
-                <span className="meta-label">Todos: {todos.filter((t) => !t.done).length} remaining</span>
+                <span className="meta-label" title="Remaining todos">
+                  {todos.filter((t) => !t.done).length} left
+                </span>
               )}
             </div>
             <div className="prompt-actions">
+              <button
+                type="button"
+                className={`prompt-action prompt-action-todo ${todoMode ? "is-active" : ""}`}
+                onClick={() => {
+                  if (todoMode) {
+                    setTodoMode(false);
+                    setTodoPanelOpen(false);
+                  } else {
+                    setConfirmTodoMode(true);
+                  }
+                }}
+                title={todoMode ? "Disable todo mode" : "Enable todo mode"}
+                aria-label="Toggle todo mode"
+              >
+                <ChecklistIcon />
+              </button>
               {activeInFlightRun ? (
                 <button
                   type="button"
@@ -2241,13 +2305,40 @@ function App() {
         </div>
         {/* end session-main */}
 
+        {confirmTodoMode && (
+          <div className="confirm-overlay" onClick={() => setConfirmTodoMode(false)}>
+            <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="confirm-title">Enable Todo Mode?</div>
+              <p className="confirm-body">
+                In todo mode, the agent will work through your todo list items sequentially. Auto-play will run each item one by one until all are complete or paused.
+              </p>
+              <div className="confirm-actions">
+                <button type="button" className="confirm-cancel" onClick={() => setConfirmTodoMode(false)}>Cancel</button>
+                <button
+                  type="button"
+                  className="confirm-cancel"
+                  style={{ background: "var(--vp-c-brand-1)", color: "white" }}
+                  onClick={() => {
+                    setTodoMode(true);
+                    setTodoPanelOpen(true);
+                    if (rightPanelWidth < 220) setRightPanelWidth(280);
+                    setConfirmTodoMode(false);
+                  }}
+                >
+                  Enable
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {!rightCollapsed && (
           <ResizeHandle side="right" onResize={handleRightResize} onResizeEnd={handleResizeEnd} />
         )}
         <div
           className={`session-todo ${rightCollapsed ? "session-todo-collapsed" : ""}`}
           style={rightCollapsed ? undefined : { width: rightPanelWidth }}
-          onClick={() => { if (rightCollapsed) { setRightCollapsed(false); setTodoMode(true); } }}
+          onClick={() => { if (rightCollapsed) { setTodoPanelOpen(true); } }}
         >
             <TodoPanel
             todos={todos}
@@ -2259,8 +2350,7 @@ function App() {
             onDelete={handleDeleteTodo}
             onEdit={handleEditTodo}
             onCollapse={() => {
-              setRightCollapsed(true);
-              setTodoMode(false);
+              setTodoPanelOpen(false);
             }}
             onRunTodos={() => {
               if (todos.filter((t) => !t.done).length === 0) return;
@@ -2270,8 +2360,9 @@ function App() {
               void handleRun(`Work on todo #${idx + 1}: ${nextTodo.text}\n\nComplete this single item and mark it done with DONE: ${idx + 1}`);
             }}
             onStopTodos={handleStop}
+            todoMode={todoMode}
             autoPlay={autoPlayTodos}
-            onToggleAutoPlay={() => setAutoPlayTodos((prev) => !prev)}
+            onToggleAutoPlay={() => setAutoPlayTodos(!autoPlayTodos)}
             onClearTodos={handleClearTodos}
             onSaveTodos={handleSaveTodos}
             onReorder={(from, to) => {
@@ -2317,21 +2408,11 @@ ADD_TODO: step three description`);
         setDebugMode={setDebugMode}
         skipGitRepoCheck={skipGitRepoCheck}
         setSkipGitRepoCheck={setSkipGitRepoCheck}
-        project={activeProject}
-        session={activeSession}
         agent={agent}
-        setAgent={setAgent}
-        model={model}
-        setModel={setModel}
         approvalPolicy={approvalPolicy}
         setApprovalPolicy={setApprovalPolicy}
         sandboxMode={sandboxMode}
         setSandboxMode={setSandboxMode}
-        todoMode={todoMode}
-        setTodoMode={(enabled) => {
-          setTodoMode(enabled);
-          setRightCollapsed(!enabled);
-        }}
         todoAutoPlayDefault={todoAutoPlayDefault}
         setTodoAutoPlayDefault={setTodoAutoPlayDefault}
         todoMaxRetries={todoMaxRetries}
