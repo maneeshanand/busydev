@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { TodoItem } from "../types";
+import { TodoDetailView } from "./TodoDetailView";
 import "./TodoPanel.css";
 
 interface TodoPanelProps {
@@ -22,6 +23,7 @@ interface TodoPanelProps {
   onSaveTodos?: () => void;
   onToggleAutoPlay?: () => void;
   onReorder?: (fromIndex: number, toIndex: number) => void;
+  onUpdateTodo?: (id: string, updates: Partial<TodoItem>) => void;
 }
 
 function SkipIcon() {
@@ -112,6 +114,7 @@ export function TodoPanel({
   todoMode,
   autoPlay,
   onReorder,
+  onUpdateTodo,
 }: TodoPanelProps) {
   const [newText, setNewText] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -120,6 +123,7 @@ export function TodoPanel({
   const [showGoalInput, setShowGoalInput] = useState(false);
   const [dragFromIndex, setDragFromIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [selectedTodoId, setSelectedTodoId] = useState<string | null>(null);
 
   const doneCount = todos.filter((t) => t.done).length;
   const pending = todos.filter((t) => !t.done);
@@ -190,6 +194,24 @@ export function TodoPanel({
         )}
       </div>
     );
+  }
+
+  if (selectedTodoId && onUpdateTodo) {
+    const todoIndex = todos.findIndex((t) => t.id === selectedTodoId);
+    const selectedTodo = todos[todoIndex];
+    if (selectedTodo) {
+      return (
+        <TodoDetailView
+          todo={selectedTodo}
+          index={todoIndex}
+          total={todos.length}
+          onBack={() => setSelectedTodoId(null)}
+          onUpdate={onUpdateTodo}
+        />
+      );
+    }
+    // Selected todo was deleted — fall back to list
+    setSelectedTodoId(null);
   }
 
   return (
@@ -264,7 +286,8 @@ export function TodoPanel({
         {todos.map((item, index) => (
           <div
             key={item.id}
-            className={`todo-item ${item.done ? "todo-item-done" : ""} ${dragOverIndex === index ? "todo-item-dragover" : ""} ${dragFromIndex === index ? "todo-item-dragging" : ""}`}
+            className={`todo-item todo-item-clickable ${item.done ? "todo-item-done" : ""} ${dragOverIndex === index ? "todo-item-dragover" : ""} ${dragFromIndex === index ? "todo-item-dragging" : ""}`}
+            onClick={() => setSelectedTodoId(item.id)}
             onMouseEnter={() => {
               if (dragFromIndex !== null && dragFromIndex !== index && !item.done) {
                 setDragOverIndex(index);
@@ -338,6 +361,7 @@ export function TodoPanel({
                 ×
               </button>
             )}
+            <span className="todo-item-arrow">&rarr;</span>
           </div>
         ))}
       </div>
