@@ -415,9 +415,9 @@ function handleOpenPath(path: string) {
 }
 
 function formatInline(text: string): React.ReactNode {
-  // Process inline: **bold**, `code`, *italic*, /absolute/file/paths
+  // Process inline: **bold**, `code`, *italic*, /absolute/file/paths, URLs
   const parts: React.ReactNode[] = [];
-  const regex = /(\*\*(.+?)\*\*|`([^`]+)`|\*(.+?)\*|(\/[\w./-]+\.\w+))/g;
+  const regex = /(\*\*(.+?)\*\*|`([^`]+)`|\*(.+?)\*|(https?:\/\/[^\s<>)"']+)|(\/[\w./-]+\.\w+))/g;
   let lastIndex = 0;
   let match;
   let key = 0;
@@ -443,10 +443,22 @@ function formatInline(text: string): React.ReactNode {
     } else if (match[4]) {
       parts.push(<em key={key++}>{match[4]}</em>);
     } else if (match[5]) {
+      // URL — strip trailing punctuation that's likely not part of the URL
+      let url = match[5];
+      const trailingPunct = /[.,;:!?)]+$/.exec(url);
+      if (trailingPunct) url = url.slice(0, -trailingPunct[0].length);
+      parts.push(
+        <a key={key++} className="fmt-link" href={url} target="_blank" rel="noopener noreferrer" title={url}>
+          {url}
+        </a>
+      );
+      // Push back any stripped trailing punctuation as plain text
+      if (trailingPunct) parts.push(trailingPunct[0]);
+    } else if (match[6]) {
       // Bare file path
       parts.push(
-        <span key={key++} className="fmt-path" onClick={() => handleOpenPath(match![5])} title="Open file">
-          {match[5]}
+        <span key={key++} className="fmt-path" onClick={() => handleOpenPath(match![6])} title="Open file">
+          {match[6]}
         </span>
       );
     }

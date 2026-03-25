@@ -1122,6 +1122,18 @@ body.body-dark .search-highlight {
   text-decoration-color: var(--vp-c-brand-1);
 }
 
+.fmt-link {
+  color: var(--vp-c-brand-1);
+  text-decoration: underline;
+  text-decoration-color: var(--vp-c-brand-3);
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.fmt-link:hover {
+  text-decoration-color: var(--vp-c-brand-1);
+}
+
 .fmt-bullet {
   display: flex;
   align-items: baseline;
