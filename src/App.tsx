@@ -1291,16 +1291,10 @@ function App() {
   }
 
   function switchSession(projectId: string, sessionId: string) {
-    const targetSession = projects.find((p) => p.id === projectId)
-      ?.sessions.find((s) => s.id === sessionId);
     setProjects((prev) => prev.map((p) =>
       p.id === projectId ? { ...p, activeSessionId: sessionId } : p
     ));
     resetEphemeralState();
-    // Restore todo panel visibility from the target session's state
-    if (targetSession?.todoMode) {
-      setTimeout(() => setTodoPanelOpen(true), 130);
-    }
   }
 
   async function handleNewSession() {
