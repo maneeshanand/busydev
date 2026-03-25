@@ -220,8 +220,16 @@ pub async fn run_codex_exec(
     // TODO: MAN-138 interactive approval needs stdin piping
     let needs_stdin = false;
 
-    let mut child = Command::new(&program)
-        .args(&args)
+    // Spawn through the user's login shell to inherit full PATH
+    // (Tauri apps on macOS don't get shell profile env vars like /opt/homebrew/bin)
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+    let full_command = std::iter::once(program.clone())
+        .chain(args.iter().map(|a| shell_escape::escape(a.into()).to_string()))
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    let mut child = Command::new(&shell)
+        .args(["-l", "-c", &full_command])
         .current_dir(&input.working_directory)
         .stdin(if needs_stdin { Stdio::piped() } else { Stdio::null() })
         .stdout(Stdio::piped())
