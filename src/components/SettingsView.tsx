@@ -1,10 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
-import type { Project, Session } from "../types";
+import { useEffect, useState } from "react";
 import "./SettingsView.css";
 
 export type SectionId =
   | "general"
-  | "session"
   | "execution"
   | "todo"
   | "terminal"
@@ -26,18 +24,11 @@ interface SettingsViewProps {
   setDebugMode: (enabled: boolean) => void;
   skipGitRepoCheck: boolean;
   setSkipGitRepoCheck: (enabled: boolean) => void;
-  project: Project | null;
-  session: Session | null;
   agent: string;
-  setAgent: (agent: string) => void;
-  model: string;
-  setModel: (model: string) => void;
   approvalPolicy: string;
   setApprovalPolicy: (policy: string) => void;
   sandboxMode: string;
   setSandboxMode: (mode: string) => void;
-  todoMode: boolean;
-  setTodoMode: (enabled: boolean) => void;
   todoAutoPlayDefault: boolean;
   setTodoAutoPlayDefault: (enabled: boolean) => void;
   todoMaxRetries: number;
@@ -57,44 +48,20 @@ interface SettingsViewProps {
 
 const SECTION_LABELS: Record<SectionId, string> = {
   general: "General",
-  session: "Session",
   execution: "Execution",
-  todo: "Todo Panel",
+  todo: "Todo",
   terminal: "Terminal",
   advanced: "Advanced",
 };
 
-function getExecutionPreset(approval: string, sandbox: string): string {
-  if (approval === "never" && sandbox === "read-only") return "safe";
-  if (approval === "unless-allow-listed" && sandbox === "workspace-write") return "balanced";
-  if (approval === "full-auto" && sandbox === "danger-full-access") return "full-auto";
-  return "custom";
-}
-
 export function SettingsView(props: SettingsViewProps) {
   const [activeSection, setActiveSection] = useState<SectionId>("general");
   const [confirmReset, setConfirmReset] = useState(false);
-  const [showAdvancedExec, setShowAdvancedExec] = useState(false);
 
   useEffect(() => {
     if (!props.open) return;
     if (props.initialSection) setActiveSection(props.initialSection);
   }, [props.open, props.initialSection]);
-
-  const modelOptions = useMemo(() => {
-    if (props.agent === "claude") {
-      return [
-        { value: "", label: "claude-sonnet-4-6" },
-        { value: "claude-opus-4-6", label: "claude-opus-4-6" },
-        { value: "claude-haiku-4-5", label: "claude-haiku-4-5" },
-      ];
-    }
-    return [
-      { value: "", label: "codex-mini" },
-      { value: "o3", label: "o3" },
-      { value: "o4-mini", label: "o4-mini" },
-    ];
-  }, [props.agent]);
 
   if (!props.open) return null;
 
@@ -161,106 +128,29 @@ export function SettingsView(props: SettingsViewProps) {
                   onChange={(e) => props.setSplashDurationMs(Number(e.target.value))}
                 />
               </label>
-              <label>
-                Active project
-                <input value={props.project?.name ?? "No project selected"} readOnly />
-              </label>
-              <label>
-                Project path
-                <input value={props.project?.path ?? ""} readOnly />
-              </label>
-            </section>
-          )}
-
-          {activeSection === "session" && (
-            <section className="settings-section">
-              <p className="settings-helper">These values are scoped to the active session.</p>
-              <label>
-                Active session
-                <input value={props.session?.name ?? "No session selected"} readOnly />
-              </label>
-              <label>
-                Agent
-                <select
-                  value={props.agent}
-                  onChange={(e) => {
-                    props.setAgent(e.target.value);
-                    props.setModel("");
-                  }}
-                >
-                  <option value="codex">Codex</option>
-                  <option value="claude">Claude Code</option>
-                </select>
-              </label>
-              <label>
-                Model
-                <select value={props.model} onChange={(e) => props.setModel(e.target.value)}>
-                  {modelOptions.map((opt) => (
-                    <option key={opt.label} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </label>
             </section>
           )}
 
           {activeSection === "execution" && (
             <section className="settings-section">
-              <p className="settings-helper">Run behavior and safety controls.</p>
+              <p className="settings-helper">Advanced run behavior. Use the composer dropdowns for quick changes.</p>
               <label>
-                Execution mode
-                <select
-                  value={getExecutionPreset(props.approvalPolicy, props.sandboxMode)}
-                  onChange={(e) => {
-                    const preset = e.target.value;
-                    if (preset === "safe") {
-                      props.setApprovalPolicy("never");
-                      props.setSandboxMode("read-only");
-                    } else if (preset === "balanced") {
-                      props.setApprovalPolicy("unless-allow-listed");
-                      props.setSandboxMode("workspace-write");
-                    } else if (preset === "full-auto") {
-                      props.setApprovalPolicy("full-auto");
-                      props.setSandboxMode("danger-full-access");
-                    }
-                    setShowAdvancedExec(false);
-                  }}
-                >
-                  <option value="safe">Safe — manual approval, read-only sandbox</option>
-                  <option value="balanced">Balanced — allow-listed approval, workspace writes</option>
-                  <option value="full-auto">Full Auto — no approval, full access</option>
-                  {getExecutionPreset(props.approvalPolicy, props.sandboxMode) === "custom" && (
-                    <option value="custom">Custom</option>
-                  )}
+                Approval policy
+                <select value={props.approvalPolicy} onChange={(e) => props.setApprovalPolicy(e.target.value)}>
+                  <option value="full-auto">full-auto</option>
+                  <option value="unless-allow-listed">allow-listed</option>
+                  <option value="never">manual</option>
                 </select>
               </label>
-              <button
-                type="button"
-                className="settings-link-button"
-                onClick={() => setShowAdvancedExec((prev) => !prev)}
-              >
-                {showAdvancedExec ? "Hide" : "Show"} advanced
-              </button>
-              {showAdvancedExec && (
-                <>
-                  <label>
-                    Approval policy
-                    <select value={props.approvalPolicy} onChange={(e) => props.setApprovalPolicy(e.target.value)}>
-                      <option value="full-auto">full-auto</option>
-                      <option value="unless-allow-listed">allow-listed</option>
-                      <option value="never">manual</option>
-                    </select>
-                  </label>
-                  {props.agent === "codex" && (
-                    <label>
-                      Sandbox mode
-                      <select value={props.sandboxMode} onChange={(e) => props.setSandboxMode(e.target.value)}>
-                        <option value="read-only">read-only</option>
-                        <option value="workspace-write">workspace-write</option>
-                        <option value="danger-full-access">full-access</option>
-                      </select>
-                    </label>
-                  )}
-                </>
+              {props.agent === "codex" && (
+                <label>
+                  Sandbox mode
+                  <select value={props.sandboxMode} onChange={(e) => props.setSandboxMode(e.target.value)}>
+                    <option value="read-only">read-only</option>
+                    <option value="workspace-write">workspace-write</option>
+                    <option value="danger-full-access">full-access</option>
+                  </select>
+                </label>
               )}
               <label className="settings-checkbox">
                 <input
@@ -291,15 +181,7 @@ export function SettingsView(props: SettingsViewProps) {
 
           {activeSection === "todo" && (
             <section className="settings-section">
-              <p className="settings-helper">Control Todo panel visibility and layout.</p>
-              <label className="settings-checkbox">
-                <input
-                  type="checkbox"
-                  checked={props.todoMode}
-                  onChange={(e) => props.setTodoMode(e.target.checked)}
-                />
-                Enable todo mode
-              </label>
+              <p className="settings-helper">Todo auto-play defaults and limits.</p>
               <label className="settings-checkbox">
                 <input
                   type="checkbox"
