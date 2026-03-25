@@ -155,6 +155,10 @@ function sanitizeSession(value: unknown, projectId: string, index: number): Sess
     model: sanitizeModel(agent, obj?.model),
     approvalPolicy: sanitizeApprovalPolicy(obj?.approvalPolicy),
     sandboxMode: sanitizeSandbox(obj?.sandboxMode),
+    worktreePath: typeof obj?.worktreePath === "string" ? obj.worktreePath : undefined,
+    worktreeBranch: typeof obj?.worktreeBranch === "string" ? obj.worktreeBranch : undefined,
+    todoMode: typeof obj?.todoMode === "boolean" ? obj.todoMode : undefined,
+    autoPlay: typeof obj?.autoPlay === "boolean" ? obj.autoPlay : undefined,
   };
 }
 

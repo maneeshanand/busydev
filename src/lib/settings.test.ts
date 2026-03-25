@@ -120,6 +120,113 @@ describe("migrateStoredSettings", () => {
     expect(withInvalid?.activeProjectId).toBe("p1");
   });
 
+  it("preserves session-scoped todoMode, autoPlay, and worktree fields through save/load", () => {
+    const migrated = migrateStoredSettings({
+      projects: [{
+        id: "p1",
+        name: "P1",
+        path: "/tmp/p1",
+        createdAt: Date.now(),
+        activeSessionId: "s1",
+        sessions: [
+          {
+            id: "s1",
+            projectId: "p1",
+            name: "Session 1",
+            createdAt: Date.now(),
+            runs: [],
+            todos: [],
+            todoMode: true,
+            autoPlay: true,
+            worktreePath: "/tmp/wt/s1",
+            worktreeBranch: "busydev/session-1",
+          },
+          {
+            id: "s2",
+            projectId: "p1",
+            name: "Session 2",
+            createdAt: Date.now(),
+            runs: [],
+            todos: [],
+            todoMode: false,
+            autoPlay: false,
+          },
+        ],
+      }],
+    });
+
+    expect(migrated).not.toBeNull();
+    const sessions = migrated!.projects[0].sessions;
+
+    // Session 1: todoMode and autoPlay preserved as true
+    expect(sessions[0].todoMode).toBe(true);
+    expect(sessions[0].autoPlay).toBe(true);
+    expect(sessions[0].worktreePath).toBe("/tmp/wt/s1");
+    expect(sessions[0].worktreeBranch).toBe("busydev/session-1");
+
+    // Session 2: todoMode and autoPlay preserved as false
+    expect(sessions[1].todoMode).toBe(false);
+    expect(sessions[1].autoPlay).toBe(false);
+    expect(sessions[1].worktreePath).toBeUndefined();
+    expect(sessions[1].worktreeBranch).toBeUndefined();
+  });
+
+  it("defaults todoMode and autoPlay to undefined when not set", () => {
+    const migrated = migrateStoredSettings({
+      projects: [{
+        id: "p1",
+        name: "P1",
+        path: "/tmp/p1",
+        createdAt: Date.now(),
+        activeSessionId: "s1",
+        sessions: [{
+          id: "s1",
+          projectId: "p1",
+          name: "S1",
+          createdAt: Date.now(),
+          runs: [],
+          todos: [],
+          // no todoMode, autoPlay, worktree fields
+        }],
+      }],
+    });
+
+    const session = migrated!.projects[0].sessions[0];
+    expect(session.todoMode).toBeUndefined();
+    expect(session.autoPlay).toBeUndefined();
+    expect(session.worktreePath).toBeUndefined();
+    expect(session.worktreeBranch).toBeUndefined();
+  });
+
+  it("does not leak todoMode/autoPlay between sessions in same project", () => {
+    const migrated = migrateStoredSettings({
+      projects: [{
+        id: "p1",
+        name: "P1",
+        path: "/tmp/p1",
+        createdAt: Date.now(),
+        activeSessionId: "s1",
+        sessions: [
+          {
+            id: "s1", projectId: "p1", name: "S1", createdAt: Date.now(),
+            runs: [], todos: [], todoMode: true, autoPlay: true,
+          },
+          {
+            id: "s2", projectId: "p1", name: "S2", createdAt: Date.now(),
+            runs: [], todos: [],
+            // intentionally no todoMode/autoPlay
+          },
+        ],
+      }],
+    });
+
+    const [s1, s2] = migrated!.projects[0].sessions;
+    expect(s1.todoMode).toBe(true);
+    expect(s1.autoPlay).toBe(true);
+    expect(s2.todoMode).toBeUndefined();
+    expect(s2.autoPlay).toBeUndefined();
+  });
+
   it("applies defaults and bounds for new ui/runtime settings", () => {
     const migratedWithDefaults = migrateStoredSettings({
       projects: [],

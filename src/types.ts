@@ -68,6 +68,8 @@ export interface Session {
   sandboxMode?: string;
   worktreePath?: string;
   worktreeBranch?: string;
+  todoMode?: boolean;
+  autoPlay?: boolean;
 }
 
 export interface Project {

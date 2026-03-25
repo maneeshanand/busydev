@@ -1,10 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
-import type { Project, Session } from "../types";
+import { useEffect, useState } from "react";
 import "./SettingsView.css";
 
 export type SectionId =
   | "general"
-  | "session"
   | "execution"
   | "todo"
   | "terminal"
@@ -26,18 +24,11 @@ interface SettingsViewProps {
   setDebugMode: (enabled: boolean) => void;
   skipGitRepoCheck: boolean;
   setSkipGitRepoCheck: (enabled: boolean) => void;
-  project: Project | null;
-  session: Session | null;
   agent: string;
-  setAgent: (agent: string) => void;
-  model: string;
-  setModel: (model: string) => void;
   approvalPolicy: string;
   setApprovalPolicy: (policy: string) => void;
   sandboxMode: string;
   setSandboxMode: (mode: string) => void;
-  todoMode: boolean;
-  setTodoMode: (enabled: boolean) => void;
   todoAutoPlayDefault: boolean;
   setTodoAutoPlayDefault: (enabled: boolean) => void;
   todoMaxRetries: number;
@@ -57,9 +48,8 @@ interface SettingsViewProps {
 
 const SECTION_LABELS: Record<SectionId, string> = {
   general: "General",
-  session: "Session",
   execution: "Execution",
-  todo: "Todo Panel",
+  todo: "Todo",
   terminal: "Terminal",
   advanced: "Advanced",
 };
@@ -72,21 +62,6 @@ export function SettingsView(props: SettingsViewProps) {
     if (!props.open) return;
     if (props.initialSection) setActiveSection(props.initialSection);
   }, [props.open, props.initialSection]);
-
-  const modelOptions = useMemo(() => {
-    if (props.agent === "claude") {
-      return [
-        { value: "", label: "claude-sonnet-4-6" },
-        { value: "claude-opus-4-6", label: "claude-opus-4-6" },
-        { value: "claude-haiku-4-5", label: "claude-haiku-4-5" },
-      ];
-    }
-    return [
-      { value: "", label: "codex-mini" },
-      { value: "o3", label: "o3" },
-      { value: "o4-mini", label: "o4-mini" },
-    ];
-  }, [props.agent]);
 
   if (!props.open) return null;
 
@@ -153,51 +128,12 @@ export function SettingsView(props: SettingsViewProps) {
                   onChange={(e) => props.setSplashDurationMs(Number(e.target.value))}
                 />
               </label>
-              <label>
-                Active project
-                <input value={props.project?.name ?? "No project selected"} readOnly />
-              </label>
-              <label>
-                Project path
-                <input value={props.project?.path ?? ""} readOnly />
-              </label>
-            </section>
-          )}
-
-          {activeSection === "session" && (
-            <section className="settings-section">
-              <p className="settings-helper">These values are scoped to the active session.</p>
-              <label>
-                Active session
-                <input value={props.session?.name ?? "No session selected"} readOnly />
-              </label>
-              <label>
-                Agent
-                <select
-                  value={props.agent}
-                  onChange={(e) => {
-                    props.setAgent(e.target.value);
-                    props.setModel("");
-                  }}
-                >
-                  <option value="codex">Codex</option>
-                  <option value="claude">Claude Code</option>
-                </select>
-              </label>
-              <label>
-                Model
-                <select value={props.model} onChange={(e) => props.setModel(e.target.value)}>
-                  {modelOptions.map((opt) => (
-                    <option key={opt.label} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </label>
             </section>
           )}
 
           {activeSection === "execution" && (
             <section className="settings-section">
-              <p className="settings-helper">Run behavior and safety controls.</p>
+              <p className="settings-helper">Advanced run behavior. Use the composer dropdowns for quick changes.</p>
               <label>
                 Approval policy
                 <select value={props.approvalPolicy} onChange={(e) => props.setApprovalPolicy(e.target.value)}>
@@ -245,15 +181,7 @@ export function SettingsView(props: SettingsViewProps) {
 
           {activeSection === "todo" && (
             <section className="settings-section">
-              <p className="settings-helper">Control Todo panel visibility and layout.</p>
-              <label className="settings-checkbox">
-                <input
-                  type="checkbox"
-                  checked={props.todoMode}
-                  onChange={(e) => props.setTodoMode(e.target.checked)}
-                />
-                Enable todo mode
-              </label>
+              <p className="settings-helper">Todo auto-play defaults and limits.</p>
               <label className="settings-checkbox">
                 <input
                   type="checkbox"
