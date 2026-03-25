@@ -1772,18 +1772,6 @@ function App() {
                 <rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
               </svg>
             </button>
-            <button
-              type="button"
-              className={`todo-toggle ${todoPanelOpen ? "is-active" : ""}`}
-              onClick={() => {
-                const next = !todoPanelOpen;
-                setTodoPanelOpen(next);
-                if (next && rightPanelWidth < 220) setRightPanelWidth(280);
-              }}
-              title={todoPanelOpen ? "Hide todos" : "Show todos"}
-            >
-              <ChecklistIcon />
-            </button>
             <div className="bell-wrapper">
               <button
                 type="button"
@@ -2060,6 +2048,7 @@ function App() {
                 onClick={() => {
                   if (todoMode) {
                     setTodoMode(false);
+                    setTodoPanelOpen(false);
                   } else {
                     setConfirmTodoMode(true);
                   }
@@ -2152,6 +2141,7 @@ function App() {
               void handleRun(`Work on todo #${idx + 1}: ${nextTodo.text}\n\nComplete this single item and mark it done with DONE: ${idx + 1}`);
             }}
             onStopTodos={handleStop}
+            todoMode={todoMode}
             autoPlay={autoPlayTodos}
             onToggleAutoPlay={() => setAutoPlayTodos(!autoPlayTodos)}
             onClearTodos={handleClearTodos}
