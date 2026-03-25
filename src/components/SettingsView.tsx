@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Project, Session } from "../types";
+import type { Project, SavedPromptEntry, Session } from "../types";
 import "./SettingsView.css";
 
 export type SectionId =
@@ -7,6 +7,7 @@ export type SectionId =
   | "session"
   | "execution"
   | "todo"
+  | "library"
   | "terminal"
   | "advanced";
 
@@ -52,6 +53,10 @@ interface SettingsViewProps {
   setTerminalLineHeight: (size: number) => void;
   rightPanelWidth: number;
   setRightPanelWidth: (width: number) => void;
+  promptLibrary: SavedPromptEntry[];
+  onCreatePromptLibraryEntry: (entry: { name: string; kind: "prompt" | "function"; content: string }) => void;
+  onUpdatePromptLibraryEntry: (entry: SavedPromptEntry) => void;
+  onDeletePromptLibraryEntry: (id: string) => void;
   onResetEnvironment: () => void;
 }
 
@@ -60,6 +65,7 @@ const SECTION_LABELS: Record<SectionId, string> = {
   session: "Session",
   execution: "Execution",
   todo: "Todo Panel",
+  library: "Prompt Library",
   terminal: "Terminal",
   advanced: "Advanced",
 };
@@ -67,6 +73,13 @@ const SECTION_LABELS: Record<SectionId, string> = {
 export function SettingsView(props: SettingsViewProps) {
   const [activeSection, setActiveSection] = useState<SectionId>("general");
   const [confirmReset, setConfirmReset] = useState(false);
+  const [newEntryKind, setNewEntryKind] = useState<"prompt" | "function">("prompt");
+  const [newEntryName, setNewEntryName] = useState("");
+  const [newEntryContent, setNewEntryContent] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editKind, setEditKind] = useState<"prompt" | "function">("prompt");
+  const [editContent, setEditContent] = useState("");
 
   useEffect(() => {
     if (!props.open) return;
@@ -87,6 +100,11 @@ export function SettingsView(props: SettingsViewProps) {
       { value: "o4-mini", label: "o4-mini" },
     ];
   }, [props.agent]);
+
+  const sortedLibrary = useMemo(
+    () => [...props.promptLibrary].sort((a, b) => b.updatedAt - a.updatedAt),
+    [props.promptLibrary],
+  );
 
   if (!props.open) return null;
 
@@ -312,6 +330,146 @@ export function SettingsView(props: SettingsViewProps) {
                   onChange={(e) => props.setTerminalLineHeight(Number(e.target.value))}
                 />
               </label>
+            </section>
+          )}
+
+          {activeSection === "library" && (
+            <section className="settings-section">
+              <p className="settings-helper">Save reusable prompts and functions for this app session history.</p>
+              <div className="settings-library-guide">
+                <h4>How to use saved prompts/functions</h4>
+                <ul>
+                  <li>
+                    <strong>Recommended:</strong> use short alias-style names for functions (example: <code>shipit</code>),
+                    then use the composer picker to Insert or Run quickly.
+                  </li>
+                  <li>
+                    Add lightweight tags in the name for grouping (example: <code>[release] shipit</code>, <code>[docs] changelog</code>).
+                  </li>
+                  <li>
+                    Keep prompts descriptive and functions action-oriented so they stay reusable across sessions.
+                  </li>
+                </ul>
+              </div>
+              <div className="settings-library-create">
+                <label>
+                  Type
+                  <select value={newEntryKind} onChange={(e) => setNewEntryKind(e.target.value as "prompt" | "function")}>
+                    <option value="prompt">Prompt</option>
+                    <option value="function">Function</option>
+                  </select>
+                </label>
+                <label>
+                  Name
+                  <input
+                    value={newEntryName}
+                    onChange={(e) => setNewEntryName(e.target.value)}
+                    placeholder={newEntryKind === "function" ? "shipit" : "Release notes draft"}
+                  />
+                </label>
+                <label>
+                  Content
+                  <textarea
+                    value={newEntryContent}
+                    onChange={(e) => setNewEntryContent(e.target.value)}
+                    rows={4}
+                    placeholder={newEntryKind === "function" ? "Add the changes, commit with a message..." : "Write release notes for this branch..."}
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const name = newEntryName.trim();
+                    const content = newEntryContent.trim();
+                    if (!name || !content) return;
+                    props.onCreatePromptLibraryEntry({
+                      name,
+                      kind: newEntryKind,
+                      content,
+                    });
+                    setNewEntryName("");
+                    setNewEntryContent("");
+                    setNewEntryKind("prompt");
+                  }}
+                >
+                  Save Entry
+                </button>
+              </div>
+
+              <div className="settings-library-list">
+                {sortedLibrary.length === 0 && (
+                  <div className="settings-helper">No saved prompts or functions yet.</div>
+                )}
+                {sortedLibrary.map((entry) => {
+                  const isEditing = editingId === entry.id;
+                  return (
+                    <article key={entry.id} className="settings-library-item">
+                      {isEditing ? (
+                        <>
+                          <label>
+                            Type
+                            <select value={editKind} onChange={(e) => setEditKind(e.target.value as "prompt" | "function")}>
+                              <option value="prompt">Prompt</option>
+                              <option value="function">Function</option>
+                            </select>
+                          </label>
+                          <label>
+                            Name
+                            <input value={editName} onChange={(e) => setEditName(e.target.value)} />
+                          </label>
+                          <label>
+                            Content
+                            <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={4} />
+                          </label>
+                          <div className="settings-library-actions">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const name = editName.trim();
+                                const content = editContent.trim();
+                                if (!name || !content) return;
+                                props.onUpdatePromptLibraryEntry({
+                                  ...entry,
+                                  name,
+                                  kind: editKind,
+                                  content,
+                                  updatedAt: Date.now(),
+                                });
+                                setEditingId(null);
+                              }}
+                            >
+                              Save
+                            </button>
+                            <button type="button" onClick={() => setEditingId(null)}>Cancel</button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="settings-library-item-header">
+                            <div className="settings-library-item-name">{entry.name}</div>
+                            <span className="settings-library-kind">{entry.kind}</span>
+                          </div>
+                          <pre className="settings-library-content-preview">{entry.content}</pre>
+                          <div className="settings-library-actions">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingId(entry.id);
+                                setEditName(entry.name);
+                                setEditKind(entry.kind);
+                                setEditContent(entry.content);
+                              }}
+                            >
+                              Edit
+                            </button>
+                            <button type="button" onClick={() => props.onDeletePromptLibraryEntry(entry.id)}>Delete</button>
+                          </div>
+                        </>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
             </section>
           )}
 

@@ -16,7 +16,7 @@ import {
   updateTrayBadge,
   type CodexStreamEvent,
 } from "./invoke";
-import type { StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session } from "./types";
+import type { StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session, SavedPromptEntry } from "./types";
 import { TodoPanel } from "./components/TodoPanel";
 import { ResizeHandle } from "./components/ResizeHandle";
 import { SettingsView, type SectionId } from "./components/SettingsView";
@@ -88,6 +88,22 @@ function ChecklistIcon() {
         fill="none" stroke="currentColor" strokeWidth="1.7"
       />
       <path d="m9 14 2 2 4-4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function SavePromptIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M5 4h11l3 3v13H5z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <path d="M8 4v6h8V4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+      <path d="M9 16h6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
     </svg>
   );
 }
@@ -752,6 +768,8 @@ function App() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [skipGitRepoCheck, setSkipGitRepoCheck] = useState(true);
   const [prompt, setPrompt] = useState("");
+  const [promptLibrary, setPromptLibrary] = useState<SavedPromptEntry[]>([]);
+  const [selectedPromptLibraryId, setSelectedPromptLibraryId] = useState("");
   const [promptHistory, setPromptHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [addingProject, setAddingProject] = useState(false);
@@ -817,12 +835,20 @@ function App() {
   const sandboxMode = activeSession?.sandboxMode ?? "read-only";
   const workingDirectory = activeSession?.worktreePath ?? activeProject?.path ?? "";
   const canRun = workingDirectory.length > 0 && prompt.length > 0;
+  const selectedPromptLibraryEntry = promptLibrary.find((entry) => entry.id === selectedPromptLibraryId) ?? null;
   const modelLabel = model || (agent === "claude" ? "claude-sonnet-4-6" : "codex-mini");
   const approvalLabel = approvalPolicy === "unless-allow-listed"
     ? "allow-listed"
     : approvalPolicy === "never"
       ? "manual"
       : "full-auto";
+
+  useEffect(() => {
+    if (!selectedPromptLibraryId) return;
+    if (!promptLibrary.some((entry) => entry.id === selectedPromptLibraryId)) {
+      setSelectedPromptLibraryId("");
+    }
+  }, [promptLibrary, selectedPromptLibraryId]);
 
   // Keep refs current so async run completions don't rely on stale render state.
   projectsRef.current = projects;
@@ -854,6 +880,7 @@ function App() {
     claudeAutoContinue,
     terminalFontSize,
     terminalLineHeight,
+    promptLibrary,
     windowWidth: windowSize.windowWidth,
     windowHeight: windowSize.windowHeight,
   }), [
@@ -873,6 +900,7 @@ function App() {
     claudeAutoContinue,
     terminalFontSize,
     terminalLineHeight,
+    promptLibrary,
     windowSize.windowWidth,
     windowSize.windowHeight,
   ]);
@@ -961,6 +989,7 @@ function App() {
           setClaudeAutoContinue(migrated.claudeAutoContinue);
           setTerminalFontSize(migrated.terminalFontSize);
           setTerminalLineHeight(migrated.terminalLineHeight);
+          setPromptLibrary(migrated.promptLibrary);
           setWindowSize({
             windowWidth: migrated.windowWidth,
             windowHeight: migrated.windowHeight,
@@ -1247,6 +1276,45 @@ function App() {
   function setModel(v: string) { updateActiveSession((s) => ({ ...s, model: v })); }
   function setApprovalPolicy(v: string) { updateActiveSession((s) => ({ ...s, approvalPolicy: v })); }
   function setSandboxMode(v: string) { updateActiveSession((s) => ({ ...s, sandboxMode: v })); }
+  function createPromptLibraryEntry(entry: { name: string; kind: "prompt" | "function"; content: string }) {
+    const now = Date.now();
+    const id = crypto.randomUUID();
+    setPromptLibrary((prev) => [
+      {
+        id,
+        name: entry.name,
+        kind: entry.kind,
+        content: entry.content,
+        createdAt: now,
+        updatedAt: now,
+      },
+      ...prev,
+    ]);
+    setSelectedPromptLibraryId(id);
+  }
+  function updatePromptLibraryEntry(entry: SavedPromptEntry) {
+    setPromptLibrary((prev) => prev.map((item) => (item.id === entry.id ? entry : item)));
+  }
+  function deletePromptLibraryEntry(id: string) {
+    setPromptLibrary((prev) => prev.filter((item) => item.id !== id));
+    setSelectedPromptLibraryId((prev) => (prev === id ? "" : prev));
+  }
+  function applyPromptLibraryEntry(entry: SavedPromptEntry, runAfterApply = false) {
+    setPrompt(entry.content);
+    if (runAfterApply) {
+      void handleRun(entry.content);
+    }
+  }
+  function saveCurrentPromptToLibrary(kind: "prompt" | "function" = "prompt") {
+    const content = prompt.trim();
+    if (!content) return;
+    const summary = content.replace(/\s+/g, " ").slice(0, 48).trim() || (kind === "function" ? "New function" : "New prompt");
+    createPromptLibraryEntry({
+      name: summary,
+      kind,
+      content,
+    });
+  }
 
   function makeSession(projectId: string, index: number): Session {
     return {
@@ -1979,6 +2047,74 @@ function App() {
               onKeyDown={handlePromptKeyDown}
               placeholder="Get Busy..."
             />
+            <div className="composer-library">
+              <select
+                value={selectedPromptLibraryId}
+                onChange={(e) => setSelectedPromptLibraryId(e.target.value)}
+                className="composer-library-select"
+                aria-label="Saved prompts and functions"
+              >
+                <option value="">Saved prompts & functions</option>
+                {promptLibrary.map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    [{entry.kind}] {entry.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="composer-library-btn"
+                onClick={() => {
+                  if (!selectedPromptLibraryEntry) return;
+                  applyPromptLibraryEntry(selectedPromptLibraryEntry, false);
+                }}
+                disabled={!selectedPromptLibraryEntry}
+                title="Insert selected entry"
+                aria-label="Insert selected entry"
+              >
+                Insert
+              </button>
+              <button
+                type="button"
+                className="composer-library-btn"
+                onClick={() => {
+                  if (!selectedPromptLibraryEntry) return;
+                  applyPromptLibraryEntry(selectedPromptLibraryEntry, true);
+                }}
+                disabled={!selectedPromptLibraryEntry || !workingDirectory}
+                title="Run selected entry"
+                aria-label="Run selected entry"
+              >
+                <RunIcon />
+              </button>
+              <button
+                type="button"
+                className="composer-library-btn"
+                onClick={() => saveCurrentPromptToLibrary("prompt")}
+                disabled={!prompt.trim()}
+                title="Save current prompt"
+                aria-label="Save current prompt"
+              >
+                <SavePromptIcon />
+              </button>
+              <button
+                type="button"
+                className="composer-library-btn"
+                onClick={() => saveCurrentPromptToLibrary("function")}
+                disabled={!prompt.trim()}
+                title="Save current text as function"
+                aria-label="Save current text as function"
+              >
+                fn
+              </button>
+              <button
+                type="button"
+                className="composer-library-link"
+                onClick={() => openSettings("library")}
+              >
+                Manage
+              </button>
+            </div>
             <div className="composer-meta">
               <button
                 type="button"
@@ -2148,10 +2284,16 @@ ADD_TODO: step three description`);
         setTerminalLineHeight={setTerminalLineHeight}
         rightPanelWidth={rightPanelWidth}
         setRightPanelWidth={setRightPanelWidth}
+        promptLibrary={promptLibrary}
+        onCreatePromptLibraryEntry={createPromptLibraryEntry}
+        onUpdatePromptLibraryEntry={updatePromptLibraryEntry}
+        onDeletePromptLibraryEntry={deletePromptLibraryEntry}
         onResetEnvironment={() => {
           setProjects([]);
           setActiveProjectId(null);
           setInFlightRuns({});
+          setPromptLibrary([]);
+          setSelectedPromptLibraryId("");
           useNotificationStore.getState().clearNotifications();
           setMissedAlerts(0);
           badgeCountRef.current = 0;

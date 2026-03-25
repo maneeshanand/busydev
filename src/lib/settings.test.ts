@@ -134,6 +134,7 @@ describe("migrateStoredSettings", () => {
     expect(migratedWithDefaults?.claudeAutoContinue).toBe(true);
     expect(migratedWithDefaults?.terminalFontSize).toBe(13);
     expect(migratedWithDefaults?.terminalLineHeight).toBe(1.3);
+    expect(migratedWithDefaults?.promptLibrary).toEqual([]);
 
     const migratedWithInvalids = migrateStoredSettings({
       uiDensity: "tight",
@@ -156,5 +157,28 @@ describe("migrateStoredSettings", () => {
     expect(migratedWithInvalids?.claudeAutoContinue).toBe(true);
     expect(migratedWithInvalids?.terminalFontSize).toBe(10);
     expect(migratedWithInvalids?.terminalLineHeight).toBe(2);
+    expect(migratedWithInvalids?.promptLibrary).toEqual([]);
+  });
+
+  it("sanitizes saved prompts/functions library entries", () => {
+    const migrated = migrateStoredSettings({
+      projects: [],
+      promptLibrary: [
+        { id: "a", name: "Ship It", kind: "function", content: "commit and push", createdAt: 1, updatedAt: 2 },
+        { id: "b", name: "  ", kind: "prompt", content: "valid content" },
+        { id: "c", name: "Valid Prompt", kind: "prompt", content: "   " },
+      ],
+    });
+
+    expect(migrated).not.toBeNull();
+    expect(migrated?.promptLibrary).toHaveLength(1);
+    expect(migrated?.promptLibrary[0]).toEqual({
+      id: "a",
+      name: "Ship It",
+      kind: "function",
+      content: "commit and push",
+      createdAt: 1,
+      updatedAt: 2,
+    });
   });
 });

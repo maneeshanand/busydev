@@ -1278,8 +1278,59 @@ pre.json {
   border: 1px solid var(--vp-c-divider);
   color: var(--vp-c-text-1);
   border-radius: 2px;
-  padding: 10px 58px 44px 12px;
+  padding: 10px 58px 72px 12px;
   font-size: 0.86rem;
+}
+
+.composer-library {
+  position: absolute;
+  left: 10px;
+  right: 52px;
+  bottom: 38px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 2;
+}
+
+.composer-library-select {
+  min-width: 220px;
+  max-width: 360px;
+  height: 26px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--vp-c-bg-soft) 88%, transparent);
+  color: var(--vp-c-text-2);
+  font-size: 0.72rem;
+  font-family: inherit;
+  padding: 0 10px;
+}
+
+.composer-library-btn,
+.composer-library-link {
+  height: 26px;
+  min-width: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--vp-c-bg-soft) 88%, transparent);
+  color: var(--vp-c-text-2);
+  font-size: 0.72rem;
+}
+
+.composer-library-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.composer-library-btn:disabled {
+  opacity: 0.45;
+}
+
+.composer-library-btn:hover:not(:disabled),
+.composer-library-link:hover {
+  border-color: var(--vp-c-brand-3);
+  color: var(--vp-c-brand-1);
 }
 
 .composer-meta {
@@ -1360,7 +1411,7 @@ pre.json {
 }
 
 .prompt-section textarea {
-  padding-bottom: 78px;
+  padding-bottom: 98px;
 }
 
 .prompt-action-run {

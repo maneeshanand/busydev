@@ -1,6 +1,6 @@
-import type { PersistedRun, Project, Session, TodoItem } from "../types";
+import type { PersistedRun, Project, SavedPromptEntry, Session, TodoItem } from "../types";
 
-export const SETTINGS_VERSION = 1;
+export const SETTINGS_VERSION = 2;
 
 export interface StoredSettings {
   settingsVersion: number;
@@ -20,6 +20,7 @@ export interface StoredSettings {
   claudeAutoContinue: boolean;
   terminalFontSize: number;
   terminalLineHeight: number;
+  promptLibrary: SavedPromptEntry[];
   windowWidth?: number;
   windowHeight?: number;
 }
@@ -49,6 +50,7 @@ type LegacyStoredSettings = {
   claudeAutoContinue?: boolean;
   terminalFontSize?: number;
   terminalLineHeight?: number;
+  promptLibrary?: SavedPromptEntry[];
   windowWidth?: number;
   windowHeight?: number;
 };
@@ -137,6 +139,23 @@ function sanitizeTodoItem(value: unknown): TodoItem | null {
     source: obj.source === "agent" ? "agent" : "user",
     createdAt: typeof obj.createdAt === "number" ? obj.createdAt : Date.now(),
     completedAt: typeof obj.completedAt === "number" ? obj.completedAt : undefined,
+  };
+}
+
+function sanitizeSavedPromptEntry(value: unknown): SavedPromptEntry | null {
+  const obj = asObject(value);
+  if (!obj) return null;
+  const name = typeof obj.name === "string" ? obj.name.trim() : "";
+  const content = typeof obj.content === "string" ? obj.content.trim() : "";
+  if (!name || !content) return null;
+  const now = Date.now();
+  return {
+    id: typeof obj.id === "string" ? obj.id : makeId(),
+    name,
+    kind: obj.kind === "function" ? "function" : "prompt",
+    content,
+    createdAt: typeof obj.createdAt === "number" ? obj.createdAt : now,
+    updatedAt: typeof obj.updatedAt === "number" ? obj.updatedAt : now,
   };
 }
 
@@ -250,6 +269,9 @@ export function migrateStoredSettings(saved: unknown): StoredSettings | null {
     claudeAutoContinue: toBoolean(legacy.claudeAutoContinue, true),
     terminalFontSize: toNumberInRange(legacy.terminalFontSize, 10, 24, 13),
     terminalLineHeight: toNumberInRange(legacy.terminalLineHeight, 1, 2, 1.3),
+    promptLibrary: (Array.isArray(legacy.promptLibrary) ? legacy.promptLibrary : [])
+      .map(sanitizeSavedPromptEntry)
+      .filter(Boolean) as SavedPromptEntry[],
     windowWidth: typeof legacy.windowWidth === "number" ? legacy.windowWidth : undefined,
     windowHeight: typeof legacy.windowHeight === "number" ? legacy.windowHeight : undefined,
   };
