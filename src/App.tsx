@@ -827,7 +827,9 @@ function App() {
   const workingDirectory = activeSession?.worktreePath ?? activeProject?.path ?? "";
   const canRun = workingDirectory.length > 0 && prompt.length > 0;
   const todoMode = activeSession?.todoMode ?? false;
-  const rightCollapsed = !todoMode;
+  const [todoPanelOpen, setTodoPanelOpen] = useState(false);
+  const [confirmTodoMode, setConfirmTodoMode] = useState(false);
+  const rightCollapsed = !todoPanelOpen;
 
   // Keep refs current so async run completions don't rely on stale render state.
   projectsRef.current = projects;
@@ -1760,13 +1762,13 @@ function App() {
             </button>
             <button
               type="button"
-              className={`todo-toggle ${todoMode ? "is-active" : ""}`}
+              className={`todo-toggle ${todoPanelOpen ? "is-active" : ""}`}
               onClick={() => {
-                const next = !todoMode;
-                setTodoMode(next);
+                const next = !todoPanelOpen;
+                setTodoPanelOpen(next);
                 if (next && rightPanelWidth < 220) setRightPanelWidth(280);
               }}
-              title={todoMode ? "Hide todos" : "Show todos"}
+              title={todoPanelOpen ? "Hide todos" : "Show todos"}
             >
               <ChecklistIcon />
             </button>
@@ -2040,6 +2042,21 @@ function App() {
               )}
             </div>
             <div className="prompt-actions">
+              <button
+                type="button"
+                className={`prompt-action prompt-action-todo ${todoMode ? "is-active" : ""}`}
+                onClick={() => {
+                  if (todoMode) {
+                    setTodoMode(false);
+                  } else {
+                    setConfirmTodoMode(true);
+                  }
+                }}
+                title={todoMode ? "Disable todo mode" : "Enable todo mode"}
+                aria-label="Toggle todo mode"
+              >
+                <ChecklistIcon />
+              </button>
               {activeInFlightRun ? (
                 <button
                   type="button"
@@ -2068,13 +2085,40 @@ function App() {
         </div>
         {/* end session-main */}
 
+        {confirmTodoMode && (
+          <div className="confirm-overlay" onClick={() => setConfirmTodoMode(false)}>
+            <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="confirm-title">Enable Todo Mode?</div>
+              <p className="confirm-body">
+                In todo mode, the agent will work through your todo list items sequentially. Auto-play will run each item one by one until all are complete or paused.
+              </p>
+              <div className="confirm-actions">
+                <button type="button" className="confirm-cancel" onClick={() => setConfirmTodoMode(false)}>Cancel</button>
+                <button
+                  type="button"
+                  className="confirm-cancel"
+                  style={{ background: "var(--vp-c-brand-1)", color: "white" }}
+                  onClick={() => {
+                    setTodoMode(true);
+                    setTodoPanelOpen(true);
+                    if (rightPanelWidth < 220) setRightPanelWidth(280);
+                    setConfirmTodoMode(false);
+                  }}
+                >
+                  Enable
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {!rightCollapsed && (
           <ResizeHandle side="right" onResize={handleRightResize} onResizeEnd={handleResizeEnd} />
         )}
         <div
           className={`session-todo ${rightCollapsed ? "session-todo-collapsed" : ""}`}
           style={rightCollapsed ? undefined : { width: rightPanelWidth }}
-          onClick={() => { if (rightCollapsed) { setTodoMode(true); } }}
+          onClick={() => { if (rightCollapsed) { setTodoPanelOpen(true); } }}
         >
             <TodoPanel
             todos={todos}
@@ -2086,7 +2130,7 @@ function App() {
             onDelete={handleDeleteTodo}
             onEdit={handleEditTodo}
             onCollapse={() => {
-              setTodoMode(false);
+              setTodoPanelOpen(false);
             }}
             onRunTodos={() => {
               if (todos.filter((t) => !t.done).length === 0) return;

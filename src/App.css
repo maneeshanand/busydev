@@ -1393,6 +1393,9 @@ pre.json {
   right: 10px;
   bottom: 10px;
   z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .prompt-action,
@@ -1404,6 +1407,23 @@ pre.json {
 
 .prompt-section textarea {
   padding-bottom: 78px;
+}
+
+.prompt-action-todo {
+  background: transparent;
+  border: 1px solid var(--vp-c-divider);
+  color: var(--vp-c-text-3);
+}
+
+.prompt-action-todo:hover {
+  color: var(--vp-c-text-1);
+  border-color: var(--vp-c-text-3);
+}
+
+.prompt-action-todo.is-active {
+  background: var(--ev-success);
+  border-color: var(--ev-success);
+  color: #fff;
 }
 
 .prompt-action-run {
