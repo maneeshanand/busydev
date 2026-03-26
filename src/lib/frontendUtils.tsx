@@ -386,6 +386,17 @@ export function buildTodoPrompt(userPrompt: string, todos: TodoItem[]): string {
   return `## Active Todo List (${done.length}/${todos.length} complete)\n\n${todoLines}\n\n## Todo Mode Instructions\n\nYou are working in todo mode. Start your response by briefly acknowledging which todo item(s) you'll be working on from the list above (e.g., "Working on #3: fix the login bug").\n\nAs you work, use these markers at the END of your final message:\n\nTo mark items complete:\nDONE: <number>\n\nTo suggest new todos:\nADD_TODO: <description>\n\nExamples:\nDONE: 1\nDONE: 3\nADD_TODO: write unit tests for the new auth module\nADD_TODO: update README with setup instructions\n\nOnly mark items you actually completed. Only suggest todos that are concrete next steps.${pending.length === 0 ? "\n\nAll todos are complete! Focus on the user's prompt below." : ""}\n\n---\n\n${userPrompt}`;
 }
 
+export function buildTodoWorkPrompt(itemNumber: number, itemText: string, notes?: string): string {
+  const trimmedNotes = notes?.trim();
+  let prompt = `Work on todo #${itemNumber}: ${itemText}`;
+  if (trimmedNotes) {
+    prompt += `\n\nContext: ${trimmedNotes}`;
+  }
+  prompt += `\n\nComplete this single item and mark it done with DONE: ${itemNumber}`;
+  prompt += "\nIf you discover sub-tasks needed to complete this item, output ADD_TODO: lines to add them to the list.";
+  return prompt;
+}
+
 export function parseTodoCompletions(output: CodexExecOutput, todos: TodoItem[]): string[] {
   const lastMessage = extractLastAgentMessage(output.parsedJson);
   if (!lastMessage) return [];
