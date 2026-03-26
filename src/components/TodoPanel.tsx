@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { TodoItem } from "../types";
+import type { TodoItem, BusyAgent } from "../types";
 import { TodoDetailView } from "./TodoDetailView";
 import "./TodoPanel.css";
 
@@ -24,6 +24,7 @@ interface TodoPanelProps {
   onToggleAutoPlay?: () => void;
   onReorder?: (fromIndex: number, toIndex: number) => void;
   onUpdateTodo?: (id: string, updates: Partial<TodoItem>) => void;
+  busyAgents?: BusyAgent[];
 }
 
 function SkipIcon() {
@@ -115,6 +116,7 @@ export function TodoPanel({
   autoPlay,
   onReorder,
   onUpdateTodo,
+  busyAgents,
 }: TodoPanelProps) {
   const [newText, setNewText] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -207,6 +209,7 @@ export function TodoPanel({
           total={todos.length}
           onBack={() => setSelectedTodoId(null)}
           onUpdate={onUpdateTodo}
+          busyAgents={busyAgents ?? []}
         />
       );
     }
@@ -361,6 +364,10 @@ export function TodoPanel({
                 ×
               </button>
             )}
+            {item.busyAgentId && busyAgents && (() => {
+              const ba = busyAgents.find((a) => a.id === item.busyAgentId);
+              return ba ? <span className="todo-item-agent-badge" title={ba.name}>{ba.icon}</span> : null;
+            })()}
             <span className="todo-item-arrow">&rarr;</span>
           </div>
         ))}
