@@ -64,6 +64,7 @@ export interface TodoItem {
   agent?: string;
   model?: string;
   subtasks?: SubTask[];
+  busyAgentId?: string;
 }
 
 export interface SavedPromptEntry {
@@ -107,6 +108,7 @@ export interface Session {
   worktreeBranch?: string;
   todoMode?: boolean;
   autoPlay?: boolean;
+  busyAgentId?: string;
 }
 
 export interface Project {

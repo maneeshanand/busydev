@@ -399,6 +399,46 @@ describe("migrateStoredSettings", () => {
     expect(todo.subtasks).toBeUndefined();
   });
 
+  it("preserves busyAgentId on Session and TodoItem", () => {
+    const migrated = migrateStoredSettings({
+      projects: [{
+        id: "p1", name: "P", path: "/tmp/p", createdAt: Date.now(),
+        activeSessionId: "s1",
+        sessions: [{
+          id: "s1", projectId: "p1", name: "S1", createdAt: Date.now(),
+          runs: [],
+          todos: [{
+            id: "t1", text: "Do thing", done: false, source: "user", createdAt: 1,
+            busyAgentId: "preset-security-reviewer",
+          }],
+          busyAgentId: "preset-tech-lead",
+        }],
+      }],
+    });
+
+    const session = migrated!.projects[0].sessions[0];
+    expect(session.busyAgentId).toBe("preset-tech-lead");
+    expect(session.todos[0].busyAgentId).toBe("preset-security-reviewer");
+  });
+
+  it("defaults busyAgentId to undefined when not set", () => {
+    const migrated = migrateStoredSettings({
+      projects: [{
+        id: "p1", name: "P", path: "/tmp/p", createdAt: Date.now(),
+        activeSessionId: "s1",
+        sessions: [{
+          id: "s1", projectId: "p1", name: "S1", createdAt: Date.now(),
+          runs: [],
+          todos: [{ id: "t1", text: "Plain", done: false, source: "user", createdAt: 1 }],
+        }],
+      }],
+    });
+
+    const session = migrated!.projects[0].sessions[0];
+    expect(session.busyAgentId).toBeUndefined();
+    expect(session.todos[0].busyAgentId).toBeUndefined();
+  });
+
   it("preserves BusyAgents through save/load", () => {
     const migrated = migrateStoredSettings({
       projects: [],
