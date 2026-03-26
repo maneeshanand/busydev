@@ -403,15 +403,28 @@ export function parseTodoCompletions(output: CodexExecOutput, todos: TodoItem[])
   return completedIds;
 }
 
-export function parseTodoAdditions(output: CodexExecOutput): string[] {
+export interface ParsedTodoAddition {
+  text: string;
+  agentSlug?: string;
+}
+
+export function parseTodoAdditions(output: CodexExecOutput): ParsedTodoAddition[] {
   const lastMessage = extractLastAgentMessage(output.parsedJson);
   if (!lastMessage) return [];
 
-  const newTodos: string[] = [];
+  const newTodos: ParsedTodoAddition[] = [];
   const matches = lastMessage.matchAll(/^\s*ADD_TODO:\s*(.+)\s*$/gim);
+  const agentTagRegex = /^\[agent:([a-z0-9-]+)\]\s*/i;
   for (const m of matches) {
     const text = m[1].trim();
-    if (text) newTodos.push(text);
+    if (text) {
+      const agentMatch = text.match(agentTagRegex);
+      if (agentMatch) {
+        newTodos.push({ text: text.replace(agentTagRegex, "").trim(), agentSlug: agentMatch[1].toLowerCase() });
+      } else {
+        newTodos.push({ text });
+      }
+    }
   }
   return newTodos;
 }

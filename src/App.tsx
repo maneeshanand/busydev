@@ -1994,20 +1994,21 @@ function App() {
         const ownerTodos = ownerSession?.todos ?? [];
         const requestedTodoId = runTodoIdRef.current[runId] ?? null;
         const completedIds = parseTodoCompletions(out, ownerTodos);
-        const newTodoTexts = parseTodoAdditions(out);
-        const todoProgressMade = completedIds.length > 0 || newTodoTexts.length > 0;
+        const newTodoAdditions = parseTodoAdditions(out);
+        const todoProgressMade = completedIds.length > 0 || newTodoAdditions.length > 0;
         const updatedOwnerTodos: TodoItem[] = [
           ...ownerTodos.map((t) =>
             completedIds.includes(t.id)
               ? { ...t, done: true, source: "agent" as const, completedAt: Date.now() }
               : t
           ),
-          ...newTodoTexts.map((text) => ({
+          ...newTodoAdditions.map((addition) => ({
             id: crypto.randomUUID(),
-            text,
+            text: addition.text,
             done: false,
             source: "agent" as const,
             createdAt: Date.now(),
+            // addition.agentSlug available — wired in Task 2
           })),
         ];
 
