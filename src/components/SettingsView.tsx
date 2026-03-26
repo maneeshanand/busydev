@@ -45,6 +45,8 @@ interface SettingsViewProps {
   setTerminalLineHeight: (size: number) => void;
   rightPanelWidth: number;
   setRightPanelWidth: (width: number) => void;
+  appVersion: string;
+  appBuild: string;
   promptLibrary: SavedPromptEntry[];
   onCreatePromptLibraryEntry: (entry: { name: string; alias: string; kind: "prompt" | "function"; content: string }) => void;
   onUpdatePromptLibraryEntry: (entry: SavedPromptEntry) => void;
@@ -115,6 +117,12 @@ export function SettingsView(props: SettingsViewProps) {
           {activeSection === "general" && (
             <section className="settings-section">
               <p className="settings-helper">Global preferences for the app UI.</p>
+              <div className="settings-version-row">
+                <span className="settings-version-label">Version</span>
+                <span className="settings-version-value">{props.appVersion}</span>
+                <span className="settings-version-label">Build</span>
+                <span className="settings-version-value">{props.appBuild}</span>
+              </div>
               <label>
                 Theme
                 <select value={props.colorMode} onChange={(e) => props.setColorMode(e.target.value as "light" | "dark")}>

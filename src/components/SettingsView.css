@@ -101,6 +101,30 @@
   margin-bottom: 4px;
 }
 
+.settings-version-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--vp-c-text-2);
+  padding: 8px 10px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--vp-c-bg-soft) 74%, var(--vp-c-bg));
+}
+
+.settings-version-label {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--vp-c-text-3);
+  font-size: 0.66rem;
+}
+
+.settings-version-value {
+  font-family: var(--vp-font-family-mono);
+  color: var(--vp-c-text-1);
+}
+
 .settings-section label {
   display: grid;
   gap: 7px;
