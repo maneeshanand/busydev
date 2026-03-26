@@ -76,6 +76,22 @@ export interface SavedPromptEntry {
   updatedAt: number;
 }
 
+export interface BusyAgent {
+  id: string;
+  name: string;
+  role: string;
+  icon: string;
+  base: "codex" | "claude";
+  model: string;
+  executionMode: "safe" | "balanced" | "full-auto";
+  approvalPolicy: string;
+  sandboxMode: string;
+  systemPrompt: string;
+  isPreset: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface Session {
   id: string;
   projectId: string;

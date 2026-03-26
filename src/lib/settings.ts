@@ -1,4 +1,4 @@
-import type { PersistedRun, Project, SavedPromptEntry, Session, SubTask, TodoItem } from "../types";
+import type { BusyAgent, PersistedRun, Project, SavedPromptEntry, Session, SubTask, TodoItem } from "../types";
 
 export const SETTINGS_VERSION = 2;
 
@@ -21,6 +21,7 @@ export interface StoredSettings {
   terminalFontSize: number;
   terminalLineHeight: number;
   promptLibrary: SavedPromptEntry[];
+  busyAgents: BusyAgent[];
   windowWidth?: number;
   windowHeight?: number;
 }
@@ -51,6 +52,7 @@ type LegacyStoredSettings = {
   terminalFontSize?: number;
   terminalLineHeight?: number;
   promptLibrary?: SavedPromptEntry[];
+  busyAgents?: BusyAgent[];
   windowWidth?: number;
   windowHeight?: number;
 };
@@ -193,6 +195,36 @@ function sanitizeSavedPromptEntry(value: unknown): SavedPromptEntry | null {
   };
 }
 
+function sanitizeBusyAgent(value: unknown): BusyAgent | null {
+  const obj = asObject(value);
+  if (!obj) return null;
+  const name = typeof obj.name === "string" ? obj.name.trim() : "";
+  if (!name) return null;
+  const base = obj.base === "claude" ? "claude" as const : "codex" as const;
+  const validExecModes = ["safe", "balanced", "full-auto"] as const;
+  const execMode = validExecModes.includes(obj.executionMode as any)
+    ? (obj.executionMode as "safe" | "balanced" | "full-auto")
+    : "full-auto" as const;
+  const policyMap: Record<string, string> = { safe: "never", balanced: "unless-allow-listed", "full-auto": "full-auto" };
+  const sandboxMap: Record<string, string> = { safe: "read-only", balanced: "workspace-write", "full-auto": "danger-full-access" };
+  const now = Date.now();
+  return {
+    id: typeof obj.id === "string" ? obj.id : crypto.randomUUID(),
+    name,
+    role: typeof obj.role === "string" ? obj.role.trim() : "",
+    icon: typeof obj.icon === "string" && obj.icon.trim() ? obj.icon.trim() : "🤖",
+    base,
+    model: typeof obj.model === "string" ? obj.model.trim() : "",
+    executionMode: execMode,
+    approvalPolicy: typeof obj.approvalPolicy === "string" ? obj.approvalPolicy : policyMap[execMode],
+    sandboxMode: typeof obj.sandboxMode === "string" ? obj.sandboxMode : sandboxMap[execMode],
+    systemPrompt: typeof obj.systemPrompt === "string" ? obj.systemPrompt : "",
+    isPreset: typeof obj.isPreset === "boolean" ? obj.isPreset : false,
+    createdAt: typeof obj.createdAt === "number" ? obj.createdAt : now,
+    updatedAt: typeof obj.updatedAt === "number" ? obj.updatedAt : now,
+  };
+}
+
 function sanitizeSession(value: unknown, projectId: string, index: number): Session {
   const obj = asObject(value);
   const createdAt = typeof obj?.createdAt === "number" ? obj.createdAt : Date.now();
@@ -310,6 +342,9 @@ export function migrateStoredSettings(saved: unknown): StoredSettings | null {
     promptLibrary: (Array.isArray(legacy.promptLibrary) ? legacy.promptLibrary : [])
       .map(sanitizeSavedPromptEntry)
       .filter(Boolean) as SavedPromptEntry[],
+    busyAgents: (Array.isArray(legacy.busyAgents) ? legacy.busyAgents : [])
+      .map(sanitizeBusyAgent)
+      .filter(Boolean) as BusyAgent[],
     windowWidth: typeof legacy.windowWidth === "number" ? legacy.windowWidth : undefined,
     windowHeight: typeof legacy.windowHeight === "number" ? legacy.windowHeight : undefined,
   };
