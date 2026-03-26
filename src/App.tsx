@@ -17,7 +17,7 @@ import {
   updateTrayBadge,
   type CodexStreamEvent,
 } from "./invoke";
-import type { StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session, SavedPromptEntry } from "./types";
+import type { BusyAgent, StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session, SavedPromptEntry } from "./types";
 import { TodoPanel } from "./components/TodoPanel";
 import { ResizeHandle } from "./components/ResizeHandle";
 import { SettingsView, type SectionId } from "./components/SettingsView";
@@ -790,6 +790,7 @@ function App() {
   const [skipGitRepoCheck, setSkipGitRepoCheck] = useState(true);
   const [prompt, setPrompt] = useState("");
   const [promptLibrary, setPromptLibrary] = useState<SavedPromptEntry[]>([]);
+  const [busyAgents, setBusyAgents] = useState<BusyAgent[]>([]);
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
   const [mentionStart, setMentionStart] = useState<number | null>(null);
@@ -898,6 +899,7 @@ function App() {
     terminalFontSize,
     terminalLineHeight,
     promptLibrary,
+    busyAgents,
     windowWidth: windowSize.windowWidth,
     windowHeight: windowSize.windowHeight,
   }), [
@@ -918,6 +920,7 @@ function App() {
     terminalFontSize,
     terminalLineHeight,
     promptLibrary,
+    busyAgents,
     windowSize.windowWidth,
     windowSize.windowHeight,
   ]);
@@ -1010,6 +1013,7 @@ function App() {
           setTerminalFontSize(migrated.terminalFontSize);
           setTerminalLineHeight(migrated.terminalLineHeight);
           setPromptLibrary(migrated.promptLibrary);
+          setBusyAgents(migrated.busyAgents);
           setWindowSize({
             windowWidth: migrated.windowWidth,
             windowHeight: migrated.windowHeight,
