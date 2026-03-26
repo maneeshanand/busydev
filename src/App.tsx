@@ -1941,19 +1941,6 @@ function App() {
             >
               <BookIcon />
             </button>
-            <button
-              type="button"
-              className={`todo-toggle ${todoMode ? "is-active" : ""}`}
-              onClick={() => {
-                const next = !todoMode;
-                setTodoMode(next);
-                setTodoPanelOpen(next);
-                if (next && rightPanelWidth < 220) setRightPanelWidth(280);
-              }}
-              title={todoMode ? "Hide todos" : "Show todos"}
-            >
-              <ChecklistIcon />
-            </button>
             <div className="bell-wrapper">
               <button
                 type="button"
