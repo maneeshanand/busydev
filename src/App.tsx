@@ -200,6 +200,12 @@ function shortenPath(path: string): string {
   return parts.length > 2 ? parts.slice(-2).join("/") : path;
 }
 
+function formatAgentLabel(agent?: "codex" | "claude" | "deepseek" | string): string {
+  if (agent === "claude") return "Claude";
+  if (agent === "deepseek") return "DeepSeek";
+  return "Codex";
+}
+
 type ClassifiedRow = Omit<StreamRow, "id">;
 
 function extractAssistantTextChunk(event: CodexStreamEvent): string | null {
@@ -424,20 +430,46 @@ function classifyEvent(event: CodexStreamEvent): ClassifiedRow {
   return { category: "status", text: "", hidden: true };
 }
 
-function formatMessage(text: string): React.ReactNode {
-  // Split into lines for block-level formatting
+interface MessageSegment {
+  type: "text" | "code";
+  content: string;
+  lang?: string;
+}
+
+function splitMessageSegments(text: string): MessageSegment[] {
+  const segments: MessageSegment[] = [];
+  const fenceRegex = /```([a-zA-Z0-9_-]+)?\n([\s\S]*?)```/g;
+  let last = 0;
+  let match: RegExpExecArray | null;
+  while ((match = fenceRegex.exec(text)) !== null) {
+    if (match.index > last) {
+      segments.push({ type: "text", content: text.slice(last, match.index) });
+    }
+    segments.push({
+      type: "code",
+      lang: match[1]?.toLowerCase() || "",
+      content: match[2].replace(/\n$/, ""),
+    });
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) {
+    segments.push({ type: "text", content: text.slice(last) });
+  }
+  return segments.length > 0 ? segments : [{ type: "text", content: text }];
+}
+
+function formatTextSegment(text: string, segmentKey: string): React.ReactNode {
   const lines = text.split("\n");
   const elements: React.ReactNode[] = [];
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (i > 0) elements.push(<br key={`br-${i}`} />);
+    if (i > 0) elements.push(<br key={`${segmentKey}-br-${i}`} />);
 
-    // Bullet points
     const bulletMatch = line.match(/^(\s*)[*-]\s+(.*)/);
     if (bulletMatch) {
       elements.push(
-        <span key={`line-${i}`} className="fmt-bullet">
+        <span key={`${segmentKey}-line-${i}`} className="fmt-bullet">
           <span className="fmt-bullet-dot" />
           {formatInline(bulletMatch[2])}
         </span>
@@ -445,10 +477,186 @@ function formatMessage(text: string): React.ReactNode {
       continue;
     }
 
-    elements.push(<span key={`line-${i}`}>{formatInline(line)}</span>);
+    elements.push(<span key={`${segmentKey}-line-${i}`}>{formatInline(line)}</span>);
   }
 
   return elements;
+}
+
+function renderMarkdownCode(code: string): React.ReactNode {
+  const lines = code.split("\n");
+  return lines.map((line, i) => {
+    const key = `md-${i}`;
+
+    if (/^\s*[-*_]{3,}\s*$/.test(line)) {
+      return (
+        <span key={key} className="fmt-code-line">
+          <span className="fmt-token-hr">{line}</span>
+          {i < lines.length - 1 ? "\n" : ""}
+        </span>
+      );
+    }
+
+    const heading = line.match(/^(\s{0,3}#{1,6})(\s+)(.*)$/);
+    if (heading) {
+      return (
+        <span key={key} className="fmt-code-line">
+          <span className="fmt-token-heading-marker">{heading[1]}</span>
+          {heading[2]}
+          <span className="fmt-token-heading-text">{heading[3]}</span>
+          {i < lines.length - 1 ? "\n" : ""}
+        </span>
+      );
+    }
+
+    const list = line.match(/^(\s*[-*+]\s+)(.*)$/);
+    if (list) {
+      return (
+        <span key={key} className="fmt-code-line">
+          <span className="fmt-token-list-marker">{list[1]}</span>
+          {list[2]}
+          {i < lines.length - 1 ? "\n" : ""}
+        </span>
+      );
+    }
+
+    const blockquote = line.match(/^(\s*>+\s?)(.*)$/);
+    if (blockquote) {
+      return (
+        <span key={key} className="fmt-code-line">
+          <span className="fmt-token-quote-marker">{blockquote[1]}</span>
+          {blockquote[2]}
+          {i < lines.length - 1 ? "\n" : ""}
+        </span>
+      );
+    }
+
+    return (
+      <span key={key} className="fmt-code-line">
+        {line}
+        {i < lines.length - 1 ? "\n" : ""}
+      </span>
+    );
+  });
+}
+
+function renderJsonCode(code: string): React.ReactNode {
+  const lines = code.split("\n");
+  return lines.map((line, i) => {
+    const key = `json-${i}`;
+    const lineParts: React.ReactNode[] = [];
+    const regex = /("(?:\\.|[^"\\])*")\s*:|("(?:\\.|[^"\\])*")|(\btrue\b|\bfalse\b|\bnull\b)|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g;
+    let last = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(line)) !== null) {
+      if (match.index > last) lineParts.push(line.slice(last, match.index));
+      if (match[1]) {
+        lineParts.push(<span key={`${key}-k-${match.index}`} className="fmt-token-json-key">{match[1]}</span>);
+        lineParts.push(":");
+      } else if (match[2]) {
+        lineParts.push(<span key={`${key}-s-${match.index}`} className="fmt-token-json-string">{match[2]}</span>);
+      } else if (match[3]) {
+        lineParts.push(<span key={`${key}-b-${match.index}`} className="fmt-token-json-bool">{match[3]}</span>);
+      } else if (match[4]) {
+        lineParts.push(<span key={`${key}-n-${match.index}`} className="fmt-token-json-number">{match[4]}</span>);
+      }
+      last = regex.lastIndex;
+    }
+    if (last < line.length) lineParts.push(line.slice(last));
+
+    return (
+      <span key={key} className="fmt-code-line">
+        {lineParts}
+        {i < lines.length - 1 ? "\n" : ""}
+      </span>
+    );
+  });
+}
+
+function renderShellCode(code: string): React.ReactNode {
+  const lines = code.split("\n");
+  return lines.map((line, i) => {
+    const key = `sh-${i}`;
+    const trimmed = line.trimStart();
+    const indent = line.slice(0, line.length - trimmed.length);
+
+    if (trimmed.startsWith("#")) {
+      return (
+        <span key={key} className="fmt-code-line">
+          {indent}
+          <span className="fmt-token-shell-comment">{trimmed}</span>
+          {i < lines.length - 1 ? "\n" : ""}
+        </span>
+      );
+    }
+
+    const envMatch = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*=)(.*)$/);
+    if (envMatch) {
+      return (
+        <span key={key} className="fmt-code-line">
+          {indent}
+          <span className="fmt-token-shell-env">{envMatch[1]}</span>
+          {envMatch[2]}
+          {i < lines.length - 1 ? "\n" : ""}
+        </span>
+      );
+    }
+
+    const cmdMatch = trimmed.match(/^([A-Za-z0-9_./-]+)(.*)$/);
+    if (cmdMatch) {
+      return (
+        <span key={key} className="fmt-code-line">
+          {indent}
+          <span className="fmt-token-shell-command">{cmdMatch[1]}</span>
+          {cmdMatch[2]}
+          {i < lines.length - 1 ? "\n" : ""}
+        </span>
+      );
+    }
+
+    return (
+      <span key={key} className="fmt-code-line">
+        {line}
+        {i < lines.length - 1 ? "\n" : ""}
+      </span>
+    );
+  });
+}
+
+function formatCodeSegment(code: string, lang: string, segmentKey: string): React.ReactNode {
+  const language = lang || "text";
+  const isShell = language === "bash" || language === "sh" || language === "zsh" || language === "shell";
+  const renderedCode = language === "markdown"
+    ? renderMarkdownCode(code)
+    : language === "json"
+      ? renderJsonCode(code)
+      : isShell
+        ? renderShellCode(code)
+        : code;
+  return (
+    <div key={segmentKey} className="fmt-code-block">
+      <div className="fmt-code-block-header">
+        <span className="fmt-code-block-lang">{language}</span>
+      </div>
+      <pre>
+        <code className={`language-${language}`}>
+          {renderedCode}
+        </code>
+      </pre>
+    </div>
+  );
+}
+
+function formatMessage(text: string): React.ReactNode {
+  const segments = splitMessageSegments(text);
+  return segments.map((segment, idx) => {
+    const key = `seg-${idx}`;
+    if (segment.type === "code") {
+      return formatCodeSegment(segment.content, segment.lang || "", key);
+    }
+    return <span key={key}>{formatTextSegment(segment.content, key)}</span>;
+  });
 }
 
 function handleOpenPath(path: string) {
@@ -529,6 +737,7 @@ function renderStreamRow(
   row: StreamRow,
   searchQuery = "",
   onApproval?: (requestId: string, decision: "allow" | "deny") => void,
+  deepseekStyle = false,
 ) {
   if (row.hidden) return null;
 
@@ -538,7 +747,7 @@ function renderStreamRow(
     case "message":
       return (
         <div key={row.id} className="chat-row chat-row-agent">
-          <div className={`ev-message ${row.isTodoSummary ? "ev-message-todo" : ""}`}>{searchQuery ? hl(row.text) : formatMessage(row.text)}</div>
+          <div className={`ev-message ${row.isTodoSummary ? "ev-message-todo" : ""} ${deepseekStyle ? "ev-message-deepseek" : ""}`}>{searchQuery ? hl(row.text) : formatMessage(row.text)}</div>
         </div>
       );
     case "command":
@@ -606,8 +815,15 @@ function renderStreamRow(
   }
 }
 
-function renderPersistedRun(run: PersistedRun, debugMode: boolean, searchQuery = "") {
+function renderPersistedRun(
+  run: PersistedRun,
+  debugMode: boolean,
+  searchQuery = "",
+  deepseekStyle = false,
+  defaultAgent = "codex",
+) {
   const hl = (text: string) => highlightText(text, searchQuery);
+  const runAgentLabel = formatAgentLabel(run.agent ?? defaultAgent);
   return (
     <div key={`persisted-${run.id}`} className="output-section">
       <div className="chat-thread">
@@ -617,7 +833,7 @@ function renderPersistedRun(run: PersistedRun, debugMode: boolean, searchQuery =
 
         {run.streamRows.length > 0 && (
           <div className="stream-events">
-            {run.streamRows.filter((r) => !r.hidden).map((r) => renderStreamRow(r, searchQuery))}
+            {run.streamRows.filter((r) => !r.hidden).map((r) => renderStreamRow(r, searchQuery, undefined, deepseekStyle))}
           </div>
         )}
 
@@ -632,7 +848,7 @@ function renderPersistedRun(run: PersistedRun, debugMode: boolean, searchQuery =
         {debugMode && <div>Run #{run.id}</div>}
         <div>{run.stopped ? `Stopped after ${(run.durationMs / 1000).toFixed(1)}s` : `Finished in ${(run.durationMs / 1000).toFixed(1)}s`}</div>
         {debugMode && <div>Exit code: {run.exitCode ?? "N/A"}</div>}
-        {run.completedAt && <div className="run-timestamp">{formatTimestamp(run.completedAt)}</div>}
+        {run.completedAt && <div className="run-timestamp">{runAgentLabel} · {formatTimestamp(run.completedAt)}</div>}
       </div>
     </div>
   );
@@ -1095,11 +1311,12 @@ function App() {
           return [...rows, row];
         };
 
-        streamRowsMapRef.current[rid] = appendChunk(streamRowsMapRef.current[rid] || []);
+        const nextRows = appendChunk(streamRowsMapRef.current[rid] || []);
+        streamRowsMapRef.current[rid] = nextRows;
         setInFlightRuns((prev) => {
           const run = prev[rid];
           if (!run) return prev;
-          return { ...prev, [rid]: { ...run, streamRows: appendChunk(run.streamRows) } };
+          return { ...prev, [rid]: { ...run, streamRows: nextRows } };
         });
         return;
       }
@@ -1665,9 +1882,10 @@ function App() {
 
     const effectivePrompt = sessionContext + basePrompt;
 
+    const effectiveAgent = (overrides?.agentOverride || agent) as "codex" | "claude" | "deepseek";
+    const effectiveModel = overrides?.modelOverride || model;
+
     try {
-      const effectiveAgent = overrides?.agentOverride || agent;
-      const effectiveModel = overrides?.modelOverride || model;
       const out = await runCodexExec({
         runId,
         agent: effectiveAgent,
@@ -1696,6 +1914,7 @@ function App() {
         finalSummary: buildFinalSummary({ id: runNumber, prompt: displayPrompt, output: out, streamRows: finalStreamRows, stopped: wasStopped }),
         stopped: wasStopped,
         completedAt: Date.now(),
+        agent: effectiveAgent,
       };
 
       // Write completed run to the owning session (may be different from active if user switched)
@@ -1826,6 +2045,7 @@ function App() {
           durationMs,
           finalSummary: `Run failed: ${errorText}`,
           completedAt: Date.now(),
+          agent: effectiveAgent,
         };
         updateSession(owner.projectId, owner.sessionId, (s) => ({
           ...s,
@@ -2180,7 +2400,7 @@ function App() {
             <div className="empty-stream">Run results will appear here as a single scrollable thread.</div>
           )}
 
-          {sessionRuns.map((run) => renderPersistedRun(run, debugMode, searchQuery))}
+          {sessionRuns.map((run) => renderPersistedRun(run, debugMode, searchQuery, agent === "deepseek", agent))}
 
 
               {activeInFlightRun && (
@@ -2198,7 +2418,7 @@ function App() {
                       {activeInFlightRun.streamRows.filter((r) => !r.hidden).map((r) =>
                         renderStreamRow(r, searchQuery, (requestId, decision) =>
                           handleApproval(activeInFlightRun.runId, requestId, decision)
-                        )
+                        , agent === "deepseek")
                       )}
                       {activeInFlightRun.streamRows.filter((r) => !r.hidden).length === 0 && (
                         <div className="ev-thinking">

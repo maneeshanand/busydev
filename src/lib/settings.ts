@@ -128,6 +128,7 @@ function sanitizePersistedRun(value: unknown): PersistedRun | null {
     finalSummary,
     stopped: toBoolean(obj.stopped, false) || undefined,
     completedAt: typeof obj.completedAt === "number" ? obj.completedAt : undefined,
+    agent: typeof obj.agent === "string" ? sanitizeAgent(obj.agent) : undefined,
   };
 }
 

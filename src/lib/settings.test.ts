@@ -105,6 +105,36 @@ describe("migrateStoredSettings", () => {
     expect(migrated?.projects[0].sessions[0].model).toBe("deepseek-reasoner");
   });
 
+  it("preserves per-run agent metadata when present", () => {
+    const migrated = migrateStoredSettings({
+      projects: [{
+        id: "p1",
+        name: "P1",
+        path: "/tmp/p1",
+        createdAt: Date.now(),
+        activeSessionId: "s1",
+        sessions: [{
+          id: "s1",
+          projectId: "p1",
+          name: "S1",
+          createdAt: Date.now(),
+          runs: [{
+            id: 1,
+            prompt: "hello",
+            streamRows: [],
+            exitCode: 0,
+            durationMs: 100,
+            finalSummary: "done",
+            agent: "deepseek",
+          }],
+          todos: [],
+        }],
+      }],
+    });
+
+    expect(migrated?.projects[0].sessions[0].runs[0].agent).toBe("deepseek");
+  });
+
   it("keeps valid activeProjectId and falls back when missing", () => {
     const withValid = migrateStoredSettings({
       projects: [{
