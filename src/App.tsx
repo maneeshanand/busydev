@@ -1189,6 +1189,9 @@ function App() {
   function handleEditTodo(id: string, text: string) {
     setTodos((prev) => prev.map((t) => t.id === id ? { ...t, text } : t));
   }
+  function handleUpdateTodo(id: string, updates: Partial<TodoItem>) {
+    setTodos((prev) => prev.map((t) => t.id === id ? { ...t, ...updates } : t));
+  }
   function handleClearTodos() {
     setTodos([]);
     setAutoPlayTodos(false);
@@ -1540,7 +1543,7 @@ function App() {
     }
   }
 
-  async function handleRun(overridePrompt?: string) {
+  async function handleRun(overridePrompt?: string, overrides?: { agentOverride?: string; modelOverride?: string }) {
     const submittedPrompt = overridePrompt ?? prompt;
     const expandedPrompt = expandPromptAliases(submittedPrompt, aliasMap);
     const requestedTodoMatch = submittedPrompt.match(/work on todo #(\d+)/i);
@@ -1617,16 +1620,18 @@ function App() {
     const effectivePrompt = sessionContext + basePrompt;
 
     try {
+      const effectiveAgent = overrides?.agentOverride || agent;
+      const effectiveModel = overrides?.modelOverride || model;
       const out = await runCodexExec({
         runId,
-        agent,
+        agent: effectiveAgent,
         prompt: effectivePrompt,
         approvalPolicy,
         sandboxMode,
         workingDirectory,
-        model: model || undefined,
+        model: effectiveModel || undefined,
         skipGitRepoCheck,
-        previousPrompts: agent === "claude" && claudeAutoContinue
+        previousPrompts: effectiveAgent === "claude" && claudeAutoContinue
           ? sessionRuns.map((r) => r.prompt).slice(-10)
           : undefined,
       });
@@ -1741,7 +1746,12 @@ function App() {
               );
               return;
             }
-            void handleRun(`Work on todo #${decision.nextIndex + 1}: ${decision.nextTodo.text}\n\nComplete this single item and mark it done with DONE: ${decision.nextIndex + 1}`);
+            let autoPlayPrompt = `Work on todo #${decision.nextIndex + 1}: ${expandPromptAliases(decision.nextTodo.text, aliasMap)}`;
+            if (decision.nextTodo.notes) {
+              autoPlayPrompt += `\n\nContext: ${expandPromptAliases(decision.nextTodo.notes, aliasMap)}`;
+            }
+            autoPlayPrompt += `\n\nComplete this single item and mark it done with DONE: ${decision.nextIndex + 1}`;
+            void handleRun(autoPlayPrompt, { agentOverride: decision.nextTodo.agent, modelOverride: decision.nextTodo.model });
           }, 1000);
         }
       }
@@ -1966,19 +1976,6 @@ function App() {
               aria-label="Prompt library"
             >
               <BookIcon />
-            </button>
-            <button
-              type="button"
-              className={`todo-toggle ${todoMode ? "is-active" : ""}`}
-              onClick={() => {
-                const next = !todoMode;
-                setTodoMode(next);
-                setTodoPanelOpen(next);
-                if (next && rightPanelWidth < 220) setRightPanelWidth(280);
-              }}
-              title={todoMode ? "Hide todos" : "Show todos"}
-            >
-              <ChecklistIcon />
             </button>
             <div className="bell-wrapper">
               <button
@@ -2379,15 +2376,20 @@ function App() {
             onToggle={handleToggleTodo}
             onDelete={handleDeleteTodo}
             onEdit={handleEditTodo}
+            onUpdateTodo={handleUpdateTodo}
             onCollapse={() => {
               setTodoPanelOpen(false);
             }}
             onRunTodos={() => {
-              if (todos.filter((t) => !t.done).length === 0) return;
               const nextTodo = todos.find((t) => !t.done);
               if (!nextTodo) return;
               const idx = todos.indexOf(nextTodo);
-              void handleRun(`Work on todo #${idx + 1}: ${nextTodo.text}\n\nComplete this single item and mark it done with DONE: ${idx + 1}`);
+              let todoPrompt = `Work on todo #${idx + 1}: ${expandPromptAliases(nextTodo.text, aliasMap)}`;
+              if (nextTodo.notes) {
+                todoPrompt += `\n\nContext: ${expandPromptAliases(nextTodo.notes, aliasMap)}`;
+              }
+              todoPrompt += `\n\nComplete this single item and mark it done with DONE: ${idx + 1}`;
+              void handleRun(todoPrompt, { agentOverride: nextTodo.agent, modelOverride: nextTodo.model });
             }}
             onStopTodos={handleStop}
             todoMode={todoMode}

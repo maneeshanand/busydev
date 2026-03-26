@@ -291,4 +291,54 @@ describe("migrateStoredSettings", () => {
     });
     expect(migrated?.promptLibrary[1].alias).toBe("release-notes");
   });
+
+  it("preserves TodoItem notes, agent, model, and subtasks through save/load", () => {
+    const migrated = migrateStoredSettings({
+      projects: [{
+        id: "p1", name: "P", path: "/tmp/p", createdAt: Date.now(),
+        activeSessionId: "s1",
+        sessions: [{
+          id: "s1", projectId: "p1", name: "S1", createdAt: Date.now(),
+          runs: [],
+          todos: [{
+            id: "t1", text: "Do thing", done: false, source: "user", createdAt: 1,
+            notes: "Use @shipit pattern",
+            agent: "claude",
+            model: "claude-opus-4-6",
+            subtasks: [
+              { id: "st1", text: "Step A", done: true },
+              { id: "st2", text: "Step B", done: false },
+            ],
+          }],
+        }],
+      }],
+    });
+
+    const todo = migrated!.projects[0].sessions[0].todos[0];
+    expect(todo.notes).toBe("Use @shipit pattern");
+    expect(todo.agent).toBe("claude");
+    expect(todo.model).toBe("claude-opus-4-6");
+    expect(todo.subtasks).toHaveLength(2);
+    expect(todo.subtasks![0]).toEqual({ id: "st1", text: "Step A", done: true });
+    expect(todo.subtasks![1]).toEqual({ id: "st2", text: "Step B", done: false });
+  });
+
+  it("defaults new TodoItem fields to undefined when not set", () => {
+    const migrated = migrateStoredSettings({
+      projects: [{
+        id: "p1", name: "P", path: "/tmp/p", createdAt: Date.now(),
+        activeSessionId: "s1",
+        sessions: [{
+          id: "s1", projectId: "p1", name: "S1", createdAt: Date.now(),
+          runs: [], todos: [{ id: "t1", text: "Plain", done: false, source: "user", createdAt: 1 }],
+        }],
+      }],
+    });
+
+    const todo = migrated!.projects[0].sessions[0].todos[0];
+    expect(todo.notes).toBeUndefined();
+    expect(todo.agent).toBeUndefined();
+    expect(todo.model).toBeUndefined();
+    expect(todo.subtasks).toBeUndefined();
+  });
 });
