@@ -2589,7 +2589,7 @@ function App() {
             <div className="composer-meta">
               <select
                 className="meta-chip-select"
-                value={activeSession?.busyAgentId ?? ""}
+                value={activeSession?.busyAgentId ?? `raw:${agent}`}
                 onChange={(e) => {
                   const val = e.target.value;
                   if (val.startsWith("raw:")) {
@@ -2604,18 +2604,17 @@ function App() {
                 }}
                 title="Agent"
               >
-                <option value="">Select agent...</option>
+                <option value="raw:codex">Codex</option>
+                <option value="raw:claude">Claude</option>
+                <option value="raw:deepseek">DeepSeek</option>
+                <option disabled>── BusyAgents ──</option>
                 {allAgents.filter((a) => a.isPreset).map((a) => (
                   <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
                 ))}
-                {allAgents.some((a) => !a.isPreset) && <option disabled>──────────</option>}
+                {allAgents.some((a) => !a.isPreset) && <option disabled>── Custom ──</option>}
                 {allAgents.filter((a) => !a.isPreset).map((a) => (
                   <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
                 ))}
-                <option disabled>──────────</option>
-                <option value="raw:codex">Raw: Codex</option>
-                <option value="raw:claude">Raw: Claude</option>
-                <option value="raw:deepseek">Raw: DeepSeek</option>
               </select>
               {activeBusyAgent ? (
                 <>
