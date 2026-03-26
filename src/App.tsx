@@ -1843,7 +1843,13 @@ function App() {
     }
   }
 
-  async function handleRun(overridePrompt?: string, overrides?: { agentOverride?: string; modelOverride?: string }) {
+  async function handleRun(overridePrompt?: string, overrides?: {
+    agentOverride?: string;
+    modelOverride?: string;
+    systemPromptOverride?: string;
+    approvalPolicyOverride?: string;
+    sandboxModeOverride?: string;
+  }) {
     const submittedPrompt = overridePrompt ?? prompt;
     const expandedPrompt = expandPromptAliases(submittedPrompt, aliasMap);
     const requestedTodoMatch = submittedPrompt.match(/work on todo #(\d+)/i);
@@ -1917,18 +1923,24 @@ function App() {
       ? buildTodoPrompt(expandedPrompt, todos)
       : expandedPrompt;
 
-    const effectivePrompt = sessionContext + basePrompt;
+    // Prepend system prompt from BusyAgent if available
+    const systemPrompt = overrides?.systemPromptOverride || activeBusyAgent?.systemPrompt || "";
+    const effectivePrompt = systemPrompt
+      ? `${systemPrompt}\n\n---\n\n${sessionContext}${basePrompt}`
+      : sessionContext + basePrompt;
 
     const effectiveAgent = (overrides?.agentOverride || agent) as "codex" | "claude" | "deepseek";
     const effectiveModel = overrides?.modelOverride || model;
+    const effectiveApprovalPolicy = overrides?.approvalPolicyOverride || approvalPolicy;
+    const effectiveSandboxMode = overrides?.sandboxModeOverride || sandboxMode;
 
     try {
       const out = await runCodexExec({
         runId,
         agent: effectiveAgent,
         prompt: effectivePrompt,
-        approvalPolicy,
-        sandboxMode,
+        approvalPolicy: effectiveApprovalPolicy,
+        sandboxMode: effectiveSandboxMode,
         workingDirectory,
         model: effectiveModel || undefined,
         skipGitRepoCheck,
@@ -2053,7 +2065,15 @@ function App() {
               autoPlayPrompt += `\n\nContext: ${expandPromptAliases(decision.nextTodo.notes, aliasMap)}`;
             }
             autoPlayPrompt += `\n\nComplete this single item and mark it done with DONE: ${decision.nextIndex + 1}`;
-            void handleRun(autoPlayPrompt, { agentOverride: decision.nextTodo.agent, modelOverride: decision.nextTodo.model });
+            const nextTodo = decision.nextTodo!;
+            const apBa = nextTodo.busyAgentId ? allAgents.find((a) => a.id === nextTodo.busyAgentId) : null;
+            void handleRun(autoPlayPrompt, {
+              agentOverride: apBa?.base ?? nextTodo.agent,
+              modelOverride: apBa?.model ?? nextTodo.model,
+              systemPromptOverride: apBa?.systemPrompt,
+              approvalPolicyOverride: apBa?.approvalPolicy,
+              sandboxModeOverride: apBa?.sandboxMode,
+            });
           }, 1000);
         }
       }
@@ -2750,7 +2770,14 @@ function App() {
                 todoPrompt += `\n\nContext: ${expandPromptAliases(nextTodo.notes, aliasMap)}`;
               }
               todoPrompt += `\n\nComplete this single item and mark it done with DONE: ${idx + 1}`;
-              void handleRun(todoPrompt, { agentOverride: nextTodo.agent, modelOverride: nextTodo.model });
+              const ba = nextTodo.busyAgentId ? allAgents.find((a) => a.id === nextTodo.busyAgentId) : null;
+              void handleRun(todoPrompt, {
+                agentOverride: ba?.base ?? nextTodo.agent,
+                modelOverride: ba?.model ?? nextTodo.model,
+                systemPromptOverride: ba?.systemPrompt,
+                approvalPolicyOverride: ba?.approvalPolicy,
+                sandboxModeOverride: ba?.sandboxMode,
+              });
             }}
             onStopTodos={handleStop}
             todoMode={todoMode}
