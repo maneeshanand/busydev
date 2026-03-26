@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { BusyAgent, SavedPromptEntry } from "../types";
+import { AgentIcon } from "./AgentIcon";
 import "./SettingsView.css";
 
 export type SectionId =
@@ -424,7 +425,7 @@ export function SettingsView(props: SettingsViewProps) {
                     {props.busyAgents.filter((a) => a.isPreset).map((agent) => (
                       <div key={agent.id} className="agent-card" onClick={() => { setEditingAgentId(agent.id); setAgentForm({}); }}>
                         <div className="agent-card-header">
-                          <span className="agent-card-icon">{agent.icon}</span>
+                          <span className="agent-card-icon"><AgentIcon name={agent.icon} size={18} /></span>
                           <div>
                             <div className="agent-card-name">{agent.name}</div>
                             <div className="agent-card-role">{agent.role}</div>
@@ -447,7 +448,7 @@ export function SettingsView(props: SettingsViewProps) {
                         {props.busyAgents.filter((a) => !a.isPreset).map((agent) => (
                           <div key={agent.id} className="agent-card" onClick={() => { setEditingAgentId(agent.id); setAgentForm({}); }}>
                             <div className="agent-card-header">
-                              <span className="agent-card-icon">{agent.icon}</span>
+                              <span className="agent-card-icon"><AgentIcon name={agent.icon} size={18} /></span>
                               <div>
                                 <div className="agent-card-name">{agent.name}</div>
                                 <div className="agent-card-role">{agent.role}</div>

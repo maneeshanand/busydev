@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { TodoItem, BusyAgent } from "../types";
 import { TodoDetailView } from "./TodoDetailView";
+import { AgentIcon } from "./AgentIcon";
 import "./TodoPanel.css";
 
 interface TodoPanelProps {
@@ -366,7 +367,7 @@ export function TodoPanel({
             )}
             {item.busyAgentId && busyAgents && (() => {
               const ba = busyAgents.find((a) => a.id === item.busyAgentId);
-              return ba ? <span className="todo-item-agent-badge" title={ba.name}>{ba.icon}</span> : null;
+              return ba ? <span className="todo-item-agent-badge" title={ba.name}><AgentIcon name={ba.icon} size={14} /></span> : null;
             })()}
             <span className="todo-item-arrow">&rarr;</span>
           </div>

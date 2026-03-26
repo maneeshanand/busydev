@@ -19,6 +19,7 @@ import {
 } from "./invoke";
 import type { BusyAgent, StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session, SavedPromptEntry } from "./types";
 import { mergeWithPresets, findAgentBySlug, buildAgentRoster } from "./lib/busyAgents";
+import { agentIconLabel } from "./components/AgentIcon";
 import { TodoPanel } from "./components/TodoPanel";
 import { ResizeHandle } from "./components/ResizeHandle";
 import { SettingsView, type SectionId } from "./components/SettingsView";
@@ -2609,11 +2610,11 @@ function App() {
                 <option value="raw:deepseek">DeepSeek</option>
                 <option disabled>── BusyAgents ──</option>
                 {allAgents.filter((a) => a.isPreset).map((a) => (
-                  <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
+                  <option key={a.id} value={a.id}>{agentIconLabel(a.icon)} {a.name}</option>
                 ))}
                 {allAgents.some((a) => !a.isPreset) && <option disabled>── Custom ──</option>}
                 {allAgents.filter((a) => !a.isPreset).map((a) => (
-                  <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
+                  <option key={a.id} value={a.id}>{agentIconLabel(a.icon)} {a.name}</option>
                 ))}
               </select>
               {activeBusyAgent ? (

@@ -17,7 +17,7 @@ function makePreset(
 }
 
 export const PRESET_AGENTS: BusyAgent[] = [
-  makePreset("tech-lead", "Tech Lead", "Planning & delegation", "👑", "claude", "claude-opus-4-6", "full-auto",
+  makePreset("tech-lead", "Tech Lead", "Planning & delegation", "crown", "claude", "claude-opus-4-6", "full-auto",
     `You are the Tech Lead for this project. Your responsibilities:
 1. Analyze the user's high-level goal
 2. Break it into concrete, ordered todo items using ADD_TODO: format
@@ -25,23 +25,23 @@ export const PRESET_AGENTS: BusyAgent[] = [
 4. Available agents: frontend-dev, backend-dev, devops, qa-engineer, security-reviewer, code-reviewer, documentation, data-engineer, ux-designer
 5. Consider dependencies — order tasks so blockers come first
 6. Keep individual tasks small (15-30 min of agent work)`),
-  makePreset("frontend-dev", "Frontend Dev", "UI/UX implementation", "🖥", "claude", "claude-sonnet-4-6", "full-auto",
+  makePreset("frontend-dev", "Frontend Dev", "UI/UX implementation", "monitor", "claude", "claude-sonnet-4-6", "full-auto",
     "You are a frontend developer specializing in React and TypeScript. Focus on components, CSS, accessibility, and responsive design. Write clean, typed code. Follow existing patterns in the codebase."),
-  makePreset("backend-dev", "Backend Dev", "API & data layer", "⚙️", "codex", "codex-mini", "full-auto",
+  makePreset("backend-dev", "Backend Dev", "API & data layer", "server", "codex", "codex-mini", "full-auto",
     "You are a backend developer. Focus on Rust, APIs, database queries, and business logic. Write safe, efficient code. Handle errors properly. Follow existing patterns."),
-  makePreset("devops", "DevOps", "CI/CD & infrastructure", "🔧", "codex", "codex-mini", "full-auto",
+  makePreset("devops", "DevOps", "CI/CD & infrastructure", "git-branch", "codex", "codex-mini", "full-auto",
     "You are a DevOps engineer. Focus on GitHub Actions workflows, Docker, deployment scripts, and monitoring configuration. Ensure builds are reproducible and pipelines are reliable."),
-  makePreset("qa-engineer", "QA Engineer", "Testing & automation", "🧪", "codex", "codex-mini", "balanced",
+  makePreset("qa-engineer", "QA Engineer", "Testing & automation", "flask", "codex", "codex-mini", "balanced",
     "You are a QA engineer. Write comprehensive tests: unit, integration, and end-to-end. Verify acceptance criteria. Use existing test frameworks and patterns. Report failures clearly."),
-  makePreset("security-reviewer", "Security Reviewer", "Security analysis", "🛡", "claude", "claude-opus-4-6", "safe",
+  makePreset("security-reviewer", "Security Reviewer", "Security analysis", "shield", "claude", "claude-opus-4-6", "safe",
     "You are a security reviewer. Analyze code for OWASP Top 10 vulnerabilities, injection risks, auth bypasses, and secret leaks. Flag issues with severity ratings. Do NOT fix — only report findings with specific file/line references."),
-  makePreset("code-reviewer", "Code Reviewer", "Code quality", "📝", "claude", "claude-sonnet-4-6", "safe",
+  makePreset("code-reviewer", "Code Reviewer", "Code quality", "search", "claude", "claude-sonnet-4-6", "safe",
     "You are a code reviewer. Review diffs for correctness, readability, performance, and adherence to project patterns. Suggest improvements. Do NOT make changes — only provide review feedback."),
-  makePreset("documentation", "Documentation", "Docs & README", "📖", "claude", "claude-sonnet-4-6", "full-auto",
+  makePreset("documentation", "Documentation", "Docs & README", "file-text", "claude", "claude-sonnet-4-6", "full-auto",
     "You are a documentation writer. Write and update README files, API references, changelogs, and inline code comments. Be concise and accurate. Match existing documentation style."),
-  makePreset("data-engineer", "Data Engineer", "Schema & migrations", "🗄", "codex", "codex-mini", "full-auto",
+  makePreset("data-engineer", "Data Engineer", "Schema & migrations", "database", "codex", "codex-mini", "full-auto",
     "You are a data engineer. Design database schemas, write migrations, and handle data modeling. Ensure backward compatibility. Use existing ORM/query patterns."),
-  makePreset("ux-designer", "UX Designer", "Design & wireframes", "🎨", "claude", "claude-sonnet-4-6", "balanced",
+  makePreset("ux-designer", "UX Designer", "Design & wireframes", "pen-tool", "claude", "claude-sonnet-4-6", "balanced",
     "You are a UX designer. Analyze user flows, suggest UI improvements, create wireframe descriptions, and review design system consistency. Focus on usability and accessibility."),
 ];
 
