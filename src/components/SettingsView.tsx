@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { SavedPromptEntry } from "../types";
+import type { BusyAgent, SavedPromptEntry } from "../types";
 import "./SettingsView.css";
 
 export type SectionId =
@@ -7,6 +7,7 @@ export type SectionId =
   | "execution"
   | "todo"
   | "library"
+  | "agents"
   | "terminal"
   | "advanced";
 
@@ -51,6 +52,11 @@ interface SettingsViewProps {
   onCreatePromptLibraryEntry: (entry: { name: string; alias: string; kind: "prompt" | "function"; content: string }) => void;
   onUpdatePromptLibraryEntry: (entry: SavedPromptEntry) => void;
   onDeletePromptLibraryEntry: (id: string) => void;
+  busyAgents: BusyAgent[];
+  onCreateBusyAgent: (entry: Omit<BusyAgent, "id" | "createdAt" | "updatedAt">) => void;
+  onUpdateBusyAgent: (agent: BusyAgent) => void;
+  onDeleteBusyAgent: (id: string) => void;
+  onResetBusyAgent: (id: string) => void;
   onResetEnvironment: () => void;
 }
 
@@ -59,6 +65,7 @@ const SECTION_LABELS: Record<SectionId, string> = {
   execution: "Execution",
   todo: "Todo",
   library: "Prompt Library",
+  agents: "Agents",
   terminal: "Terminal",
   advanced: "Advanced",
 };
@@ -75,6 +82,9 @@ export function SettingsView(props: SettingsViewProps) {
   const [editAlias, setEditAlias] = useState("");
   const [editKind, setEditKind] = useState<"prompt" | "function">("prompt");
   const [editContent, setEditContent] = useState("");
+  const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
+  const [agentForm, setAgentForm] = useState<Partial<BusyAgent>>({});
+  const [creatingAgent, setCreatingAgent] = useState(false);
 
   useEffect(() => {
     if (!props.open) return;
@@ -240,6 +250,217 @@ export function SettingsView(props: SettingsViewProps) {
                   onChange={(e) => props.setRightPanelWidth(Number(e.target.value))}
                 />
               </label>
+            </section>
+          )}
+
+          {activeSection === "agents" && (
+            <section className="settings-section">
+              {editingAgentId || creatingAgent ? (() => {
+                const editingAgent = editingAgentId ? props.busyAgents.find((a) => a.id === editingAgentId) : null;
+                const form = agentForm;
+                const isPreset = editingAgent?.isPreset ?? false;
+                const base = (form.base ?? editingAgent?.base ?? "codex") as "codex" | "claude";
+                const modelOptions = base === "claude"
+                  ? ["claude-sonnet-4-6", "claude-opus-4-6", "claude-haiku-4-5"]
+                  : ["codex-mini", "o3", "o4-mini"];
+
+                return (
+                  <div className="agent-editor">
+                    <button type="button" className="agent-editor-back" onClick={() => { setEditingAgentId(null); setCreatingAgent(false); setAgentForm({}); }}>
+                      ← Back to agents
+                    </button>
+
+                    <label>
+                      Name
+                      <input
+                        value={form.name ?? editingAgent?.name ?? ""}
+                        onChange={(e) => setAgentForm({ ...form, name: e.target.value })}
+                        placeholder="Agent name"
+                      />
+                    </label>
+
+                    <div style={{ display: "flex", gap: "10px" }}>
+                      <label style={{ flex: 1 }}>
+                        Icon
+                        <input
+                          value={form.icon ?? editingAgent?.icon ?? "🤖"}
+                          onChange={(e) => setAgentForm({ ...form, icon: e.target.value })}
+                          placeholder="Emoji"
+                        />
+                      </label>
+                      <label style={{ flex: 3 }}>
+                        Role
+                        <input
+                          value={form.role ?? editingAgent?.role ?? ""}
+                          onChange={(e) => setAgentForm({ ...form, role: e.target.value })}
+                          placeholder="What does this agent do?"
+                        />
+                      </label>
+                    </div>
+
+                    <div style={{ display: "flex", gap: "10px" }}>
+                      <label style={{ flex: 1 }}>
+                        Base agent
+                        <select
+                          value={base}
+                          onChange={(e) => setAgentForm({ ...form, base: e.target.value as "codex" | "claude", model: "" })}
+                        >
+                          <option value="codex">Codex</option>
+                          <option value="claude">Claude</option>
+                        </select>
+                      </label>
+                      <label style={{ flex: 1 }}>
+                        Model
+                        <select
+                          value={form.model ?? editingAgent?.model ?? ""}
+                          onChange={(e) => setAgentForm({ ...form, model: e.target.value })}
+                        >
+                          {modelOptions.map((m) => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                      </label>
+                      <label style={{ flex: 1 }}>
+                        Execution
+                        <select
+                          value={form.executionMode ?? editingAgent?.executionMode ?? "full-auto"}
+                          onChange={(e) => setAgentForm({ ...form, executionMode: e.target.value as "safe" | "balanced" | "full-auto" })}
+                        >
+                          <option value="safe">Safe</option>
+                          <option value="balanced">Balanced</option>
+                          <option value="full-auto">Full Auto</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <label>
+                      System prompt
+                      <textarea
+                        value={form.systemPrompt ?? editingAgent?.systemPrompt ?? ""}
+                        onChange={(e) => setAgentForm({ ...form, systemPrompt: e.target.value })}
+                        rows={6}
+                        placeholder="Instructions for this agent..."
+                      />
+                    </label>
+
+                    <div className="agent-editor-actions">
+                      <button type="button" onClick={() => {
+                        const name = (form.name ?? editingAgent?.name ?? "").trim();
+                        if (!name) return;
+                        const policyMap: Record<string, string> = { safe: "never", balanced: "unless-allow-listed", "full-auto": "full-auto" };
+                        const sandboxMap: Record<string, string> = { safe: "read-only", balanced: "workspace-write", "full-auto": "danger-full-access" };
+                        const execMode = (form.executionMode ?? editingAgent?.executionMode ?? "full-auto") as "safe" | "balanced" | "full-auto";
+                        const merged: BusyAgent = {
+                          id: editingAgent?.id ?? "",
+                          name,
+                          role: (form.role ?? editingAgent?.role ?? "").trim(),
+                          icon: (form.icon ?? editingAgent?.icon ?? "🤖").trim(),
+                          base: (form.base ?? editingAgent?.base ?? "codex") as "codex" | "claude",
+                          model: (form.model ?? editingAgent?.model ?? "").trim(),
+                          executionMode: execMode,
+                          approvalPolicy: policyMap[execMode],
+                          sandboxMode: sandboxMap[execMode],
+                          systemPrompt: (form.systemPrompt ?? editingAgent?.systemPrompt ?? "").trim(),
+                          isPreset: editingAgent?.isPreset ?? false,
+                          createdAt: editingAgent?.createdAt ?? 0,
+                          updatedAt: editingAgent?.updatedAt ?? 0,
+                        };
+                        if (creatingAgent) {
+                          props.onCreateBusyAgent(merged);
+                        } else {
+                          props.onUpdateBusyAgent(merged);
+                        }
+                        setEditingAgentId(null);
+                        setCreatingAgent(false);
+                        setAgentForm({});
+                      }}>Save</button>
+
+                      {editingAgent && (
+                        <button type="button" onClick={() => {
+                          setCreatingAgent(true);
+                          setEditingAgentId(null);
+                          setAgentForm({
+                            ...form,
+                            name: `${form.name ?? editingAgent.name} (copy)`,
+                            isPreset: false,
+                          });
+                        }}>Clone</button>
+                      )}
+
+                      {editingAgent && !isPreset && (
+                        <button type="button" onClick={() => {
+                          props.onDeleteBusyAgent(editingAgent.id);
+                          setEditingAgentId(null);
+                          setAgentForm({});
+                        }}>Delete</button>
+                      )}
+
+                      {isPreset && (
+                        <button type="button" onClick={() => {
+                          props.onResetBusyAgent(editingAgent!.id);
+                          setEditingAgentId(null);
+                          setAgentForm({});
+                        }}>Reset to default</button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })() : (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+                    <div>
+                      <p className="settings-helper" style={{ margin: 0 }}>Specialized AI agents for your SDLC team.</p>
+                    </div>
+                    <button type="button" className="settings-library-create > button" style={{ minHeight: "32px", padding: "0 12px", fontSize: "0.78rem" }} onClick={() => {
+                      setCreatingAgent(true);
+                      setAgentForm({ base: "claude", model: "claude-sonnet-4-6", executionMode: "full-auto", isPreset: false, icon: "🤖" });
+                    }}>+ New Agent</button>
+                  </div>
+
+                  <div className="agent-section-label">Preset Team</div>
+                  <div className="agent-grid">
+                    {props.busyAgents.filter((a) => a.isPreset).map((agent) => (
+                      <div key={agent.id} className="agent-card" onClick={() => { setEditingAgentId(agent.id); setAgentForm({}); }}>
+                        <div className="agent-card-header">
+                          <span className="agent-card-icon">{agent.icon}</span>
+                          <div>
+                            <div className="agent-card-name">{agent.name}</div>
+                            <div className="agent-card-role">{agent.role}</div>
+                          </div>
+                          <span className="agent-card-preset-badge">PRESET</span>
+                        </div>
+                        <div className="agent-card-chips">
+                          <span className="agent-card-chip">{agent.base === "claude" ? "Claude" : "Codex"}</span>
+                          <span className="agent-card-chip">{agent.model || (agent.base === "claude" ? "sonnet" : "codex-mini")}</span>
+                          <span className="agent-card-chip">{agent.executionMode === "full-auto" ? "Full Auto" : agent.executionMode === "balanced" ? "Balanced" : "Safe"}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {props.busyAgents.some((a) => !a.isPreset) && (
+                    <>
+                      <div className="agent-section-label" style={{ marginTop: "20px" }}>Custom</div>
+                      <div className="agent-grid">
+                        {props.busyAgents.filter((a) => !a.isPreset).map((agent) => (
+                          <div key={agent.id} className="agent-card" onClick={() => { setEditingAgentId(agent.id); setAgentForm({}); }}>
+                            <div className="agent-card-header">
+                              <span className="agent-card-icon">{agent.icon}</span>
+                              <div>
+                                <div className="agent-card-name">{agent.name}</div>
+                                <div className="agent-card-role">{agent.role}</div>
+                              </div>
+                            </div>
+                            <div className="agent-card-chips">
+                              <span className="agent-card-chip">{agent.base === "claude" ? "Claude" : "Codex"}</span>
+                              <span className="agent-card-chip">{agent.model}</span>
+                              <span className="agent-card-chip">{agent.executionMode === "full-auto" ? "Full Auto" : agent.executionMode === "balanced" ? "Balanced" : "Safe"}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
             </section>
           )}
 

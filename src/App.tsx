@@ -18,7 +18,7 @@ import {
   type CodexStreamEvent,
 } from "./invoke";
 import type { BusyAgent, StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session, SavedPromptEntry } from "./types";
-import { mergeWithPresets, PRESET_AGENTS } from "./lib/busyAgents";
+import { mergeWithPresets } from "./lib/busyAgents";
 import { TodoPanel } from "./components/TodoPanel";
 import { ResizeHandle } from "./components/ResizeHandle";
 import { SettingsView, type SectionId } from "./components/SettingsView";
