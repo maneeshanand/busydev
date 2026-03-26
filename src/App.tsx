@@ -1829,8 +1829,44 @@ function App() {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      const isMod = e.metaKey || e.ctrlKey;
+      const isPrevTabShortcut = isMod && e.shiftKey && (e.code === "BracketLeft" || e.key === "[");
+      const isNextTabShortcut = isMod && e.shiftKey && (e.code === "BracketRight" || e.key === "]");
+
+      if (isPrevTabShortcut || isNextTabShortcut) {
+        e.preventDefault();
+        const direction = isPrevTabShortcut ? -1 : 1;
+
+        // Prefer navigating in-flight run tabs for the active session when present.
+        const currentSessionId = activeProject?.activeSessionId;
+        const runTabIds = Object.values(inFlightRuns)
+          .filter((r) => {
+            const owner = runSessionMapRef.current[r.runId];
+            return owner && owner.projectId === activeProjectId && owner.sessionId === currentSessionId;
+          })
+          .map((r) => r.runId);
+
+        if (runTabIds.length > 1) {
+          const currentIndex = activeTabId && runTabIds.includes(activeTabId)
+            ? runTabIds.indexOf(activeTabId)
+            : 0;
+          const nextIndex = (currentIndex + direction + runTabIds.length) % runTabIds.length;
+          setActiveTabId(runTabIds[nextIndex]);
+          return;
+        }
+
+        // Otherwise navigate session tabs.
+        if (activeProject && activeProject.sessions.length > 1 && activeProject.activeSessionId) {
+          const sessionIds = activeProject.sessions.map((s) => s.id);
+          const currentIndex = Math.max(0, sessionIds.indexOf(activeProject.activeSessionId));
+          const nextIndex = (currentIndex + direction + sessionIds.length) % sessionIds.length;
+          switchSession(activeProject.id, sessionIds[nextIndex]);
+        }
+        return;
+      }
+
       // Cmd/Ctrl+K to toggle Global Session Viewer
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      if (isMod && e.key === "k") {
         e.preventDefault();
         setGlobalViewOpen((prev) => !prev);
         return;
@@ -1846,13 +1882,13 @@ function App() {
         return;
       }
       // Cmd/Ctrl+L opens Prompt Library
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "l") {
+      if (isMod && e.key.toLowerCase() === "l") {
         e.preventDefault();
         openSettings("library");
         return;
       }
       // Cmd/Ctrl+F to toggle search
-      if ((e.metaKey || e.ctrlKey) && e.key === "f") {
+      if (isMod && e.key === "f") {
         e.preventDefault();
         setSearchOpen((prev) => {
           if (prev) { setSearchQuery(""); return false; }
