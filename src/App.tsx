@@ -18,7 +18,7 @@ import {
   type CodexStreamEvent,
 } from "./invoke";
 import type { BusyAgent, StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session, SavedPromptEntry } from "./types";
-import { mergeWithPresets } from "./lib/busyAgents";
+import { mergeWithPresets, findAgentBySlug, buildAgentRoster } from "./lib/busyAgents";
 import { TodoPanel } from "./components/TodoPanel";
 import { ResizeHandle } from "./components/ResizeHandle";
 import { SettingsView, type SectionId } from "./components/SettingsView";
@@ -1924,7 +1924,11 @@ function App() {
       : expandedPrompt;
 
     // Prepend system prompt from BusyAgent if available
-    const systemPrompt = overrides?.systemPromptOverride || activeBusyAgent?.systemPrompt || "";
+    let systemPrompt = overrides?.systemPromptOverride || activeBusyAgent?.systemPrompt || "";
+    // Append dynamic agent roster for Tech Lead orchestration
+    if (systemPrompt && systemPrompt.includes("[agent:")) {
+      systemPrompt += `\n\n${buildAgentRoster(allAgents)}`;
+    }
     const effectivePrompt = systemPrompt
       ? `${systemPrompt}\n\n---\n\n${sessionContext}${basePrompt}`
       : sessionContext + basePrompt;
@@ -2008,7 +2012,9 @@ function App() {
             done: false,
             source: "agent" as const,
             createdAt: Date.now(),
-            // addition.agentSlug available — wired in Task 2
+            busyAgentId: addition.agentSlug
+              ? findAgentBySlug(allAgents, addition.agentSlug)?.id
+              : undefined,
           })),
         ];
 
