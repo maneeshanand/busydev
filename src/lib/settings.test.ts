@@ -78,6 +78,33 @@ describe("migrateStoredSettings", () => {
     expect(session?.sandboxMode).toBe("read-only");
   });
 
+  it("accepts deepseek agent/model values", () => {
+    const migrated = migrateStoredSettings({
+      projects: [{
+        id: "p1",
+        name: "P1",
+        path: "/tmp/p1",
+        createdAt: Date.now(),
+        activeSessionId: "s1",
+        sessions: [{
+          id: "s1",
+          projectId: "p1",
+          name: "S1",
+          createdAt: Date.now(),
+          runs: [],
+          todos: [],
+          agent: "deepseek",
+          model: "deepseek-reasoner",
+          approvalPolicy: "never",
+          sandboxMode: "read-only",
+        }],
+      }],
+    });
+
+    expect(migrated?.projects[0].sessions[0].agent).toBe("deepseek");
+    expect(migrated?.projects[0].sessions[0].model).toBe("deepseek-reasoner");
+  });
+
   it("keeps valid activeProjectId and falls back when missing", () => {
     const withValid = migrateStoredSettings({
       projects: [{

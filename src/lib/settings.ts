@@ -81,8 +81,9 @@ function toNumberInRange(value: unknown, min: number, max: number, fallback: num
   return Math.min(max, Math.max(min, value));
 }
 
-function sanitizeAgent(value: unknown): "codex" | "claude" {
-  return value === "claude" ? "claude" : "codex";
+function sanitizeAgent(value: unknown): "codex" | "claude" | "deepseek" {
+  if (value === "claude" || value === "deepseek") return value;
+  return "codex";
 }
 
 function sanitizeApprovalPolicy(value: unknown): "full-auto" | "unless-allow-listed" | "never" {
@@ -95,13 +96,16 @@ function sanitizeSandbox(value: unknown): "read-only" | "workspace-write" | "dan
   return "read-only";
 }
 
-function sanitizeModel(agent: "codex" | "claude", value: unknown): string {
+function sanitizeModel(agent: "codex" | "claude" | "deepseek", value: unknown): string {
   const str = typeof value === "string" ? value : "";
   const claudeModels = new Set(["", "claude-opus-4-6", "claude-haiku-4-5"]);
   const codexModels = new Set(["", "o3", "o4-mini"]);
+  const deepseekModels = new Set(["", "deepseek-chat", "deepseek-reasoner"]);
   return agent === "claude"
     ? (claudeModels.has(str) ? str : "")
-    : (codexModels.has(str) ? str : "");
+    : agent === "deepseek"
+      ? (deepseekModels.has(str) ? str : "")
+      : (codexModels.has(str) ? str : "");
 }
 
 function sanitizePersistedRun(value: unknown): PersistedRun | null {

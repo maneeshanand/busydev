@@ -202,6 +202,22 @@ function shortenPath(path: string): string {
 
 type ClassifiedRow = Omit<StreamRow, "id">;
 
+function extractAssistantTextChunk(event: CodexStreamEvent): string | null {
+  const value = event.parsedJson;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const obj = value as Record<string, unknown>;
+  if (obj.type !== "assistant") return null;
+  const message = obj.message as Record<string, unknown> | undefined;
+  const content = message?.content;
+  if (!Array.isArray(content) || content.length === 0) return null;
+  const block = content[content.length - 1];
+  if (!block || typeof block !== "object" || Array.isArray(block)) return null;
+  const textBlock = block as Record<string, unknown>;
+  if (textBlock.type !== "text") return null;
+  const text = typeof textBlock.text === "string" ? textBlock.text : "";
+  return text.length > 0 ? text : null;
+}
+
 function classifyEvent(event: CodexStreamEvent): ClassifiedRow {
   // Handle non-stdout lifecycle events from the runner
   if (event.kind === "completed") {
@@ -1067,6 +1083,27 @@ function App() {
       // Only process events for runs we're tracking
       if (!streamRowsMapRef.current[rid]) return;
 
+      const assistantChunk = extractAssistantTextChunk(payload);
+      if (assistantChunk !== null) {
+        const appendChunk = (rows: StreamRow[]): StreamRow[] => {
+          if (!nextRowIdRef.current[rid]) nextRowIdRef.current[rid] = 1;
+          const last = rows[rows.length - 1];
+          if (last && last.category === "message") {
+            return rows.map((r, i) => (i === rows.length - 1 ? { ...r, text: `${r.text}${assistantChunk}` } : r));
+          }
+          const row: StreamRow = { id: nextRowIdRef.current[rid]++, category: "message", text: assistantChunk };
+          return [...rows, row];
+        };
+
+        streamRowsMapRef.current[rid] = appendChunk(streamRowsMapRef.current[rid] || []);
+        setInFlightRuns((prev) => {
+          const run = prev[rid];
+          if (!run) return prev;
+          return { ...prev, [rid]: { ...run, streamRows: appendChunk(run.streamRows) } };
+        });
+        return;
+      }
+
       const classified = classifyEvent(payload);
       if (classified.hidden) return;
 
@@ -1765,8 +1802,36 @@ function App() {
         }
       }
     } catch (e) {
-      setError(String(e));
-      fireNotification("Agent error", String(e), "error");
+      const errorText = String(e);
+      setError(errorText);
+      fireNotification("Agent error", errorText, "error");
+
+      // Persist failed runs so API/debug errors remain visible in session history.
+      const owner = runSessionMapRef.current[runId];
+      const currentRows = streamRowsMapRef.current[runId] || [];
+      const nextId = nextRowIdRef.current[runId] || (currentRows.length + 1);
+      const finalStreamRows: StreamRow[] = [
+        ...currentRows,
+        { id: nextId, category: "error", text: errorText },
+      ];
+
+      if (owner) {
+        const startedAt = startTimeMapRef.current[runId] || Date.now();
+        const durationMs = Math.max(0, Date.now() - startedAt);
+        const failedRun: PersistedRun = {
+          id: runNumber,
+          prompt: displayPrompt,
+          streamRows: finalStreamRows,
+          exitCode: null,
+          durationMs,
+          finalSummary: `Run failed: ${errorText}`,
+          completedAt: Date.now(),
+        };
+        updateSession(owner.projectId, owner.sessionId, (s) => ({
+          ...s,
+          runs: [...s.runs, failedRun],
+        }));
+      }
     } finally {
       // Clean up per-run state
       delete streamRowsMapRef.current[runId];
@@ -2246,6 +2311,7 @@ function App() {
               >
                 <option value="codex">Codex</option>
                 <option value="claude">Claude</option>
+                <option value="deepseek">DeepSeek</option>
               </select>
               <select
                 className="meta-chip-select"
@@ -2258,6 +2324,12 @@ function App() {
                     <option value="">claude-sonnet-4-6</option>
                     <option value="claude-opus-4-6">claude-opus-4-6</option>
                     <option value="claude-haiku-4-5">claude-haiku-4-5</option>
+                  </>
+                ) : agent === "deepseek" ? (
+                  <>
+                    <option value="">deepseek-chat</option>
+                    <option value="deepseek-chat">deepseek-chat</option>
+                    <option value="deepseek-reasoner">deepseek-reasoner</option>
                   </>
                 ) : (
                   <>

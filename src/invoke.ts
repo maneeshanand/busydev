@@ -4,7 +4,7 @@ export const CODEX_STREAM_EVENT = "codex://stream";
 
 export interface CodexExecInput {
   runId: string;
-  agent?: string; // "codex" (default) or "claude"
+  agent?: string; // "codex" (default), "claude", or "deepseek"
   prompt: string;
   approvalPolicy: string;
   sandboxMode: string;

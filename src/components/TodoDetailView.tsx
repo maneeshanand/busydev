@@ -105,6 +105,7 @@ export function TodoDetailView({ todo, index, total, onBack, onUpdate }: TodoDet
             <option value="">Session default</option>
             <option value="codex">Codex</option>
             <option value="claude">Claude</option>
+            <option value="deepseek">DeepSeek</option>
           </select>
           <select
             value={todo.model ?? ""}
@@ -113,6 +114,8 @@ export function TodoDetailView({ todo, index, total, onBack, onUpdate }: TodoDet
             <option value="">Session default</option>
             {(todo.agent === "claude"
               ? ["claude-sonnet-4-6", "claude-opus-4-6", "claude-haiku-4-5"]
+              : todo.agent === "deepseek"
+                ? ["deepseek-chat", "deepseek-reasoner"]
               : ["codex-mini", "o3", "o4-mini"]
             ).map((m) => (
               <option key={m} value={m}>{m}</option>
