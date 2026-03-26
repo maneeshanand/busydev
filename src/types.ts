@@ -64,6 +64,7 @@ export interface TodoItem {
   agent?: string;
   model?: string;
   subtasks?: SubTask[];
+  busyAgentId?: string;
 }
 
 export interface SavedPromptEntry {
@@ -72,6 +73,22 @@ export interface SavedPromptEntry {
   alias: string;
   kind: "prompt" | "function";
   content: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface BusyAgent {
+  id: string;
+  name: string;
+  role: string;
+  icon: string;
+  base: "codex" | "claude";
+  model: string;
+  executionMode: "safe" | "balanced" | "full-auto";
+  approvalPolicy: string;
+  sandboxMode: string;
+  systemPrompt: string;
+  isPreset: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -91,6 +108,7 @@ export interface Session {
   worktreeBranch?: string;
   todoMode?: boolean;
   autoPlay?: boolean;
+  busyAgentId?: string;
 }
 
 export interface Project {

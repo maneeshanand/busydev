@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { TodoItem, SubTask } from "../types";
+import type { TodoItem, SubTask, BusyAgent } from "../types";
 import "./TodoDetailView.css";
 
 interface TodoDetailViewProps {
@@ -8,9 +8,10 @@ interface TodoDetailViewProps {
   total: number;
   onBack: () => void;
   onUpdate: (id: string, updates: Partial<TodoItem>) => void;
+  busyAgents: BusyAgent[];
 }
 
-export function TodoDetailView({ todo, index, total, onBack, onUpdate }: TodoDetailViewProps) {
+export function TodoDetailView({ todo, index, total, onBack, onUpdate, busyAgents }: TodoDetailViewProps) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleText, setTitleText] = useState(todo.text);
   const [newSubtask, setNewSubtask] = useState("");
@@ -96,33 +97,41 @@ export function TodoDetailView({ todo, index, total, onBack, onUpdate }: TodoDet
       </div>
 
       <div className="todo-detail-section">
-        <label className="todo-detail-label">Execution</label>
-        <div className="todo-detail-exec">
-          <select
-            value={todo.agent ?? ""}
-            onChange={(e) => onUpdate(todo.id, { agent: e.target.value || undefined })}
-          >
-            <option value="">Session default</option>
-            <option value="codex">Codex</option>
-            <option value="claude">Claude</option>
-            <option value="deepseek">DeepSeek</option>
-          </select>
-          <select
-            value={todo.model ?? ""}
-            onChange={(e) => onUpdate(todo.id, { model: e.target.value || undefined })}
-          >
-            <option value="">Session default</option>
-            {(todo.agent === "claude"
-              ? ["claude-sonnet-4-6", "claude-opus-4-6", "claude-haiku-4-5"]
-              : todo.agent === "deepseek"
-                ? ["deepseek-chat", "deepseek-reasoner"]
-              : ["codex-mini", "o3", "o4-mini"]
-            ).map((m) => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
-        </div>
-        <span className="todo-detail-hint">Overrides session defaults for this item</span>
+        <label className="todo-detail-label">Assigned Agent</label>
+        <select
+          className="todo-detail-agent-select"
+          value={todo.busyAgentId ?? ""}
+          onChange={(e) => {
+            const val = e.target.value;
+            if (val) {
+              const ba = busyAgents.find((a) => a.id === val);
+              onUpdate(todo.id, {
+                busyAgentId: val,
+                agent: ba?.base,
+                model: ba?.model,
+              });
+            } else {
+              onUpdate(todo.id, { busyAgentId: undefined, agent: undefined, model: undefined });
+            }
+          }}
+        >
+          <option value="">Use session agent</option>
+          {busyAgents.map((a) => (
+            <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
+          ))}
+        </select>
+        {todo.busyAgentId && (() => {
+          const ba = busyAgents.find((a) => a.id === todo.busyAgentId);
+          if (!ba) return null;
+          return (
+            <div className="todo-detail-agent-chips">
+              <span className="todo-detail-agent-chip">{ba.base === "claude" ? "Claude" : "Codex"}</span>
+              <span className="todo-detail-agent-chip">{ba.model}</span>
+              <span className="todo-detail-agent-chip">{ba.executionMode === "full-auto" ? "Full Auto" : ba.executionMode === "balanced" ? "Balanced" : "Safe"}</span>
+            </div>
+          );
+        })()}
+        <span className="todo-detail-hint">Overrides session agent for this todo</span>
       </div>
 
       <div className="todo-detail-section">

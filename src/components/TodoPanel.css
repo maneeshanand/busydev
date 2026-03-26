@@ -528,6 +528,12 @@
   flex-shrink: 0;
 }
 
+.todo-item-agent-badge {
+  font-size: 12px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
 .todo-item-clickable:hover .todo-item-arrow {
   opacity: 1;
 }

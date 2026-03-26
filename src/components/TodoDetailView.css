@@ -83,20 +83,29 @@
   font-family: inherit;
 }
 
-.todo-detail-exec {
-  display: flex;
-  gap: 6px;
+.todo-detail-agent-select {
+  width: 100%;
+  background: var(--vp-c-bg-mute);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 2px;
+  color: var(--vp-c-text-1);
+  padding: 6px 8px;
+  font-size: 0.8rem;
+  font-family: inherit;
 }
 
-.todo-detail-exec select {
-  flex: 1;
+.todo-detail-agent-chips {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.todo-detail-agent-chip {
   background: var(--vp-c-bg-mute);
-  border: none;
+  padding: 2px 6px;
   border-radius: 2px;
+  font-size: 0.68rem;
   color: var(--vp-c-text-2);
-  padding: 4px 8px;
-  font-size: 0.78rem;
-  font-family: inherit;
 }
 
 .todo-detail-hint {

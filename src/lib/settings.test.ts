@@ -398,4 +398,88 @@ describe("migrateStoredSettings", () => {
     expect(todo.model).toBeUndefined();
     expect(todo.subtasks).toBeUndefined();
   });
+
+  it("preserves busyAgentId on Session and TodoItem", () => {
+    const migrated = migrateStoredSettings({
+      projects: [{
+        id: "p1", name: "P", path: "/tmp/p", createdAt: Date.now(),
+        activeSessionId: "s1",
+        sessions: [{
+          id: "s1", projectId: "p1", name: "S1", createdAt: Date.now(),
+          runs: [],
+          todos: [{
+            id: "t1", text: "Do thing", done: false, source: "user", createdAt: 1,
+            busyAgentId: "preset-security-reviewer",
+          }],
+          busyAgentId: "preset-tech-lead",
+        }],
+      }],
+    });
+
+    const session = migrated!.projects[0].sessions[0];
+    expect(session.busyAgentId).toBe("preset-tech-lead");
+    expect(session.todos[0].busyAgentId).toBe("preset-security-reviewer");
+  });
+
+  it("defaults busyAgentId to undefined when not set", () => {
+    const migrated = migrateStoredSettings({
+      projects: [{
+        id: "p1", name: "P", path: "/tmp/p", createdAt: Date.now(),
+        activeSessionId: "s1",
+        sessions: [{
+          id: "s1", projectId: "p1", name: "S1", createdAt: Date.now(),
+          runs: [],
+          todos: [{ id: "t1", text: "Plain", done: false, source: "user", createdAt: 1 }],
+        }],
+      }],
+    });
+
+    const session = migrated!.projects[0].sessions[0];
+    expect(session.busyAgentId).toBeUndefined();
+    expect(session.todos[0].busyAgentId).toBeUndefined();
+  });
+
+  it("preserves BusyAgents through save/load", () => {
+    const migrated = migrateStoredSettings({
+      projects: [],
+      busyAgents: [
+        {
+          id: "preset-tech-lead", name: "My Tech Lead", role: "planning", icon: "👑",
+          base: "claude", model: "claude-opus-4-6", executionMode: "full-auto",
+          approvalPolicy: "full-auto", sandboxMode: "danger-full-access",
+          systemPrompt: "custom prompt", isPreset: true, createdAt: 1, updatedAt: 2,
+        },
+        {
+          id: "custom-1", name: "Release Mgr", role: "releases", icon: "🚀",
+          base: "codex", model: "o3", executionMode: "balanced",
+          approvalPolicy: "unless-allow-listed", sandboxMode: "workspace-write",
+          systemPrompt: "handle releases", isPreset: false, createdAt: 3, updatedAt: 4,
+        },
+      ],
+    });
+
+    expect(migrated?.busyAgents).toHaveLength(2);
+    expect(migrated?.busyAgents[0].name).toBe("My Tech Lead");
+    expect(migrated?.busyAgents[0].systemPrompt).toBe("custom prompt");
+    expect(migrated?.busyAgents[1].name).toBe("Release Mgr");
+    expect(migrated?.busyAgents[1].isPreset).toBe(false);
+  });
+
+  it("defaults busyAgents to empty array when missing", () => {
+    const migrated = migrateStoredSettings({ projects: [] });
+    expect(migrated?.busyAgents).toEqual([]);
+  });
+
+  it("strips invalid BusyAgent entries", () => {
+    const migrated = migrateStoredSettings({
+      projects: [],
+      busyAgents: [
+        { id: "a", name: "", role: "x", icon: "x", base: "claude", model: "m" },
+        { id: "b", name: "Good", role: "r", icon: "🔧", base: "codex", model: "m", systemPrompt: "p" },
+        "not-an-object",
+      ],
+    });
+    expect(migrated?.busyAgents).toHaveLength(1);
+    expect(migrated?.busyAgents[0].name).toBe("Good");
+  });
 });

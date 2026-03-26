@@ -17,7 +17,8 @@ import {
   updateTrayBadge,
   type CodexStreamEvent,
 } from "./invoke";
-import type { StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session, SavedPromptEntry } from "./types";
+import type { BusyAgent, StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session, SavedPromptEntry } from "./types";
+import { mergeWithPresets } from "./lib/busyAgents";
 import { TodoPanel } from "./components/TodoPanel";
 import { ResizeHandle } from "./components/ResizeHandle";
 import { SettingsView, type SectionId } from "./components/SettingsView";
@@ -1023,6 +1024,8 @@ function App() {
   const [skipGitRepoCheck, setSkipGitRepoCheck] = useState(true);
   const [prompt, setPrompt] = useState("");
   const [promptLibrary, setPromptLibrary] = useState<SavedPromptEntry[]>([]);
+  const [busyAgents, setBusyAgents] = useState<BusyAgent[]>([]);
+  const allAgents = useMemo(() => mergeWithPresets(busyAgents), [busyAgents]);
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
   const [mentionStart, setMentionStart] = useState<number | null>(null);
@@ -1094,6 +1097,9 @@ function App() {
   const aliasMap = useMemo(() => buildAliasMap(promptLibrary), [promptLibrary]);
   const mentionedAliases = useMemo(() => getMentionedAliases(prompt, aliasMap), [aliasMap, prompt]);
   const mentionSuggestions = useMemo(() => getMentionSuggestions(aliasMap, mentionQuery), [aliasMap, mentionQuery]);
+  const activeBusyAgent = activeSession?.busyAgentId
+    ? allAgents.find((a) => a.id === activeSession.busyAgentId) ?? null
+    : null;
   const todoMode = activeSession?.todoMode ?? false;
   const autoPlayTodos = activeSession?.autoPlay ?? false;
   const [todoPanelOpen, setTodoPanelOpen] = useState(false);
@@ -1131,6 +1137,7 @@ function App() {
     terminalFontSize,
     terminalLineHeight,
     promptLibrary,
+    busyAgents,
     windowWidth: windowSize.windowWidth,
     windowHeight: windowSize.windowHeight,
   }), [
@@ -1151,6 +1158,7 @@ function App() {
     terminalFontSize,
     terminalLineHeight,
     promptLibrary,
+    busyAgents,
     windowSize.windowWidth,
     windowSize.windowHeight,
   ]);
@@ -1243,6 +1251,7 @@ function App() {
           setTerminalFontSize(migrated.terminalFontSize);
           setTerminalLineHeight(migrated.terminalLineHeight);
           setPromptLibrary(migrated.promptLibrary);
+          setBusyAgents(migrated.busyAgents);
           setWindowSize({
             windowWidth: migrated.windowWidth,
             windowHeight: migrated.windowHeight,
@@ -1550,10 +1559,20 @@ function App() {
     }));
   }
 
-  function setAgent(v: string) { updateActiveSession((s) => ({ ...s, agent: v })); }
   function setModel(v: string) { updateActiveSession((s) => ({ ...s, model: v })); }
   function setApprovalPolicy(v: string) { updateActiveSession((s) => ({ ...s, approvalPolicy: v })); }
   function setSandboxMode(v: string) { updateActiveSession((s) => ({ ...s, sandboxMode: v })); }
+  function setSessionBusyAgent(agentId: string | undefined) {
+    updateActiveSession((s) => ({
+      ...s,
+      busyAgentId: agentId,
+      // When a BusyAgent is selected, also sync the raw fields for backward compat
+      ...(agentId ? (() => {
+        const ba = allAgents.find((a) => a.id === agentId);
+        return ba ? { agent: ba.base, model: ba.model, approvalPolicy: ba.approvalPolicy, sandboxMode: ba.sandboxMode } : {};
+      })() : {}),
+    }));
+  }
   function createPromptLibraryEntry(entry: { name: string; alias: string; kind: "prompt" | "function"; content: string }) {
     const now = Date.now();
     const id = crypto.randomUUID();
@@ -1599,6 +1618,24 @@ function App() {
   }
   function deletePromptLibraryEntry(id: string) {
     setPromptLibrary((prev) => prev.filter((item) => item.id !== id));
+  }
+
+  function createBusyAgent(entry: Omit<BusyAgent, "id" | "createdAt" | "updatedAt">) {
+    const now = Date.now();
+    setBusyAgents((prev) => [...prev, { ...entry, id: crypto.randomUUID(), createdAt: now, updatedAt: now }]);
+  }
+
+  function updateBusyAgent(agent: BusyAgent) {
+    setBusyAgents((prev) => prev.map((a) => a.id === agent.id ? { ...agent, updatedAt: Date.now() } : a));
+  }
+
+  function deleteBusyAgent(id: string) {
+    setBusyAgents((prev) => prev.filter((a) => a.id !== id));
+  }
+
+  function resetBusyAgentToPreset(id: string) {
+    // Remove user customization — mergeWithPresets will fall back to the default preset
+    setBusyAgents((prev) => prev.filter((a) => a.id !== id));
   }
 
   function detectMentionAtCursor(nextPrompt: string, cursor: number) {
@@ -1807,7 +1844,13 @@ function App() {
     }
   }
 
-  async function handleRun(overridePrompt?: string, overrides?: { agentOverride?: string; modelOverride?: string }) {
+  async function handleRun(overridePrompt?: string, overrides?: {
+    agentOverride?: string;
+    modelOverride?: string;
+    systemPromptOverride?: string;
+    approvalPolicyOverride?: string;
+    sandboxModeOverride?: string;
+  }) {
     const submittedPrompt = overridePrompt ?? prompt;
     const expandedPrompt = expandPromptAliases(submittedPrompt, aliasMap);
     const requestedTodoMatch = submittedPrompt.match(/work on todo #(\d+)/i);
@@ -1881,18 +1924,24 @@ function App() {
       ? buildTodoPrompt(expandedPrompt, todos)
       : expandedPrompt;
 
-    const effectivePrompt = sessionContext + basePrompt;
+    // Prepend system prompt from BusyAgent if available
+    const systemPrompt = overrides?.systemPromptOverride || activeBusyAgent?.systemPrompt || "";
+    const effectivePrompt = systemPrompt
+      ? `${systemPrompt}\n\n---\n\n${sessionContext}${basePrompt}`
+      : sessionContext + basePrompt;
 
     const effectiveAgent = (overrides?.agentOverride || agent) as "codex" | "claude" | "deepseek";
     const effectiveModel = overrides?.modelOverride || model;
+    const effectiveApprovalPolicy = overrides?.approvalPolicyOverride || approvalPolicy;
+    const effectiveSandboxMode = overrides?.sandboxModeOverride || sandboxMode;
 
     try {
       const out = await runCodexExec({
         runId,
         agent: effectiveAgent,
         prompt: effectivePrompt,
-        approvalPolicy,
-        sandboxMode,
+        approvalPolicy: effectiveApprovalPolicy,
+        sandboxMode: effectiveSandboxMode,
         workingDirectory,
         model: effectiveModel || undefined,
         skipGitRepoCheck,
@@ -2017,7 +2066,15 @@ function App() {
               expandPromptAliases(decision.nextTodo.text, aliasMap),
               decision.nextTodo.notes ? expandPromptAliases(decision.nextTodo.notes, aliasMap) : undefined,
             );
-            void handleRun(autoPlayPrompt, { agentOverride: decision.nextTodo.agent, modelOverride: decision.nextTodo.model });
+            const nextTodo = decision.nextTodo!;
+            const apBa = nextTodo.busyAgentId ? allAgents.find((a) => a.id === nextTodo.busyAgentId) : null;
+            void handleRun(autoPlayPrompt, {
+              agentOverride: apBa?.base ?? nextTodo.agent,
+              modelOverride: apBa?.model ?? nextTodo.model,
+              systemPromptOverride: apBa?.systemPrompt,
+              approvalPolicyOverride: apBa?.approvalPolicy,
+              sandboxModeOverride: apBa?.sandboxMode,
+            });
           }, 1000);
         }
       }
@@ -2526,63 +2583,85 @@ function App() {
             <div className="composer-meta">
               <select
                 className="meta-chip-select"
-                value={agent}
-                onChange={(e) => setAgent(e.target.value)}
+                value={activeSession?.busyAgentId ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val.startsWith("raw:")) {
+                    // Raw agent mode — clear busyAgentId, set raw agent
+                    const rawAgent = val.replace("raw:", "");
+                    updateActiveSession((s) => ({ ...s, busyAgentId: undefined, agent: rawAgent }));
+                  } else if (val) {
+                    setSessionBusyAgent(val);
+                  } else {
+                    setSessionBusyAgent(undefined);
+                  }
+                }}
                 title="Agent"
               >
-                <option value="codex">Codex</option>
-                <option value="claude">Claude</option>
-                <option value="deepseek">DeepSeek</option>
+                <option value="">Select agent...</option>
+                {allAgents.filter((a) => a.isPreset).map((a) => (
+                  <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
+                ))}
+                {allAgents.some((a) => !a.isPreset) && <option disabled>──────────</option>}
+                {allAgents.filter((a) => !a.isPreset).map((a) => (
+                  <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
+                ))}
+                <option disabled>──────────</option>
+                <option value="raw:codex">Raw: Codex</option>
+                <option value="raw:claude">Raw: Claude</option>
+                <option value="raw:deepseek">Raw: DeepSeek</option>
               </select>
-              <select
-                className="meta-chip-select"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                title="Model"
-              >
-                {agent === "claude" ? (
-                  <>
-                    <option value="">claude-sonnet-4-6</option>
-                    <option value="claude-opus-4-6">claude-opus-4-6</option>
-                    <option value="claude-haiku-4-5">claude-haiku-4-5</option>
-                  </>
-                ) : agent === "deepseek" ? (
-                  <>
-                    <option value="">deepseek-chat</option>
-                    <option value="deepseek-chat">deepseek-chat</option>
-                    <option value="deepseek-reasoner">deepseek-reasoner</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="">codex-mini</option>
-                    <option value="o3">o3</option>
-                    <option value="o4-mini">o4-mini</option>
-                  </>
-                )}
-              </select>
-              <select
-                className="meta-chip-select"
-                value={
-                  approvalPolicy === "full-auto" && sandboxMode === "danger-full-access" ? "full-auto"
-                  : approvalPolicy === "never" && sandboxMode === "read-only" ? "safe"
-                  : approvalPolicy === "unless-allow-listed" && sandboxMode === "workspace-write" ? "balanced"
-                  : "custom"
-                }
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (v === "safe") { setApprovalPolicy("never"); setSandboxMode("read-only"); }
-                  else if (v === "balanced") { setApprovalPolicy("unless-allow-listed"); setSandboxMode("workspace-write"); }
-                  else if (v === "full-auto") { setApprovalPolicy("full-auto"); setSandboxMode("danger-full-access"); }
-                }}
-                title="Execution mode"
-              >
-                <option value="safe">Safe</option>
-                <option value="balanced">Balanced</option>
-                <option value="full-auto">Full Auto</option>
-                {approvalPolicy !== "full-auto" && approvalPolicy !== "never" && approvalPolicy !== "unless-allow-listed" && (
-                  <option value="custom">Custom</option>
-                )}
-              </select>
+              {activeBusyAgent ? (
+                <>
+                  <span className="meta-chip-select" style={{ cursor: "default" }} title="Model">{activeBusyAgent.model || activeBusyAgent.base}</span>
+                  <span className="meta-chip-select" style={{ cursor: "default" }} title="Execution">{activeBusyAgent.executionMode === "full-auto" ? "Full Auto" : activeBusyAgent.executionMode === "balanced" ? "Balanced" : "Safe"}</span>
+                </>
+              ) : (
+                <>
+                  <select
+                    className="meta-chip-select"
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    title="Model"
+                  >
+                    {agent === "claude" ? (
+                      <>
+                        <option value="">claude-sonnet-4-6</option>
+                        <option value="claude-opus-4-6">claude-opus-4-6</option>
+                        <option value="claude-haiku-4-5">claude-haiku-4-5</option>
+                      </>
+                    ) : agent === "deepseek" ? (
+                      <option value="">deepseek-reasoner</option>
+                    ) : (
+                      <>
+                        <option value="">codex-mini</option>
+                        <option value="o3">o3</option>
+                        <option value="o4-mini">o4-mini</option>
+                      </>
+                    )}
+                  </select>
+                  <select
+                    className="meta-chip-select"
+                    value={
+                      approvalPolicy === "full-auto" && sandboxMode === "danger-full-access" ? "full-auto"
+                      : approvalPolicy === "never" && sandboxMode === "read-only" ? "safe"
+                      : approvalPolicy === "unless-allow-listed" && sandboxMode === "workspace-write" ? "balanced"
+                      : "custom"
+                    }
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "safe") { setApprovalPolicy("never"); setSandboxMode("read-only"); }
+                      else if (v === "balanced") { setApprovalPolicy("unless-allow-listed"); setSandboxMode("workspace-write"); }
+                      else if (v === "full-auto") { setApprovalPolicy("full-auto"); setSandboxMode("danger-full-access"); }
+                    }}
+                    title="Execution mode"
+                  >
+                    <option value="safe">Safe</option>
+                    <option value="balanced">Balanced</option>
+                    <option value="full-auto">Full Auto</option>
+                  </select>
+                </>
+              )}
               {todoMode && todos.length > 0 && (
                 <span className="meta-label" title="Remaining todos">
                   {todos.filter((t) => !t.done).length} left
@@ -2672,6 +2751,7 @@ function App() {
             <TodoPanel
             todos={todos}
             collapsed={rightCollapsed}
+            busyAgents={allAgents}
             canRun={workingDirectory.length > 0}
             running={anyRunning}
             onAdd={handleAddTodo}
@@ -2691,7 +2771,14 @@ function App() {
                 expandPromptAliases(nextTodo.text, aliasMap),
                 nextTodo.notes ? expandPromptAliases(nextTodo.notes, aliasMap) : undefined,
               );
-              void handleRun(todoPrompt, { agentOverride: nextTodo.agent, modelOverride: nextTodo.model });
+              const ba = nextTodo.busyAgentId ? allAgents.find((a) => a.id === nextTodo.busyAgentId) : null;
+              void handleRun(todoPrompt, {
+                agentOverride: ba?.base ?? nextTodo.agent,
+                modelOverride: ba?.model ?? nextTodo.model,
+                systemPromptOverride: ba?.systemPrompt,
+                approvalPolicyOverride: ba?.approvalPolicy,
+                sandboxModeOverride: ba?.sandboxMode,
+              });
             }}
             onStopTodos={handleStop}
             todoMode={todoMode}
@@ -2767,11 +2854,17 @@ ADD_TODO: step three description`);
         onCreatePromptLibraryEntry={createPromptLibraryEntry}
         onUpdatePromptLibraryEntry={updatePromptLibraryEntry}
         onDeletePromptLibraryEntry={deletePromptLibraryEntry}
+        busyAgents={allAgents}
+        onCreateBusyAgent={createBusyAgent}
+        onUpdateBusyAgent={updateBusyAgent}
+        onDeleteBusyAgent={deleteBusyAgent}
+        onResetBusyAgent={resetBusyAgentToPreset}
         onResetEnvironment={() => {
           setProjects([]);
           setActiveProjectId(null);
           setInFlightRuns({});
           setPromptLibrary([]);
+          setBusyAgents([]);
           useNotificationStore.getState().clearNotifications();
           setMissedAlerts(0);
           badgeCountRef.current = 0;
