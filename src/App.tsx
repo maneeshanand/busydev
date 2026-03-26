@@ -18,6 +18,7 @@ import {
   type CodexStreamEvent,
 } from "./invoke";
 import type { BusyAgent, StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session, SavedPromptEntry } from "./types";
+import { mergeWithPresets, PRESET_AGENTS } from "./lib/busyAgents";
 import { TodoPanel } from "./components/TodoPanel";
 import { ResizeHandle } from "./components/ResizeHandle";
 import { SettingsView, type SectionId } from "./components/SettingsView";
@@ -791,6 +792,7 @@ function App() {
   const [prompt, setPrompt] = useState("");
   const [promptLibrary, setPromptLibrary] = useState<SavedPromptEntry[]>([]);
   const [busyAgents, setBusyAgents] = useState<BusyAgent[]>([]);
+  const allAgents = useMemo(() => mergeWithPresets(busyAgents), [busyAgents]);
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
   const [mentionStart, setMentionStart] = useState<number | null>(null);
@@ -1348,6 +1350,24 @@ function App() {
   }
   function deletePromptLibraryEntry(id: string) {
     setPromptLibrary((prev) => prev.filter((item) => item.id !== id));
+  }
+
+  function createBusyAgent(entry: Omit<BusyAgent, "id" | "createdAt" | "updatedAt">) {
+    const now = Date.now();
+    setBusyAgents((prev) => [...prev, { ...entry, id: crypto.randomUUID(), createdAt: now, updatedAt: now }]);
+  }
+
+  function updateBusyAgent(agent: BusyAgent) {
+    setBusyAgents((prev) => prev.map((a) => a.id === agent.id ? { ...agent, updatedAt: Date.now() } : a));
+  }
+
+  function deleteBusyAgent(id: string) {
+    setBusyAgents((prev) => prev.filter((a) => a.id !== id));
+  }
+
+  function resetBusyAgentToPreset(id: string) {
+    // Remove user customization — mergeWithPresets will fall back to the default preset
+    setBusyAgents((prev) => prev.filter((a) => a.id !== id));
   }
 
   function detectMentionAtCursor(nextPrompt: string, cursor: number) {
@@ -2478,11 +2498,17 @@ ADD_TODO: step three description`);
         onCreatePromptLibraryEntry={createPromptLibraryEntry}
         onUpdatePromptLibraryEntry={updatePromptLibraryEntry}
         onDeletePromptLibraryEntry={deletePromptLibraryEntry}
+        busyAgents={allAgents}
+        onCreateBusyAgent={createBusyAgent}
+        onUpdateBusyAgent={updateBusyAgent}
+        onDeleteBusyAgent={deleteBusyAgent}
+        onResetBusyAgent={resetBusyAgentToPreset}
         onResetEnvironment={() => {
           setProjects([]);
           setActiveProjectId(null);
           setInFlightRuns({});
           setPromptLibrary([]);
+          setBusyAgents([]);
           useNotificationStore.getState().clearNotifications();
           setMissedAlerts(0);
           badgeCountRef.current = 0;
