@@ -31,6 +31,7 @@ import { useNotificationStore } from "./stores/notificationStore";
 import { NotificationToasts } from "./components/NotificationToasts";
 import { GlobalSessionViewer } from "./components/GlobalSessionViewer";
 import {
+  buildTodoWorkPrompt,
   buildTodoPrompt,
   getTodoAutoPlayDecision,
   parseTodoAdditions,
@@ -2060,11 +2061,11 @@ function App() {
               );
               return;
             }
-            let autoPlayPrompt = `Work on todo #${decision.nextIndex + 1}: ${expandPromptAliases(decision.nextTodo.text, aliasMap)}`;
-            if (decision.nextTodo.notes) {
-              autoPlayPrompt += `\n\nContext: ${expandPromptAliases(decision.nextTodo.notes, aliasMap)}`;
-            }
-            autoPlayPrompt += `\n\nComplete this single item and mark it done with DONE: ${decision.nextIndex + 1}`;
+            const autoPlayPrompt = buildTodoWorkPrompt(
+              decision.nextIndex + 1,
+              expandPromptAliases(decision.nextTodo.text, aliasMap),
+              decision.nextTodo.notes ? expandPromptAliases(decision.nextTodo.notes, aliasMap) : undefined,
+            );
             const nextTodo = decision.nextTodo!;
             const apBa = nextTodo.busyAgentId ? allAgents.find((a) => a.id === nextTodo.busyAgentId) : null;
             void handleRun(autoPlayPrompt, {
@@ -2765,11 +2766,11 @@ function App() {
               const nextTodo = todos.find((t) => !t.done);
               if (!nextTodo) return;
               const idx = todos.indexOf(nextTodo);
-              let todoPrompt = `Work on todo #${idx + 1}: ${expandPromptAliases(nextTodo.text, aliasMap)}`;
-              if (nextTodo.notes) {
-                todoPrompt += `\n\nContext: ${expandPromptAliases(nextTodo.notes, aliasMap)}`;
-              }
-              todoPrompt += `\n\nComplete this single item and mark it done with DONE: ${idx + 1}`;
+              const todoPrompt = buildTodoWorkPrompt(
+                idx + 1,
+                expandPromptAliases(nextTodo.text, aliasMap),
+                nextTodo.notes ? expandPromptAliases(nextTodo.notes, aliasMap) : undefined,
+              );
               const ba = nextTodo.busyAgentId ? allAgents.find((a) => a.id === nextTodo.busyAgentId) : null;
               void handleRun(todoPrompt, {
                 agentOverride: ba?.base ?? nextTodo.agent,

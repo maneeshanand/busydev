@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { CodexExecOutput, CodexStreamEvent } from "../invoke";
 import type { TodoItem } from "../types";
 import {
+  buildTodoWorkPrompt,
   buildTodoPrompt,
   classifyEvent,
   cleanCommand,
@@ -134,6 +135,21 @@ describe("buildTodoPrompt", () => {
     expect(out).toContain("1. [ ] setup");
     expect(out).toContain("2. [x] test");
     expect(out).toContain("DONE: <number>");
+    expect(out).toContain("ADD_TODO: <description>");
+  });
+});
+
+describe("buildTodoWorkPrompt", () => {
+  it("includes DONE and ADD_TODO instructions", () => {
+    const out = buildTodoWorkPrompt(2, "Add input validation");
+    expect(out).toContain("Work on todo #2: Add input validation");
+    expect(out).toContain("DONE: 2");
+    expect(out).toContain("ADD_TODO:");
+  });
+
+  it("includes context when provided", () => {
+    const out = buildTodoWorkPrompt(1, "Implement auth", "Use middleware pattern");
+    expect(out).toContain("Context: Use middleware pattern");
   });
 });
 
