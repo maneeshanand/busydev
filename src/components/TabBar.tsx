@@ -25,7 +25,9 @@ export function TabBar({ tabs, activeTabId, onSelectTab, onCloseTab }: TabBarPro
           className={`tab ${tab.id === activeTabId ? "tab-active" : ""} ${tab.running ? "tab-running" : ""}`}
           onClick={() => onSelectTab(tab.id)}
         >
-          <span className="tab-agent">{tab.agent === "claude" ? "CC" : "CX"}</span>
+          <span className="tab-agent">
+            {tab.agent === "claude" ? "CC" : tab.agent === "deepseek" ? "DS" : "CX"}
+          </span>
           <span className="tab-label">{tab.label}</span>
           {tab.running && <span className="tab-spinner" />}
           <button

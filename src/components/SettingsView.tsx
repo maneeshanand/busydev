@@ -114,6 +114,16 @@ export function SettingsView(props: SettingsViewProps) {
               </button>
             ))}
           </nav>
+          <div className="settings-rail-footer">
+            <div className="settings-rail-version-row">
+              <span className="settings-version-label">Version</span>
+              <span className="settings-version-value">{props.appVersion}</span>
+            </div>
+            <div className="settings-rail-version-row">
+              <span className="settings-version-label">Build</span>
+              <span className="settings-version-value">{props.appBuild}</span>
+            </div>
+          </div>
         </aside>
 
         <main className="settings-main">
@@ -127,12 +137,6 @@ export function SettingsView(props: SettingsViewProps) {
           {activeSection === "general" && (
             <section className="settings-section">
               <p className="settings-helper">Global preferences for the app UI.</p>
-              <div className="settings-version-row">
-                <span className="settings-version-label">Version</span>
-                <span className="settings-version-value">{props.appVersion}</span>
-                <span className="settings-version-label">Build</span>
-                <span className="settings-version-value">{props.appBuild}</span>
-              </div>
               <label>
                 Theme
                 <select value={props.colorMode} onChange={(e) => props.setColorMode(e.target.value as "light" | "dark")}>
