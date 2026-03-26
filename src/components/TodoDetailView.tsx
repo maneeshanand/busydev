@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { TodoItem, SubTask, BusyAgent } from "../types";
+import { agentIconLabel } from "./AgentIcon";
 import "./TodoDetailView.css";
 
 interface TodoDetailViewProps {
@@ -117,7 +118,7 @@ export function TodoDetailView({ todo, index, total, onBack, onUpdate, busyAgent
         >
           <option value="">Use session agent</option>
           {busyAgents.map((a) => (
-            <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
+            <option key={a.id} value={a.id}>{agentIconLabel(a.icon)} {a.name}</option>
           ))}
         </select>
         {todo.busyAgentId && (() => {

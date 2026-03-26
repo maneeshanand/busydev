@@ -182,7 +182,7 @@ describe("todo marker parsers", () => {
       },
     ]);
 
-    expect(parseTodoAdditions(output)).toEqual(["write docs", "add tests"]);
+    expect(parseTodoAdditions(output)).toEqual([{ text: "write docs" }, { text: "add tests" }]);
   });
 
   it("parses markers with spacing/case variants and trailing punctuation", () => {
@@ -201,7 +201,7 @@ describe("todo marker parsers", () => {
     ]);
 
     expect(parseTodoCompletions(output, todos)).toEqual(["b"]);
-    expect(parseTodoAdditions(output)).toEqual(["add logging"]);
+    expect(parseTodoAdditions(output)).toEqual([{ text: "add logging" }]);
     expect(stripTodoMarkers("Work complete\n done: 2.\nADD_TODO: test")).toBe("Work complete");
   });
 
@@ -239,6 +239,38 @@ describe("todo marker parsers", () => {
     ]);
 
     expect(parseTodoCompletions(output, todos)).toEqual(["b"]);
+  });
+
+  it("extracts [agent:slug] tags from ADD_TODO lines", () => {
+    const output = makeOutput([
+      {
+        item: {
+          type: "agent_message",
+          text: "ADD_TODO: [agent:security-reviewer] Review auth\nADD_TODO: [agent:backend-dev] Build API\nADD_TODO: Plain task",
+        },
+      },
+    ]);
+
+    const result = parseTodoAdditions(output);
+    expect(result).toEqual([
+      { text: "Review auth", agentSlug: "security-reviewer" },
+      { text: "Build API", agentSlug: "backend-dev" },
+      { text: "Plain task" },
+    ]);
+  });
+
+  it("handles mixed case agent tags", () => {
+    const output = makeOutput([
+      {
+        item: {
+          type: "agent_message",
+          text: "ADD_TODO: [agent:QA-Engineer] Write tests",
+        },
+      },
+    ]);
+
+    const result = parseTodoAdditions(output);
+    expect(result).toEqual([{ text: "Write tests", agentSlug: "qa-engineer" }]);
   });
 });
 

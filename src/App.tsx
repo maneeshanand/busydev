@@ -18,7 +18,8 @@ import {
   type CodexStreamEvent,
 } from "./invoke";
 import type { BusyAgent, StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session, SavedPromptEntry } from "./types";
-import { mergeWithPresets } from "./lib/busyAgents";
+import { mergeWithPresets, findAgentBySlug, buildAgentRoster } from "./lib/busyAgents";
+import { agentIconLabel } from "./components/AgentIcon";
 import { TodoPanel } from "./components/TodoPanel";
 import { ResizeHandle } from "./components/ResizeHandle";
 import { SettingsView, type SectionId } from "./components/SettingsView";
@@ -1925,7 +1926,11 @@ function App() {
       : expandedPrompt;
 
     // Prepend system prompt from BusyAgent if available
-    const systemPrompt = overrides?.systemPromptOverride || activeBusyAgent?.systemPrompt || "";
+    let systemPrompt = overrides?.systemPromptOverride || activeBusyAgent?.systemPrompt || "";
+    // Append dynamic agent roster for Tech Lead orchestration
+    if (systemPrompt && systemPrompt.includes("[agent:")) {
+      systemPrompt += `\n\n${buildAgentRoster(allAgents)}`;
+    }
     const effectivePrompt = systemPrompt
       ? `${systemPrompt}\n\n---\n\n${sessionContext}${basePrompt}`
       : sessionContext + basePrompt;
@@ -1995,20 +2000,23 @@ function App() {
         const ownerTodos = ownerSession?.todos ?? [];
         const requestedTodoId = runTodoIdRef.current[runId] ?? null;
         const completedIds = parseTodoCompletions(out, ownerTodos);
-        const newTodoTexts = parseTodoAdditions(out);
-        const todoProgressMade = completedIds.length > 0 || newTodoTexts.length > 0;
+        const newTodoAdditions = parseTodoAdditions(out);
+        const todoProgressMade = completedIds.length > 0 || newTodoAdditions.length > 0;
         const updatedOwnerTodos: TodoItem[] = [
           ...ownerTodos.map((t) =>
             completedIds.includes(t.id)
               ? { ...t, done: true, source: "agent" as const, completedAt: Date.now() }
               : t
           ),
-          ...newTodoTexts.map((text) => ({
+          ...newTodoAdditions.map((addition) => ({
             id: crypto.randomUUID(),
-            text,
+            text: addition.text,
             done: false,
             source: "agent" as const,
             createdAt: Date.now(),
+            busyAgentId: addition.agentSlug
+              ? findAgentBySlug(allAgents, addition.agentSlug)?.id
+              : undefined,
           })),
         ];
 
@@ -2583,7 +2591,7 @@ function App() {
             <div className="composer-meta">
               <select
                 className="meta-chip-select"
-                value={activeSession?.busyAgentId ?? ""}
+                value={activeSession?.busyAgentId ?? `raw:${agent}`}
                 onChange={(e) => {
                   const val = e.target.value;
                   if (val.startsWith("raw:")) {
@@ -2598,18 +2606,17 @@ function App() {
                 }}
                 title="Agent"
               >
-                <option value="">Select agent...</option>
+                <option value="raw:codex">Codex</option>
+                <option value="raw:claude">Claude</option>
+                <option value="raw:deepseek">DeepSeek</option>
+                <option disabled>── BusyAgents ──</option>
                 {allAgents.filter((a) => a.isPreset).map((a) => (
-                  <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
+                  <option key={a.id} value={a.id}>{agentIconLabel(a.icon)} {a.name}</option>
                 ))}
-                {allAgents.some((a) => !a.isPreset) && <option disabled>──────────</option>}
+                {allAgents.some((a) => !a.isPreset) && <option disabled>── Custom ──</option>}
                 {allAgents.filter((a) => !a.isPreset).map((a) => (
-                  <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
+                  <option key={a.id} value={a.id}>{agentIconLabel(a.icon)} {a.name}</option>
                 ))}
-                <option disabled>──────────</option>
-                <option value="raw:codex">Raw: Codex</option>
-                <option value="raw:claude">Raw: Claude</option>
-                <option value="raw:deepseek">Raw: DeepSeek</option>
               </select>
               {activeBusyAgent ? (
                 <>
