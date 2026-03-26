@@ -1096,6 +1096,9 @@ function App() {
   const aliasMap = useMemo(() => buildAliasMap(promptLibrary), [promptLibrary]);
   const mentionedAliases = useMemo(() => getMentionedAliases(prompt, aliasMap), [aliasMap, prompt]);
   const mentionSuggestions = useMemo(() => getMentionSuggestions(aliasMap, mentionQuery), [aliasMap, mentionQuery]);
+  const activeBusyAgent = activeSession?.busyAgentId
+    ? allAgents.find((a) => a.id === activeSession.busyAgentId) ?? null
+    : null;
   const todoMode = activeSession?.todoMode ?? false;
   const autoPlayTodos = activeSession?.autoPlay ?? false;
   const [todoPanelOpen, setTodoPanelOpen] = useState(false);
@@ -1555,10 +1558,20 @@ function App() {
     }));
   }
 
-  function setAgent(v: string) { updateActiveSession((s) => ({ ...s, agent: v })); }
   function setModel(v: string) { updateActiveSession((s) => ({ ...s, model: v })); }
   function setApprovalPolicy(v: string) { updateActiveSession((s) => ({ ...s, approvalPolicy: v })); }
   function setSandboxMode(v: string) { updateActiveSession((s) => ({ ...s, sandboxMode: v })); }
+  function setSessionBusyAgent(agentId: string | undefined) {
+    updateActiveSession((s) => ({
+      ...s,
+      busyAgentId: agentId,
+      // When a BusyAgent is selected, also sync the raw fields for backward compat
+      ...(agentId ? (() => {
+        const ba = allAgents.find((a) => a.id === agentId);
+        return ba ? { agent: ba.base, model: ba.model, approvalPolicy: ba.approvalPolicy, sandboxMode: ba.sandboxMode } : {};
+      })() : {}),
+    }));
+  }
   function createPromptLibraryEntry(entry: { name: string; alias: string; kind: "prompt" | "function"; content: string }) {
     const now = Date.now();
     const id = crypto.randomUUID();
@@ -2549,63 +2562,85 @@ function App() {
             <div className="composer-meta">
               <select
                 className="meta-chip-select"
-                value={agent}
-                onChange={(e) => setAgent(e.target.value)}
+                value={activeSession?.busyAgentId ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val.startsWith("raw:")) {
+                    // Raw agent mode — clear busyAgentId, set raw agent
+                    const rawAgent = val.replace("raw:", "");
+                    updateActiveSession((s) => ({ ...s, busyAgentId: undefined, agent: rawAgent }));
+                  } else if (val) {
+                    setSessionBusyAgent(val);
+                  } else {
+                    setSessionBusyAgent(undefined);
+                  }
+                }}
                 title="Agent"
               >
-                <option value="codex">Codex</option>
-                <option value="claude">Claude</option>
-                <option value="deepseek">DeepSeek</option>
+                <option value="">Select agent...</option>
+                {allAgents.filter((a) => a.isPreset).map((a) => (
+                  <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
+                ))}
+                {allAgents.some((a) => !a.isPreset) && <option disabled>──────────</option>}
+                {allAgents.filter((a) => !a.isPreset).map((a) => (
+                  <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
+                ))}
+                <option disabled>──────────</option>
+                <option value="raw:codex">Raw: Codex</option>
+                <option value="raw:claude">Raw: Claude</option>
+                <option value="raw:deepseek">Raw: DeepSeek</option>
               </select>
-              <select
-                className="meta-chip-select"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                title="Model"
-              >
-                {agent === "claude" ? (
-                  <>
-                    <option value="">claude-sonnet-4-6</option>
-                    <option value="claude-opus-4-6">claude-opus-4-6</option>
-                    <option value="claude-haiku-4-5">claude-haiku-4-5</option>
-                  </>
-                ) : agent === "deepseek" ? (
-                  <>
-                    <option value="">deepseek-chat</option>
-                    <option value="deepseek-chat">deepseek-chat</option>
-                    <option value="deepseek-reasoner">deepseek-reasoner</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="">codex-mini</option>
-                    <option value="o3">o3</option>
-                    <option value="o4-mini">o4-mini</option>
-                  </>
-                )}
-              </select>
-              <select
-                className="meta-chip-select"
-                value={
-                  approvalPolicy === "full-auto" && sandboxMode === "danger-full-access" ? "full-auto"
-                  : approvalPolicy === "never" && sandboxMode === "read-only" ? "safe"
-                  : approvalPolicy === "unless-allow-listed" && sandboxMode === "workspace-write" ? "balanced"
-                  : "custom"
-                }
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (v === "safe") { setApprovalPolicy("never"); setSandboxMode("read-only"); }
-                  else if (v === "balanced") { setApprovalPolicy("unless-allow-listed"); setSandboxMode("workspace-write"); }
-                  else if (v === "full-auto") { setApprovalPolicy("full-auto"); setSandboxMode("danger-full-access"); }
-                }}
-                title="Execution mode"
-              >
-                <option value="safe">Safe</option>
-                <option value="balanced">Balanced</option>
-                <option value="full-auto">Full Auto</option>
-                {approvalPolicy !== "full-auto" && approvalPolicy !== "never" && approvalPolicy !== "unless-allow-listed" && (
-                  <option value="custom">Custom</option>
-                )}
-              </select>
+              {activeBusyAgent ? (
+                <>
+                  <span className="meta-chip-select" style={{ cursor: "default" }} title="Model">{activeBusyAgent.model || activeBusyAgent.base}</span>
+                  <span className="meta-chip-select" style={{ cursor: "default" }} title="Execution">{activeBusyAgent.executionMode === "full-auto" ? "Full Auto" : activeBusyAgent.executionMode === "balanced" ? "Balanced" : "Safe"}</span>
+                </>
+              ) : (
+                <>
+                  <select
+                    className="meta-chip-select"
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    title="Model"
+                  >
+                    {agent === "claude" ? (
+                      <>
+                        <option value="">claude-sonnet-4-6</option>
+                        <option value="claude-opus-4-6">claude-opus-4-6</option>
+                        <option value="claude-haiku-4-5">claude-haiku-4-5</option>
+                      </>
+                    ) : agent === "deepseek" ? (
+                      <option value="">deepseek-reasoner</option>
+                    ) : (
+                      <>
+                        <option value="">codex-mini</option>
+                        <option value="o3">o3</option>
+                        <option value="o4-mini">o4-mini</option>
+                      </>
+                    )}
+                  </select>
+                  <select
+                    className="meta-chip-select"
+                    value={
+                      approvalPolicy === "full-auto" && sandboxMode === "danger-full-access" ? "full-auto"
+                      : approvalPolicy === "never" && sandboxMode === "read-only" ? "safe"
+                      : approvalPolicy === "unless-allow-listed" && sandboxMode === "workspace-write" ? "balanced"
+                      : "custom"
+                    }
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "safe") { setApprovalPolicy("never"); setSandboxMode("read-only"); }
+                      else if (v === "balanced") { setApprovalPolicy("unless-allow-listed"); setSandboxMode("workspace-write"); }
+                      else if (v === "full-auto") { setApprovalPolicy("full-auto"); setSandboxMode("danger-full-access"); }
+                    }}
+                    title="Execution mode"
+                  >
+                    <option value="safe">Safe</option>
+                    <option value="balanced">Balanced</option>
+                    <option value="full-auto">Full Auto</option>
+                  </select>
+                </>
+              )}
               {todoMode && todos.length > 0 && (
                 <span className="meta-label" title="Remaining todos">
                   {todos.filter((t) => !t.done).length} left
@@ -2695,6 +2730,7 @@ function App() {
             <TodoPanel
             todos={todos}
             collapsed={rightCollapsed}
+            busyAgents={allAgents}
             canRun={workingDirectory.length > 0}
             running={anyRunning}
             onAdd={handleAddTodo}
