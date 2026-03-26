@@ -1,9 +1,11 @@
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::collections::HashMap;
 use std::process::Stdio;
 use std::sync::Mutex;
 use std::time::Instant;
 use tauri::{AppHandle, Emitter};
+use futures_util::StreamExt;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 
@@ -56,6 +58,7 @@ fn build_agent_command(input: &CodexExecInput) -> (String, Vec<String>) {
         .map_or(false, |p| !p.is_empty());
 
     match agent {
+        "deepseek" => ("deepseek".to_string(), Vec::new()),
         "claude" => {
             let mut args = vec![
                 "-p".to_string(),
@@ -122,6 +125,178 @@ fn build_agent_command(input: &CodexExecInput) -> (String, Vec<String>) {
             ("codex".to_string(), args)
         }
     }
+}
+
+fn build_effective_prompt(input: &CodexExecInput) -> String {
+    let has_previous = input
+        .previous_prompts
+        .as_ref()
+        .map_or(false, |p| !p.is_empty());
+    if has_previous {
+        let prev = input.previous_prompts.as_ref().unwrap();
+        let context: String = prev
+            .iter()
+            .enumerate()
+            .map(|(i, p)| format!("{}. {}", i + 1, p))
+            .collect::<Vec<_>>()
+            .join("\n");
+        format!(
+            "Previous tasks completed in this session:\n{context}\n\nCurrent task:\n{}",
+            input.prompt
+        )
+    } else {
+        input.prompt.clone()
+    }
+}
+
+async fn run_deepseek_exec(
+    app: &AppHandle,
+    input: &CodexExecInput,
+    run_id: &str,
+    start: Instant,
+) -> Result<CodexExecOutput, String> {
+    let api_key = std::env::var("DEEPSEEK_API_KEY")
+        .map_err(|_| "DEEPSEEK_API_KEY is not set".to_string())?;
+    let base_url = std::env::var("DEEPSEEK_BASE_URL")
+        .unwrap_or_else(|_| "https://api.deepseek.com/v1".to_string());
+    let endpoint = format!("{}/chat/completions", base_url.trim_end_matches('/'));
+    let model = input
+        .model
+        .clone()
+        .filter(|m| !m.trim().is_empty())
+        .unwrap_or_else(|| "deepseek-chat".to_string());
+    let effective_prompt = build_effective_prompt(input);
+
+    emit_stream_event(
+        app,
+        CodexStreamEvent {
+            run_id: run_id.to_string(),
+            kind: "stdout".into(),
+            line: Some("deepseek request started".into()),
+            parsed_json: Some(json!({
+                "item": {
+                    "type": "command_execution",
+                    "command": "deepseek: chat/completions",
+                    "status": "in_progress"
+                }
+            })),
+            exit_code: None,
+            duration_ms: None,
+        },
+    );
+
+    let payload = json!({
+        "model": model,
+        "messages": [
+            { "role": "user", "content": effective_prompt }
+        ],
+        "stream": true
+    });
+
+    let response = reqwest::Client::new()
+        .post(endpoint)
+        .bearer_auth(api_key)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("DeepSeek request failed: {e}"))?;
+
+    if !response.status().is_success() {
+        let status = response.status().as_u16();
+        let body = response.text().await.unwrap_or_default();
+        return Err(format!("DeepSeek API error ({status}): {body}"));
+    }
+
+    let mut stdout_raw = String::new();
+    let mut parsed_lines: Vec<serde_json::Value> = Vec::new();
+    let mut full_text = String::new();
+    let mut buffer = String::new();
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let bytes = chunk.map_err(|e| format!("DeepSeek stream read failed: {e}"))?;
+        let text = String::from_utf8_lossy(&bytes);
+        buffer.push_str(&text);
+
+        while let Some(pos) = buffer.find('\n') {
+            let line = buffer[..pos].trim_end_matches('\r').to_string();
+            buffer = buffer[pos + 1..].to_string();
+            if line.is_empty() || !line.starts_with("data:") {
+                continue;
+            }
+            let data = line.trim_start_matches("data:").trim();
+            if data == "[DONE]" {
+                continue;
+            }
+            if !stdout_raw.is_empty() {
+                stdout_raw.push('\n');
+            }
+            stdout_raw.push_str(data);
+
+            let parsed = serde_json::from_str::<serde_json::Value>(data)
+                .map_err(|e| format!("DeepSeek stream JSON parse failed: {e}; data={data}"))?;
+
+            if let Some(delta) = parsed
+                .get("choices")
+                .and_then(|c| c.as_array())
+                .and_then(|arr| arr.first())
+                .and_then(|first| first.get("delta"))
+                .and_then(|d| d.get("content"))
+                .and_then(|c| c.as_str())
+            {
+                if !delta.is_empty() {
+                    full_text.push_str(delta);
+                    let stream_event = json!({
+                        "type": "assistant",
+                        "message": {
+                            "content": [
+                                { "type": "text", "text": delta }
+                            ]
+                        }
+                    });
+                    parsed_lines.push(stream_event.clone());
+                    emit_stream_event(
+                        app,
+                        CodexStreamEvent {
+                            run_id: run_id.to_string(),
+                            kind: "stdout".into(),
+                            line: Some(delta.to_string()),
+                            parsed_json: Some(stream_event),
+                            exit_code: None,
+                            duration_ms: None,
+                        },
+                    );
+                }
+            }
+        }
+    }
+
+    // Keep one final full message in parsed output for summaries/history.
+    // Do not emit it as a stream event; the live stream is already built from chunks.
+    let final_message = json!({
+        "item": { "type": "agent_message", "text": full_text.clone() }
+    });
+    parsed_lines.push(final_message.clone());
+
+    let duration_ms = start.elapsed().as_millis() as u64;
+    emit_stream_event(
+        app,
+        CodexStreamEvent {
+            run_id: run_id.to_string(),
+            kind: "completed".into(),
+            line: None,
+            parsed_json: None,
+            exit_code: Some(0),
+            duration_ms: Some(duration_ms),
+        },
+    );
+
+    Ok(CodexExecOutput {
+        stdout_raw,
+        stderr_raw: String::new(),
+        parsed_json: Some(serde_json::Value::Array(parsed_lines)),
+        exit_code: Some(0),
+        duration_ms,
+    })
 }
 
 #[derive(Debug, Serialize)]
@@ -199,7 +374,6 @@ pub async fn run_codex_exec(
     writers: tauri::State<'_, ProcessWriters>,
     input: CodexExecInput,
 ) -> Result<CodexExecOutput, String> {
-    let (program, args) = build_agent_command(&input);
     let agent_name = input.agent.as_deref().unwrap_or("codex");
     let run_id = input.run_id.clone();
 
@@ -216,6 +390,12 @@ pub async fn run_codex_exec(
             duration_ms: None,
         },
     );
+
+    if agent_name == "deepseek" {
+        return run_deepseek_exec(&app, &input, &run_id, start).await;
+    }
+
+    let (program, args) = build_agent_command(&input);
 
     // TODO: MAN-138 interactive approval needs stdin piping
     let needs_stdin = false;
