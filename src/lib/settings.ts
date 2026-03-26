@@ -164,6 +164,7 @@ function sanitizeTodoItem(value: unknown): TodoItem | null {
           })
           .filter(Boolean) as SubTask[]
       : undefined,
+    busyAgentId: typeof obj.busyAgentId === "string" && obj.busyAgentId.trim() ? obj.busyAgentId.trim() : undefined,
   };
 }
 
@@ -244,6 +245,7 @@ function sanitizeSession(value: unknown, projectId: string, index: number): Sess
     worktreeBranch: typeof obj?.worktreeBranch === "string" ? obj.worktreeBranch : undefined,
     todoMode: typeof obj?.todoMode === "boolean" ? obj.todoMode : undefined,
     autoPlay: typeof obj?.autoPlay === "boolean" ? obj.autoPlay : undefined,
+    busyAgentId: typeof obj?.busyAgentId === "string" && obj.busyAgentId.trim() ? obj.busyAgentId.trim() : undefined,
   };
 }
 
