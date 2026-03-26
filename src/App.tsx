@@ -5,6 +5,7 @@ import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { load as loadStore } from "@tauri-apps/plugin-store";
+import { getVersion } from "@tauri-apps/api/app";
 import {
   CODEX_STREAM_EVENT,
   runCodexExec,
@@ -842,6 +843,8 @@ function App() {
   const [elapsed, setElapsed] = useState(0);
   const storeReadyRef = useRef(false);
   const [windowSize, setWindowSize] = useState<{ windowWidth?: number; windowHeight?: number }>({});
+  const [appVersion, setAppVersion] = useState("unknown");
+  const appBuild = __APP_BUILD__;
 
   const anyRunning = Object.keys(inFlightRuns).length > 0;
   const activeInFlightRun = activeTabId ? inFlightRuns[activeTabId] ?? null : null;
@@ -944,8 +947,14 @@ function App() {
     }
   }
 
-  // Load persisted state on mount
-  // Request notification permission on mount
+  // Load app metadata for display in Settings.
+  useEffect(() => {
+    void getVersion()
+      .then((v) => setAppVersion(v))
+      .catch(() => setAppVersion("unknown"));
+  }, []);
+
+  // Request notification permission on mount.
   useEffect(() => {
     if (typeof Notification !== "undefined" && Notification.permission === "default") {
       void Notification.requestPermission();
@@ -2459,6 +2468,8 @@ ADD_TODO: step three description`);
         setTerminalLineHeight={setTerminalLineHeight}
         rightPanelWidth={rightPanelWidth}
         setRightPanelWidth={setRightPanelWidth}
+        appVersion={appVersion}
+        appBuild={appBuild}
         promptLibrary={promptLibrary}
         onCreatePromptLibraryEntry={createPromptLibraryEntry}
         onUpdatePromptLibraryEntry={updatePromptLibraryEntry}
