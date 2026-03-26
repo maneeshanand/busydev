@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PRESET_AGENTS, mergeWithPresets, agentSlug, findAgentBySlug, getPresetAgent } from "./busyAgents";
+import { PRESET_AGENTS, mergeWithPresets, agentSlug, findAgentBySlug, getPresetAgent, buildAgentRoster } from "./busyAgents";
 import type { BusyAgent } from "../types";
 
 describe("PRESET_AGENTS", () => {
@@ -75,5 +75,25 @@ describe("findAgentBySlug", () => {
 
   it("returns undefined for no match", () => {
     expect(findAgentBySlug(PRESET_AGENTS, "nonexistent")).toBeUndefined();
+  });
+});
+
+describe("buildAgentRoster", () => {
+  it("lists all agents except Tech Lead with slugs and roles", () => {
+    const roster = buildAgentRoster(PRESET_AGENTS);
+    expect(roster).toContain("frontend-dev: UI/UX implementation");
+    expect(roster).toContain("security-reviewer: Security analysis");
+    expect(roster).not.toContain("tech-lead");
+  });
+
+  it("includes custom agents", () => {
+    const agents = mergeWithPresets([{
+      id: "custom-1", name: "Release Manager", role: "Release workflow", icon: "🚀",
+      base: "claude" as const, model: "claude-sonnet-4-6", executionMode: "full-auto" as const,
+      approvalPolicy: "full-auto", sandboxMode: "danger-full-access",
+      systemPrompt: "", isPreset: false, createdAt: 1, updatedAt: 1,
+    }]);
+    const roster = buildAgentRoster(agents);
+    expect(roster).toContain("release-manager: Release workflow");
   });
 });

@@ -70,3 +70,10 @@ export function findAgentBySlug(agents: BusyAgent[], slug: string): BusyAgent | 
   const normalized = agentSlug(slug);
   return agents.find((a) => agentSlug(a.name) === normalized);
 }
+
+/** Build a roster string for the Tech Lead system prompt, listing all available agents */
+export function buildAgentRoster(agents: BusyAgent[]): string {
+  const nonLeadAgents = agents.filter((a) => a.id !== "preset-tech-lead");
+  const lines = nonLeadAgents.map((a) => `- ${agentSlug(a.name)}: ${a.role}`);
+  return `Available specialist agents (assign using [agent:slug] in ADD_TODO lines):\n${lines.join("\n")}`;
+}
