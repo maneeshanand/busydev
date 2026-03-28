@@ -22,7 +22,7 @@
 .add-project-form__path-display {
   font-size: 11px;
   color: var(--text-muted, #888);
-  font-family: "SF Mono", "Fira Code", monospace;
+  font-family: var(--app-font-family-mono);
   padding: 4px 6px;
   background: var(--rail-bg, #16213e);
   border-radius: 4px;

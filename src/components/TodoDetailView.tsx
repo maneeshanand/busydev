@@ -93,7 +93,7 @@ export function TodoDetailView({ todo, index, total, onBack, onUpdate, busyAgent
           className="todo-detail-notes"
           value={todo.notes ?? ""}
           onChange={(e) => onUpdate(todo.id, { notes: e.target.value })}
-          placeholder="Add notes... (supports @alias tags)"
+          placeholder="Add notes... (supports #alias tags)"
         />
       </div>
 

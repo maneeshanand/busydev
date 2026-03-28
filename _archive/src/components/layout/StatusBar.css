@@ -46,5 +46,5 @@
 
 .status-bar__cost {
   color: var(--text-primary, #ccc);
-  font-family: "SF Mono", "Fira Code", monospace;
+  font-family: var(--app-font-family-mono);
 }

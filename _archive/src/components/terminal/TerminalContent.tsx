@@ -18,7 +18,7 @@ const XTERM_THEME = {
 };
 
 const XTERM_OPTIONS = {
-  fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", monospace',
+  fontFamily: "'IBM Plex Mono', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
   fontSize: 13,
   theme: XTERM_THEME,
   cursorBlink: true,

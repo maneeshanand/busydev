@@ -32,7 +32,7 @@ export function TerminalPanel({ sessionId, onSessionCreated, cwd, visible }: Ter
 
     const term = new XTerm({
       cursorBlink: true,
-      fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace",
+      fontFamily: "'IBM Plex Mono', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
       fontSize: 13,
       lineHeight: 1.3,
       theme: {

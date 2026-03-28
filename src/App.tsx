@@ -6,6 +6,7 @@ import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { load as loadStore } from "@tauri-apps/plugin-store";
 import { getVersion } from "@tauri-apps/api/app";
+import { CheckmarkFilled, Close, ErrorFilled, IbmKnowledgeCatalog, InformationFilled, Notification as NotificationIcon, NotificationFilled, WarningAltFilled } from "@carbon/icons-react";
 import {
   CODEX_STREAM_EVENT,
   runCodexExec,
@@ -18,8 +19,9 @@ import {
   type CodexStreamEvent,
 } from "./invoke";
 import type { BusyAgent, StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session, SavedPromptEntry } from "./types";
-import { mergeWithPresets, findAgentBySlug, buildAgentRoster } from "./lib/busyAgents";
+import { mergeWithPresets, findAgentBySlug, buildAgentRoster, agentSlug } from "./lib/busyAgents";
 import { agentIconLabel } from "./components/AgentIcon";
+import { ProjectNavigator } from "./components/ProjectNavigator";
 import { TodoPanel } from "./components/TodoPanel";
 import { ResizeHandle } from "./components/ResizeHandle";
 import { SettingsView, type SectionId } from "./components/SettingsView";
@@ -27,7 +29,6 @@ import { SETTINGS_VERSION, migrateStoredSettings, type StoredSettings } from "./
 import { getSettings, saveSettings } from "./settingsInvoke";
 // Terminal hidden — MAN-157
 // import { TerminalPanel } from "./components/Terminal";
-import { TabBar, type Tab } from "./components/TabBar";
 import { useNotificationStore } from "./stores/notificationStore";
 import { NotificationToasts } from "./components/NotificationToasts";
 import { GlobalSessionViewer } from "./components/GlobalSessionViewer";
@@ -43,6 +44,7 @@ import {
 import {
   buildAliasMap,
   expandPromptAliases,
+  fuzzyAliasScore,
   getMentionedAliases,
   getMentionSuggestions,
   normalizeAlias,
@@ -85,38 +87,6 @@ function RunIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-    </svg>
-  );
-}
-
-function ChecklistIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M9 5H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"
-        fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"
-      />
-      <path d="M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2Z"
-        fill="none" stroke="currentColor" strokeWidth="1.7"
-      />
-      <path d="m9 14 2 2 4-4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function BookIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M6 4h11a2 2 0 0 1 2 2v13H8a2 2 0 0 0-2 2V4Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path d="M8 19V7a2 2 0 0 1 2-2h9" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-      <path d="M10.5 10h5.5M10.5 13h5.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
     </svg>
   );
 }
@@ -232,6 +202,10 @@ function formatAgentLabel(agent?: "codex" | "claude" | "deepseek" | string): str
   return "Codex";
 }
 
+function isNoisyInfraOutput(text: string): boolean {
+  return /(rmcp::transport::worker|unexpectedcontenttype|transport channel closed|cloudflare|cf-error|<!doctype html>|cdn-cgi\/styles)/i.test(text);
+}
+
 type ClassifiedRow = Omit<StreamRow, "id">;
 
 function extractAssistantTextChunk(event: CodexStreamEvent): string | null {
@@ -263,7 +237,11 @@ function classifyEvent(event: CodexStreamEvent): ClassifiedRow {
   }
   if (event.kind === "stderr") {
     const text = event.line?.trim() || "stderr output";
-    return { category: "error", text };
+    if (isNoisyInfraOutput(text)) {
+      return { category: "status", text: "", hidden: true };
+    }
+    const clipped = text.length > 260 ? `${text.slice(0, 260)}...` : text;
+    return { category: "error", text: clipped };
   }
 
   // Parse structured JSON events from stdout
@@ -449,6 +427,9 @@ function classifyEvent(event: CodexStreamEvent): ClassifiedRow {
   // Fallback for unstructured stdout lines
   if (event.line && event.line.trim().length > 0) {
     const trimmed = event.line.trim();
+    if (isNoisyInfraOutput(trimmed)) {
+      return { category: "status", text: "", hidden: true };
+    }
     const text = trimmed.length > 220 ? `${trimmed.slice(0, 220)}...` : trimmed;
     return { category: "message", text };
   }
@@ -799,6 +780,10 @@ function renderStreamRow(
       return (
         <div key={row.id} className="ev-status">{hl(row.text)}</div>
       );
+    case "warning":
+      return (
+        <div key={row.id} className="ev-warning">{hl(row.text)}</div>
+      );
     case "error":
       return (
         <div key={row.id} className="ev-error">{hl(row.text)}</div>
@@ -911,6 +896,13 @@ function NotificationPanel({ onClose, onNavigate }: { onClose: () => void; onNav
         <div className="notif-panel-list">
           {[...notifications].reverse().map((n) => {
             const canNav = !!(n.projectId && n.sessionId && onNavigate);
+            const LevelIcon = n.level === "success"
+              ? CheckmarkFilled
+              : n.level === "warning"
+                ? WarningAltFilled
+                : n.level === "error"
+                  ? ErrorFilled
+                  : InformationFilled;
             return (
               <div
                 key={n.id}
@@ -923,11 +915,16 @@ function NotificationPanel({ onClose, onNavigate }: { onClose: () => void; onNav
                   }
                 }}
               >
+                <span className="notif-panel-item-icon" aria-hidden="true">
+                  <LevelIcon size={14} />
+                </span>
                 <div className="notif-panel-item-content">
                   <strong>{n.title}</strong>
                   <span>{n.message}</span>
                 </div>
-                <button type="button" className="notif-panel-item-dismiss" onClick={(e) => { e.stopPropagation(); dismiss(n.id); }}>×</button>
+                <button type="button" className="notif-panel-item-dismiss" onClick={(e) => { e.stopPropagation(); dismiss(n.id); }}>
+                  <Close size={14} />
+                </button>
               </div>
             );
           })}
@@ -1034,6 +1031,13 @@ function SessionTabs({ sessions, activeSessionId, sessionRunCounts, sessionAlert
 }
 
 function App() {
+  type MentionOption = {
+    id: string;
+    alias: string;
+    name: string;
+    kind: "prompt" | "function" | "agent";
+  };
+
   const [loading, setLoading] = useState(true);
   const wittyPhrase = useMemo(() => getRandomPhrase(), []);
   const [splashFading, setSplashFading] = useState(false);
@@ -1054,6 +1058,7 @@ function App() {
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
   const [mentionStart, setMentionStart] = useState<number | null>(null);
+  const [mentionMode, setMentionMode] = useState<"library" | "agent" | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
   const [promptHistory, setPromptHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -1118,16 +1123,65 @@ function App() {
   const approvalPolicy = activeSession?.approvalPolicy ?? "full-auto";
   const sandboxMode = activeSession?.sandboxMode ?? "read-only";
   const workingDirectory = activeSession?.worktreePath ?? activeProject?.path ?? "";
+  const headerProjectName = activeProject?.name ?? "No project";
+  const headerSessionName = activeSession?.name ?? "No session";
+  const headerPathRaw = activeSession?.worktreePath ?? activeProject?.path ?? "";
+  const headerPathNormalized = headerPathRaw.replace(/^\/Users\/[^/]+/, "~");
+  const HEADER_PATH_TAIL_CHARS = 42;
+  const headerPath = headerPathNormalized.length > HEADER_PATH_TAIL_CHARS
+    ? `…${headerPathNormalized.slice(-HEADER_PATH_TAIL_CHARS)}`
+    : headerPathNormalized;
+  const headerBranch = activeSession?.worktreeBranch ?? "";
+  const hasWorktree = Boolean(activeSession?.worktreePath);
   const canRun = workingDirectory.length > 0 && prompt.length > 0;
   const aliasMap = useMemo(() => buildAliasMap(promptLibrary), [promptLibrary]);
   const mentionedAliases = useMemo(() => getMentionedAliases(prompt, aliasMap), [aliasMap, prompt]);
-  const mentionSuggestions = useMemo(() => getMentionSuggestions(aliasMap, mentionQuery), [aliasMap, mentionQuery]);
+  const agentMentionOptions = useMemo<MentionOption[]>(() => {
+    const map = new Map<string, MentionOption>();
+    for (const a of allAgents) {
+      const alias = normalizeAlias(agentSlug(a.name));
+      if (!alias || map.has(alias)) continue;
+      map.set(alias, { id: `agent:${a.id}`, alias, name: a.name, kind: "agent" });
+    }
+    return Array.from(map.values());
+  }, [allAgents]);
+  const agentAliasMap = useMemo(() => {
+    const map = new Map<string, BusyAgent>();
+    for (const a of allAgents) {
+      const alias = normalizeAlias(agentSlug(a.name));
+      if (!alias || map.has(alias)) continue;
+      map.set(alias, a);
+    }
+    return map;
+  }, [allAgents]);
+  const mentionSuggestions = useMemo<MentionOption[]>(() => {
+    if (mentionMode === "agent") {
+      const query = normalizeAlias(mentionQuery);
+      return agentMentionOptions
+        .map((entry) => {
+          const aliasScore = fuzzyAliasScore(entry.alias, query);
+          const nameScore = fuzzyAliasScore(normalizeAlias(entry.name), query);
+          const score = Math.max(aliasScore ?? -1, nameScore ?? -1);
+          return { entry, score };
+        })
+        .filter((item) => item.score >= 0)
+        .sort((a, b) => b.score - a.score || a.entry.alias.localeCompare(b.entry.alias))
+        .slice(0, 8)
+        .map((item) => item.entry);
+    }
+    return getMentionSuggestions(aliasMap, mentionQuery).map((entry) => ({
+      id: entry.id,
+      alias: entry.alias,
+      name: entry.name,
+      kind: entry.kind,
+    }));
+  }, [agentMentionOptions, aliasMap, mentionMode, mentionQuery]);
   const activeBusyAgent = activeSession?.busyAgentId
     ? allAgents.find((a) => a.id === activeSession.busyAgentId) ?? null
     : null;
   const todoMode = activeSession?.todoMode ?? false;
   const autoPlayTodos = activeSession?.autoPlay ?? false;
-  const [todoPanelOpen, setTodoPanelOpen] = useState(true);
+  const [todoPanelOpen] = useState(true);
   const [confirmTodoMode, setConfirmTodoMode] = useState(false);
   const rightCollapsed = !todoPanelOpen;
 
@@ -1665,19 +1719,33 @@ function App() {
 
   function detectMentionAtCursor(nextPrompt: string, cursor: number) {
     const beforeCursor = nextPrompt.slice(0, cursor);
-    const match = beforeCursor.match(/(^|\s)@([a-zA-Z0-9_-]*)$/);
-    if (!match) {
-      setMentionOpen(false);
-      setMentionQuery("");
-      setMentionStart(null);
+    const libraryMatch = beforeCursor.match(/(^|\s)#([a-zA-Z0-9_-]*)$/);
+    if (libraryMatch) {
+      const query = libraryMatch[2] ?? "";
+      setMentionOpen(true);
+      setMentionMode("library");
+      setMentionQuery(query);
+      setMentionStart(cursor - query.length - 1);
       setMentionIndex(0);
       return;
     }
-    const query = match[2] ?? "";
-    setMentionOpen(true);
-    setMentionQuery(query);
-    setMentionStart(cursor - query.length - 1);
-    setMentionIndex(0);
+    const agentMatch = beforeCursor.match(/(^|\s)@([a-zA-Z0-9_-]*)$/);
+    if (agentMatch) {
+      const query = agentMatch[2] ?? "";
+      setMentionOpen(true);
+      setMentionMode("agent");
+      setMentionQuery(query);
+      setMentionStart(cursor - query.length - 1);
+      setMentionIndex(0);
+      return;
+    }
+    if (!libraryMatch && !agentMatch) {
+      setMentionOpen(false);
+      setMentionMode(null);
+      setMentionQuery("");
+      setMentionStart(null);
+      setMentionIndex(0);
+    }
   }
 
   function insertMentionAlias(alias: string) {
@@ -1686,9 +1754,11 @@ function App() {
     const cursor = textarea?.selectionStart ?? prompt.length;
     const before = prompt.slice(0, mentionStart);
     const after = prompt.slice(cursor);
-    const next = `${before}@${alias} ${after}`;
+    const trigger = mentionMode === "agent" ? "@" : "#";
+    const next = `${before}${trigger}${alias} ${after}`;
     setPrompt(next);
     setMentionOpen(false);
+    setMentionMode(null);
     setMentionQuery("");
     setMentionStart(null);
     requestAnimationFrame(() => {
@@ -1697,6 +1767,18 @@ function App() {
       textarea.focus();
       textarea.setSelectionRange(nextCursor, nextCursor);
     });
+  }
+
+  function extractTaggedBusyAgent(input: string): { busyAgent: BusyAgent | null; cleanedPrompt: string } {
+    let busyAgent: BusyAgent | null = null;
+    const cleanedPrompt = input.replace(/(^|\s)@([a-zA-Z0-9_-]+)/g, (full, prefix: string, rawAlias: string) => {
+      const alias = normalizeAlias(rawAlias);
+      const taggedAgent = agentAliasMap.get(alias);
+      if (!taggedAgent) return full;
+      busyAgent = taggedAgent;
+      return prefix;
+    });
+    return { busyAgent, cleanedPrompt };
   }
   function setTodoMode(enabled: boolean) { updateActiveSession((s) => ({ ...s, todoMode: enabled })); }
   function setAutoPlayTodos(enabled: boolean) { updateActiveSession((s) => ({ ...s, autoPlay: enabled })); }
@@ -1876,7 +1958,8 @@ function App() {
     sandboxModeOverride?: string;
   }) {
     const submittedPrompt = overridePrompt ?? prompt;
-    const expandedPrompt = expandPromptAliases(submittedPrompt, aliasMap);
+    const { busyAgent: taggedBusyAgent, cleanedPrompt: strippedPrompt } = extractTaggedBusyAgent(submittedPrompt);
+    const expandedPrompt = expandPromptAliases(strippedPrompt, aliasMap);
     const requestedTodoMatch = submittedPrompt.match(/work on todo #(\d+)/i);
     const requestedTodoIndex = requestedTodoMatch ? Number.parseInt(requestedTodoMatch[1], 10) : null;
     if (submittedPrompt.trim()) {
@@ -1949,7 +2032,7 @@ function App() {
       : expandedPrompt;
 
     // Prepend system prompt from BusyAgent if available
-    let systemPrompt = overrides?.systemPromptOverride || activeBusyAgent?.systemPrompt || "";
+    let systemPrompt = overrides?.systemPromptOverride || taggedBusyAgent?.systemPrompt || activeBusyAgent?.systemPrompt || "";
     // Append dynamic agent roster for Tech Lead orchestration
     if (systemPrompt && systemPrompt.includes("[agent:")) {
       systemPrompt += `\n\n${buildAgentRoster(allAgents)}`;
@@ -1958,10 +2041,28 @@ function App() {
       ? `${systemPrompt}\n\n---\n\n${sessionContext}${basePrompt}`
       : sessionContext + basePrompt;
 
-    const effectiveAgent = (overrides?.agentOverride || agent) as "codex" | "claude" | "deepseek";
-    const effectiveModel = overrides?.modelOverride || model;
-    const effectiveApprovalPolicy = overrides?.approvalPolicyOverride || approvalPolicy;
-    const effectiveSandboxMode = overrides?.sandboxModeOverride || sandboxMode;
+    const effectiveAgent = (
+      overrides?.agentOverride
+      || taggedBusyAgent?.base
+      || agent
+    ) as "codex" | "claude" | "deepseek";
+    const effectiveModel = overrides?.modelOverride || taggedBusyAgent?.model || model;
+    const effectiveApprovalPolicy = overrides?.approvalPolicyOverride || taggedBusyAgent?.approvalPolicy || approvalPolicy;
+    const effectiveSandboxMode = overrides?.sandboxModeOverride || taggedBusyAgent?.sandboxMode || sandboxMode;
+
+    if (effectiveAgent === "deepseek") {
+      const warningRow: StreamRow = {
+        id: nextRowIdRef.current[runId]++,
+        category: "warning",
+        text: "DeepSeek is running in chat-completions mode only. CLI automation/tools are unavailable for this run.",
+      };
+      streamRowsMapRef.current[runId] = [...(streamRowsMapRef.current[runId] || []), warningRow];
+      setInFlightRuns((prev) => {
+        const run = prev[runId];
+        if (!run) return prev;
+        return { ...prev, [runId]: { ...run, streamRows: [...run.streamRows, warningRow] } };
+      });
+    }
 
     try {
       const out = await runCodexExec({
@@ -2189,6 +2290,7 @@ function App() {
       if (event.key === "Escape") {
         event.preventDefault();
         setMentionOpen(false);
+        setMentionMode(null);
         return;
       }
     }
@@ -2338,7 +2440,30 @@ function App() {
   return (
     <div className={`container theme-${colorMode} density-${uiDensity}`}>
       <div className="app-header">
-        <h1>busydev</h1>
+        <div className="app-header-left">
+          <div className="app-header-brand" title="busydev">
+            <span className="app-header-brand-mark" aria-hidden="true" />
+            <span className="app-header-brand-text">
+              <span className="app-header-brand-busy">busy</span>
+              <span className="app-header-brand-dev">dev</span>
+            </span>
+          </div>
+          <span className="app-header-divider" aria-hidden="true" />
+
+          <div className="app-header-context">
+            <span className="app-header-project">{headerProjectName}</span>
+            <span className="app-header-sep">/</span>
+            <span className="app-header-session">{headerSessionName}</span>
+            {headerPath && (
+              <>
+                <span className="app-header-sep">/</span>
+                <span className="app-header-path" title={headerPathRaw}>{headerPath}</span>
+              </>
+            )}
+            {headerBranch && <span className="app-header-branch-badge">{headerBranch}</span>}
+            {hasWorktree && <span className="app-header-worktree-badge">worktree</span>}
+          </div>
+        </div>
         <div className="header-controls">
           {/* Terminal hidden — MAN-157: re-enable when scoped per project/session */}
           <div className="bell-wrapper">
@@ -2355,10 +2480,7 @@ function App() {
               }}
               title={missedAlerts > 0 ? `${missedAlerts} missed alert${missedAlerts > 1 ? "s" : ""}` : "Notifications"}
             >
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-              </svg>
+              {missedAlerts > 0 ? <NotificationFilled size={16} /> : <NotificationIcon size={16} />}
               {missedAlerts > 0 && <span className="bell-badge">{missedAlerts}</span>}
             </button>
             {notifPanelOpen && <NotificationPanel onClose={() => setNotifPanelOpen(false)} onNavigate={navigateToSession} />}
@@ -2368,30 +2490,15 @@ function App() {
 
       <div className="app-content">
         <div className="project-rail">
-          <div className="project-rail-header">
-            <h2>Projects</h2>
-          </div>
-          <div className="project-rail-list">
-            {projects.map((p) => (
-              <div
-                key={p.id}
-                className={`project-item ${p.id === activeProjectId ? "project-item-active" : ""}`}
-                onClick={() => switchToProject(p.id)}
-              >
-                {runningProjectIds.has(p.id) && <span className="project-item-spinner" />}
-                <span className="project-item-name">{p.name}</span>
-                <button
-                  type="button"
-                  className="project-item-remove"
-                  onClick={(e) => { e.stopPropagation(); handleRemoveProject(p.id); }}
-                  title="Remove project"
-                >×</button>
-              </div>
-            ))}
-            <button type="button" className="project-rail-add" onClick={handleAddProject}>
-              <span>+</span> Add Project
-            </button>
-          </div>
+          <ProjectNavigator
+            projects={projects}
+            activeProjectId={activeProjectId}
+            runningProjectIds={runningProjectIds}
+            addingProject={addingProject}
+            onSelect={switchToProject}
+            onAdd={handleAddProject}
+            onRemove={handleRemoveProject}
+          />
           <div className="project-rail-footer">
             <button
               type="button"
@@ -2408,7 +2515,7 @@ function App() {
               onClick={() => openSettings("library")}
               title="Prompt library (⌘L)"
             >
-              <BookIcon />
+              <IbmKnowledgeCatalog size={16} />
               <span>Library</span>
             </button>
             <button
@@ -2470,31 +2577,6 @@ function App() {
             )}
           </div>
         )}
-
-        {(() => {
-          // Filter in-flight runs to only show current session's runs
-          const currentSessionId = activeProject?.activeSessionId;
-          const sessionInFlight = Object.values(inFlightRuns).filter((r) => {
-            const owner = runSessionMapRef.current[r.runId];
-            return owner && owner.projectId === activeProjectId && owner.sessionId === currentSessionId;
-          });
-          return sessionInFlight.length > 0 ? (
-          <TabBar
-            tabs={sessionInFlight.map((r): Tab => ({
-              id: r.runId,
-              label: r.prompt.length > 30 ? r.prompt.slice(0, 30) + "..." : r.prompt,
-              agent,
-              running: true,
-            }))}
-            activeTabId={activeTabId}
-            onSelectTab={setActiveTabId}
-            onCloseTab={(id) => {
-              stoppedMapRef.current[id] = true;
-              void stopCodexExec(id);
-            }}
-          />
-        ) : null;
-        })()}
 
         <div className={`stream-panel ${transitioning ? "stream-panel-transitioning" : ""}`} ref={streamPanelRef}>
           {error && (
@@ -2573,13 +2655,6 @@ function App() {
 
         {/* Terminal hidden — MAN-157: re-enable when scoped per project/session */}
 
-        {activeSession?.worktreeBranch && (
-          <div className="worktree-info-bar">
-            <span className="worktree-info-branch">⑂ {activeSession.worktreeBranch}</span>
-            <span className="worktree-info-path" title={activeSession.worktreePath}>{activeSession.worktreePath}</span>
-          </div>
-        )}
-
         <div className="bottom-panel">
           <div className="prompt-section">
             <textarea
@@ -2600,7 +2675,7 @@ function App() {
                 detectMentionAtCursor(el.value, el.selectionStart ?? el.value.length);
               }}
               onKeyDown={handlePromptKeyDown}
-              placeholder="Get Busy..."
+              placeholder="Get Busy... (#library, @agent)"
             />
             {mentionOpen && mentionSuggestions.length > 0 && (
               <div className="composer-mention-menu">
@@ -2614,7 +2689,7 @@ function App() {
                       insertMentionAlias(entry.alias);
                     }}
                   >
-                    <span className="composer-mention-alias">@{entry.alias}</span>
+                    <span className="composer-mention-alias">{entry.kind === "agent" ? "@" : "#"}{entry.alias}</span>
                     <span className="composer-mention-name">{entry.name}</span>
                     <span className="composer-mention-kind">{entry.kind}</span>
                   </button>
@@ -2625,7 +2700,7 @@ function App() {
               <div className="composer-mentions">
                 {mentionedAliases.map((entry) => (
                   <span key={entry.id} className="composer-mention-chip">
-                    @{entry.alias}
+                    #{entry.alias}
                   </span>
                 ))}
               </div>
@@ -2718,21 +2793,6 @@ function App() {
               )}
             </div>
             <div className="prompt-actions">
-              <button
-                type="button"
-                className={`prompt-action prompt-action-todo ${todoMode ? "is-active" : ""}`}
-                onClick={() => {
-                  if (todoMode) {
-                    setTodoMode(false);
-                  } else {
-                    setConfirmTodoMode(true);
-                  }
-                }}
-                title={todoMode ? "Disable todo mode" : "Enable todo mode"}
-                aria-label="Toggle todo mode"
-              >
-                <ChecklistIcon />
-              </button>
               {activeInFlightRun ? (
                 <button
                   type="button"
@@ -2805,7 +2865,7 @@ function App() {
             onDelete={handleDeleteTodo}
             onEdit={handleEditTodo}
             onUpdateTodo={handleUpdateTodo}
-            onCollapse={() => {}}
+
             onRunTodos={() => {
               const nextTodo = todos.find((t) => !t.done);
               if (!nextTodo) return;
@@ -2828,6 +2888,13 @@ function App() {
             todoMode={todoMode}
             autoPlay={autoPlayTodos}
             onToggleAutoPlay={() => setAutoPlayTodos(!autoPlayTodos)}
+            onToggleTodoMode={() => {
+              if (todoMode) {
+                setTodoMode(false);
+              } else {
+                setConfirmTodoMode(true);
+              }
+            }}
             onClearTodos={handleClearTodos}
             onSaveTodos={handleSaveTodos}
             onReorder={(from, to) => {

@@ -1,6 +1,6 @@
 import type { CodexExecOutput } from "./invoke";
 
-export type EventCategory = "message" | "command" | "file_change" | "status" | "error" | "approval";
+export type EventCategory = "message" | "command" | "file_change" | "status" | "warning" | "error" | "approval";
 
 export interface StreamRow {
   id: number;

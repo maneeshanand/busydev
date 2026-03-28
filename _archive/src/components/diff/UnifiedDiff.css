@@ -1,5 +1,5 @@
 .unified-diff {
-  font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+  font-family: var(--app-font-family-mono);
   font-size: 12px;
   line-height: 1.5;
 }

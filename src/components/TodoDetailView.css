@@ -44,12 +44,24 @@
   width: 100%;
   font-size: 0.95rem;
   font-weight: 600;
-  background: var(--vp-c-bg-soft);
-  border: 1px solid var(--vp-c-brand-3);
-  border-radius: 2px;
-  color: var(--vp-c-text-1);
-  padding: 2px 6px;
-  font-family: inherit;
+  height: 42px;
+  background: #262626;
+  border: 1px solid #525252;
+  border-radius: 0;
+  color: #f4f4f4;
+  padding: 0 12px;
+  font-family: var(--vp-font-family-base);
+  outline: none;
+  transition: border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.todo-detail-title-input:hover {
+  border-color: #6f6f6f;
+}
+
+.todo-detail-title-input:focus {
+  border-color: #78a9ff;
+  background: #262626;
 }
 
 .todo-detail-meta {
@@ -72,26 +84,58 @@
 
 .todo-detail-notes {
   width: 100%;
-  min-height: 40px;
+  min-height: 96px;
   resize: vertical;
-  background: var(--vp-c-bg-soft);
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 2px;
-  color: var(--vp-c-text-1);
-  padding: 6px 8px;
+  background: #262626;
+  border: 1px solid #525252;
+  border-radius: 0;
+  color: #f4f4f4;
+  padding: 10px 12px;
   font-size: 0.8rem;
-  font-family: inherit;
+  font-family: var(--vp-font-family-base);
+  outline: none;
+  transition: border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.todo-detail-notes:hover {
+  border-color: #6f6f6f;
+}
+
+.todo-detail-notes:focus {
+  border-color: #78a9ff;
+  background: #262626;
 }
 
 .todo-detail-agent-select {
   width: 100%;
-  background: var(--vp-c-bg-mute);
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 2px;
-  color: var(--vp-c-text-1);
-  padding: 6px 8px;
+  height: 42px;
+  border: 1px solid #525252;
+  border-radius: 0;
+  background: #262626;
+  color: #f4f4f4;
+  padding: 0 34px 0 12px;
   font-size: 0.8rem;
-  font-family: inherit;
+  font-family: var(--vp-font-family-base);
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #8d8d8d 50%),
+    linear-gradient(135deg, #8d8d8d 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% - 2px),
+    calc(100% - 13px) calc(50% - 2px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  outline: none;
+  transition: border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.todo-detail-agent-select:hover {
+  border-color: #6f6f6f;
+}
+
+.todo-detail-agent-select:focus {
+  border-color: #78a9ff;
+  background-color: #262626;
 }
 
 .todo-detail-agent-chips {
@@ -136,9 +180,41 @@
 }
 
 .todo-detail-subtask input[type="checkbox"] {
-  width: 14px;
-  height: 14px;
-  accent-color: var(--vp-c-brand-1);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  appearance: none;
+  border: 1px solid #8d8d8d;
+  border-radius: 0;
+  background: transparent;
+  position: relative;
+  outline: none;
+}
+
+.todo-detail-subtask input[type="checkbox"]:hover {
+  border-color: #a8a8a8;
+}
+
+.todo-detail-subtask input[type="checkbox"]:focus-visible {
+  border-color: #78a9ff;
+  box-shadow: 0 0 0 1px #78a9ff;
+}
+
+.todo-detail-subtask input[type="checkbox"]:checked {
+  border-color: #0f62fe;
+  background: #0f62fe;
+}
+
+.todo-detail-subtask input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #ffffff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 
 .todo-detail-subtask-text {
@@ -161,12 +237,24 @@
 
 .todo-detail-subtask-add input {
   width: 100%;
-  background: var(--vp-c-bg-soft);
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 2px;
-  color: var(--vp-c-text-1);
-  padding: 4px 8px;
+  height: 36px;
+  background: #262626;
+  border: 1px solid #525252;
+  border-radius: 0;
+  color: #f4f4f4;
+  padding: 0 10px;
   font-size: 0.75rem;
-  font-family: inherit;
+  font-family: var(--vp-font-family-base);
   margin-top: 4px;
+  outline: none;
+  transition: border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.todo-detail-subtask-add input:hover {
+  border-color: #6f6f6f;
+}
+
+.todo-detail-subtask-add input:focus {
+  border-color: #78a9ff;
+  background: #262626;
 }

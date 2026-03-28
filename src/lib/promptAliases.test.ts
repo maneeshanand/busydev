@@ -62,15 +62,14 @@ describe("getMentionSuggestions", () => {
 describe("mentions and expansion", () => {
   it("extracts unique aliases present in prompt", () => {
     const map = buildAliasMap(entries);
-    const found = getMentionedAliases("run @shipit then @shipit and @release-notes", map);
+    const found = getMentionedAliases("run #shipit then #shipit and #release-notes", map);
     expect(found.map((x) => x.alias)).toEqual(["shipit", "release-notes"]);
   });
 
   it("expands known aliases and leaves unknown ones unchanged", () => {
     const map = buildAliasMap(entries);
-    const out = expandPromptAliases("Please @shipit and then @missing.", map);
+    const out = expandPromptAliases("Please #shipit and then #missing.", map);
     expect(out).toContain("Add the changes, commit, push, and open a PR.");
-    expect(out).toContain("@missing");
+    expect(out).toContain("#missing");
   });
 });
-
