@@ -115,7 +115,7 @@
   border-radius: 0 0 6px 6px;
   background: rgba(15, 52, 96, 0.2);
   color: var(--text-muted, #888);
-  font-family: "SF Mono", "Fira Code", monospace;
+  font-family: var(--app-font-family-mono);
   font-size: 11px;
   white-space: pre-wrap;
   overflow-x: auto;

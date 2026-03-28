@@ -105,8 +105,8 @@
   align-items: center;
   justify-content: flex-start;
   width: 100%;
-  min-height: 44px;
-  padding: 0 14px;
+  min-height: 40px;
+  padding: 10px 10px;
   border: none;
   background: #0f62fe;
   cursor: pointer;
@@ -129,9 +129,9 @@
 }
 
 .project-add-icon {
-  font-size: 28px;
+  font-size: 20px;
   line-height: 1;
-  margin-right: 12px;
+  margin-right: 8px;
   width: 20px;
   display: flex;
   justify-content: center;
@@ -139,7 +139,7 @@
 }
 
 .project-add-text {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 400;
   color: currentColor;
 }

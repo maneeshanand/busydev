@@ -359,7 +359,7 @@ describe("migrateStoredSettings", () => {
           runs: [],
           todos: [{
             id: "t1", text: "Do thing", done: false, source: "user", createdAt: 1,
-            notes: "Use @shipit pattern",
+            notes: "Use #shipit pattern",
             agent: "claude",
             model: "claude-opus-4-6",
             subtasks: [
@@ -372,7 +372,7 @@ describe("migrateStoredSettings", () => {
     });
 
     const todo = migrated!.projects[0].sessions[0].todos[0];
-    expect(todo.notes).toBe("Use @shipit pattern");
+    expect(todo.notes).toBe("Use #shipit pattern");
     expect(todo.agent).toBe("claude");
     expect(todo.model).toBe("claude-opus-4-6");
     expect(todo.subtasks).toHaveLength(2);

@@ -78,6 +78,7 @@ export function SettingsView(props: SettingsViewProps) {
   const [newEntryName, setNewEntryName] = useState("");
   const [newEntryAlias, setNewEntryAlias] = useState("");
   const [newEntryContent, setNewEntryContent] = useState("");
+  const [creatingEntry, setCreatingEntry] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editAlias, setEditAlias] = useState("");
@@ -260,74 +261,77 @@ export function SettingsView(props: SettingsViewProps) {
 
           {activeSection === "agents" && (
             <section className="settings-section">
-              {editingAgentId || creatingAgent ? (() => {
-                const editingAgent = editingAgentId ? props.busyAgents.find((a) => a.id === editingAgentId) : null;
-                const form = agentForm;
-                const isPreset = editingAgent?.isPreset ?? false;
-                const base = (form.base ?? editingAgent?.base ?? "codex") as "codex" | "claude";
-                const modelOptions = base === "claude"
-                  ? ["claude-sonnet-4-6", "claude-opus-4-6", "claude-haiku-4-5"]
-                  : ["codex-mini", "o3", "o4-mini"];
+              <p className="settings-helper">Specialized AI agents for your SDLC team.</p>
+              <div className="settings-library-toolbar">
+                <button
+                  type="button"
+                  className="settings-library-new"
+                  onClick={() => {
+                    setEditingAgentId(null);
+                    setCreatingAgent((prev) => !prev);
+                    setAgentForm({ base: "claude", model: "claude-sonnet-4-6", executionMode: "full-auto", isPreset: false, icon: "bot" });
+                  }}
+                >
+                  + New Agent
+                </button>
+              </div>
 
-                return (
-                  <div className="agent-editor">
-                    <button type="button" className="agent-editor-back" onClick={() => { setEditingAgentId(null); setCreatingAgent(false); setAgentForm({}); }}>
-                      ← Back to agents
-                    </button>
-
+              <div className={`settings-library-editor-shell ${creatingAgent ? "is-open" : ""}`}>
+                {creatingAgent && (
+                  <div className="settings-library-editor">
                     <label>
                       Name
                       <input
-                        value={form.name ?? editingAgent?.name ?? ""}
-                        onChange={(e) => setAgentForm({ ...form, name: e.target.value })}
+                        value={agentForm.name ?? ""}
+                        onChange={(e) => setAgentForm({ ...agentForm, name: e.target.value })}
                         placeholder="Agent name"
                       />
                     </label>
-
-                    <div style={{ display: "flex", gap: "10px" }}>
-                      <label style={{ flex: 1 }}>
+                    <div className="agent-editor-grid">
+                      <label>
                         Icon
                         <input
-                          value={form.icon ?? editingAgent?.icon ?? "🤖"}
-                          onChange={(e) => setAgentForm({ ...form, icon: e.target.value })}
-                          placeholder="Emoji"
+                          value={agentForm.icon ?? "bot"}
+                          onChange={(e) => setAgentForm({ ...agentForm, icon: e.target.value })}
+                          placeholder="bot"
                         />
                       </label>
-                      <label style={{ flex: 3 }}>
+                      <label>
                         Role
                         <input
-                          value={form.role ?? editingAgent?.role ?? ""}
-                          onChange={(e) => setAgentForm({ ...form, role: e.target.value })}
+                          value={agentForm.role ?? ""}
+                          onChange={(e) => setAgentForm({ ...agentForm, role: e.target.value })}
                           placeholder="What does this agent do?"
                         />
                       </label>
                     </div>
-
-                    <div style={{ display: "flex", gap: "10px" }}>
-                      <label style={{ flex: 1 }}>
+                    <div className="agent-editor-grid agent-editor-grid-3">
+                      <label>
                         Base agent
                         <select
-                          value={base}
-                          onChange={(e) => setAgentForm({ ...form, base: e.target.value as "codex" | "claude", model: "" })}
+                          value={(agentForm.base ?? "codex") as "codex" | "claude"}
+                          onChange={(e) => setAgentForm({ ...agentForm, base: e.target.value as "codex" | "claude", model: "" })}
                         >
                           <option value="codex">Codex</option>
                           <option value="claude">Claude</option>
                         </select>
                       </label>
-                      <label style={{ flex: 1 }}>
+                      <label>
                         Model
                         <select
-                          value={form.model ?? editingAgent?.model ?? ""}
-                          onChange={(e) => setAgentForm({ ...form, model: e.target.value })}
+                          value={agentForm.model ?? ""}
+                          onChange={(e) => setAgentForm({ ...agentForm, model: e.target.value })}
                         >
-                          {modelOptions.map((m) => <option key={m} value={m}>{m}</option>)}
+                          {((agentForm.base ?? "codex") === "claude"
+                            ? ["claude-sonnet-4-6", "claude-opus-4-6", "claude-haiku-4-5"]
+                            : ["codex-mini", "o3", "o4-mini"]).map((m) => <option key={m} value={m}>{m}</option>)}
                         </select>
                       </label>
-                      <label style={{ flex: 1 }}>
+                      <label>
                         Execution
                         <select
-                          value={form.executionMode ?? editingAgent?.executionMode ?? "full-auto"}
-                          onChange={(e) => setAgentForm({ ...form, executionMode: e.target.value as "safe" | "balanced" | "full-auto" })}
+                          value={(agentForm.executionMode ?? "full-auto") as "safe" | "balanced" | "full-auto"}
+                          onChange={(e) => setAgentForm({ ...agentForm, executionMode: e.target.value as "safe" | "balanced" | "full-auto" })}
                         >
                           <option value="safe">Safe</option>
                           <option value="balanced">Balanced</option>
@@ -335,137 +339,203 @@ export function SettingsView(props: SettingsViewProps) {
                         </select>
                       </label>
                     </div>
-
                     <label>
                       System prompt
                       <textarea
-                        value={form.systemPrompt ?? editingAgent?.systemPrompt ?? ""}
-                        onChange={(e) => setAgentForm({ ...form, systemPrompt: e.target.value })}
+                        value={agentForm.systemPrompt ?? ""}
+                        onChange={(e) => setAgentForm({ ...agentForm, systemPrompt: e.target.value })}
                         rows={6}
                         placeholder="Instructions for this agent..."
                       />
                     </label>
-
-                    <div className="agent-editor-actions">
-                      <button type="button" onClick={() => {
-                        const name = (form.name ?? editingAgent?.name ?? "").trim();
-                        if (!name) return;
-                        const policyMap: Record<string, string> = { safe: "never", balanced: "unless-allow-listed", "full-auto": "full-auto" };
-                        const sandboxMap: Record<string, string> = { safe: "read-only", balanced: "workspace-write", "full-auto": "danger-full-access" };
-                        const execMode = (form.executionMode ?? editingAgent?.executionMode ?? "full-auto") as "safe" | "balanced" | "full-auto";
-                        const merged: BusyAgent = {
-                          id: editingAgent?.id ?? "",
-                          name,
-                          role: (form.role ?? editingAgent?.role ?? "").trim(),
-                          icon: (form.icon ?? editingAgent?.icon ?? "🤖").trim(),
-                          base: (form.base ?? editingAgent?.base ?? "codex") as "codex" | "claude",
-                          model: (form.model ?? editingAgent?.model ?? "").trim(),
-                          executionMode: execMode,
-                          approvalPolicy: policyMap[execMode],
-                          sandboxMode: sandboxMap[execMode],
-                          systemPrompt: (form.systemPrompt ?? editingAgent?.systemPrompt ?? "").trim(),
-                          isPreset: editingAgent?.isPreset ?? false,
-                          createdAt: editingAgent?.createdAt ?? 0,
-                          updatedAt: editingAgent?.updatedAt ?? 0,
-                        };
-                        if (creatingAgent) {
-                          props.onCreateBusyAgent(merged);
-                        } else {
-                          props.onUpdateBusyAgent(merged);
-                        }
-                        setEditingAgentId(null);
-                        setCreatingAgent(false);
-                        setAgentForm({});
-                      }}>Save</button>
-
-                      {editingAgent && (
-                        <button type="button" onClick={() => {
-                          setCreatingAgent(true);
-                          setEditingAgentId(null);
-                          setAgentForm({
-                            ...form,
-                            name: `${form.name ?? editingAgent.name} (copy)`,
+                    <div className="settings-library-actions">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const name = (agentForm.name ?? "").trim();
+                          if (!name) return;
+                          const policyMap: Record<string, string> = { safe: "never", balanced: "unless-allow-listed", "full-auto": "full-auto" };
+                          const sandboxMap: Record<string, string> = { safe: "read-only", balanced: "workspace-write", "full-auto": "danger-full-access" };
+                          const execMode = (agentForm.executionMode ?? "full-auto") as "safe" | "balanced" | "full-auto";
+                          props.onCreateBusyAgent({
+                            name,
+                            role: (agentForm.role ?? "").trim(),
+                            icon: (agentForm.icon ?? "bot").trim(),
+                            base: (agentForm.base ?? "codex") as "codex" | "claude",
+                            model: (agentForm.model ?? "").trim(),
+                            executionMode: execMode,
+                            approvalPolicy: policyMap[execMode],
+                            sandboxMode: sandboxMap[execMode],
+                            systemPrompt: (agentForm.systemPrompt ?? "").trim(),
                             isPreset: false,
                           });
-                        }}>Clone</button>
-                      )}
-
-                      {editingAgent && !isPreset && (
-                        <button type="button" onClick={() => {
-                          props.onDeleteBusyAgent(editingAgent.id);
-                          setEditingAgentId(null);
+                          setCreatingAgent(false);
                           setAgentForm({});
-                        }}>Delete</button>
-                      )}
-
-                      {isPreset && (
-                        <button type="button" onClick={() => {
-                          props.onResetBusyAgent(editingAgent!.id);
-                          setEditingAgentId(null);
-                          setAgentForm({});
-                        }}>Reset to default</button>
-                      )}
+                        }}
+                      >
+                        Save Agent
+                      </button>
+                      <button type="button" onClick={() => { setCreatingAgent(false); setAgentForm({}); }}>Cancel</button>
                     </div>
                   </div>
-                );
-              })() : (
-                <>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
-                    <div>
-                      <p className="settings-helper" style={{ margin: 0 }}>Specialized AI agents for your SDLC team.</p>
-                    </div>
-                    <button type="button" className="settings-library-create > button" style={{ minHeight: "32px", padding: "0 12px", fontSize: "0.78rem" }} onClick={() => {
-                      setCreatingAgent(true);
-                      setAgentForm({ base: "claude", model: "claude-sonnet-4-6", executionMode: "full-auto", isPreset: false, icon: "🤖" });
-                    }}>+ New Agent</button>
-                  </div>
+                )}
+              </div>
 
-                  <div className="agent-section-label">Preset Team</div>
-                  <div className="agent-grid">
-                    {props.busyAgents.filter((a) => a.isPreset).map((agent) => (
-                      <div key={agent.id} className="agent-card" onClick={() => { setEditingAgentId(agent.id); setAgentForm({}); }}>
-                        <div className="agent-card-header">
-                          <span className="agent-card-icon"><AgentIcon name={agent.icon} size={18} /></span>
-                          <div>
-                            <div className="agent-card-name">{agent.name}</div>
-                            <div className="agent-card-role">{agent.role}</div>
-                          </div>
-                          <span className="agent-card-preset-badge">PRESET</span>
+              <div className="settings-library-list">
+                {props.busyAgents.map((agent) => {
+                  const isEditing = editingAgentId === agent.id;
+                  const form = agentForm;
+                  const base = (form.base ?? agent.base ?? "codex") as "codex" | "claude";
+                  const modelOptions = base === "claude"
+                    ? ["claude-sonnet-4-6", "claude-opus-4-6", "claude-haiku-4-5"]
+                    : ["codex-mini", "o3", "o4-mini"];
+                  return (
+                    <article key={agent.id} className="settings-library-row">
+                      <div className="settings-library-row-head">
+                        <span className="agent-row-icon"><AgentIcon name={agent.icon} size={18} /></span>
+                        <div className="agent-row-meta">
+                          <div className="settings-library-item-name">{agent.name}</div>
+                          <div className="agent-row-role">{agent.role}</div>
                         </div>
-                        <div className="agent-card-chips">
-                          <span className="agent-card-chip">{agent.base === "claude" ? "Claude" : "Codex"}</span>
-                          <span className="agent-card-chip">{agent.model || (agent.base === "claude" ? "sonnet" : "codex-mini")}</span>
-                          <span className="agent-card-chip">{agent.executionMode === "full-auto" ? "Full Auto" : agent.executionMode === "balanced" ? "Balanced" : "Safe"}</span>
+                        <span className="settings-library-kind">{agent.isPreset ? "preset" : "custom"}</span>
+                        <div className="settings-library-actions settings-library-actions-inline">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCreatingAgent(false);
+                              setEditingAgentId(isEditing ? null : agent.id);
+                              setAgentForm({});
+                            }}
+                          >
+                            {isEditing ? "Close" : "Edit"}
+                          </button>
+                          {!agent.isPreset && (
+                            <button type="button" onClick={() => props.onDeleteBusyAgent(agent.id)}>Delete</button>
+                          )}
+                          {agent.isPreset && (
+                            <button type="button" onClick={() => props.onResetBusyAgent(agent.id)}>Reset</button>
+                          )}
                         </div>
                       </div>
-                    ))}
-                  </div>
-
-                  {props.busyAgents.some((a) => !a.isPreset) && (
-                    <>
-                      <div className="agent-section-label" style={{ marginTop: "20px" }}>Custom</div>
-                      <div className="agent-grid">
-                        {props.busyAgents.filter((a) => !a.isPreset).map((agent) => (
-                          <div key={agent.id} className="agent-card" onClick={() => { setEditingAgentId(agent.id); setAgentForm({}); }}>
-                            <div className="agent-card-header">
-                              <span className="agent-card-icon"><AgentIcon name={agent.icon} size={18} /></span>
-                              <div>
-                                <div className="agent-card-name">{agent.name}</div>
-                                <div className="agent-card-role">{agent.role}</div>
-                              </div>
+                      <div className={`settings-library-editor-shell ${isEditing ? "is-open" : ""}`}>
+                        {isEditing && (
+                          <div className="settings-library-editor">
+                            <label>
+                              Name
+                              <input
+                                value={form.name ?? agent.name}
+                                onChange={(e) => setAgentForm({ ...form, name: e.target.value })}
+                              />
+                            </label>
+                            <div className="agent-editor-grid">
+                              <label>
+                                Icon
+                                <input
+                                  value={form.icon ?? agent.icon}
+                                  onChange={(e) => setAgentForm({ ...form, icon: e.target.value })}
+                                />
+                              </label>
+                              <label>
+                                Role
+                                <input
+                                  value={form.role ?? agent.role}
+                                  onChange={(e) => setAgentForm({ ...form, role: e.target.value })}
+                                />
+                              </label>
                             </div>
-                            <div className="agent-card-chips">
-                              <span className="agent-card-chip">{agent.base === "claude" ? "Claude" : "Codex"}</span>
-                              <span className="agent-card-chip">{agent.model}</span>
-                              <span className="agent-card-chip">{agent.executionMode === "full-auto" ? "Full Auto" : agent.executionMode === "balanced" ? "Balanced" : "Safe"}</span>
+                            <div className="agent-editor-grid agent-editor-grid-3">
+                              <label>
+                                Base agent
+                                <select
+                                  value={base}
+                                  onChange={(e) => setAgentForm({ ...form, base: e.target.value as "codex" | "claude", model: "" })}
+                                >
+                                  <option value="codex">Codex</option>
+                                  <option value="claude">Claude</option>
+                                </select>
+                              </label>
+                              <label>
+                                Model
+                                <select
+                                  value={form.model ?? agent.model ?? ""}
+                                  onChange={(e) => setAgentForm({ ...form, model: e.target.value })}
+                                >
+                                  {modelOptions.map((m) => <option key={m} value={m}>{m}</option>)}
+                                </select>
+                              </label>
+                              <label>
+                                Execution
+                                <select
+                                  value={(form.executionMode ?? agent.executionMode ?? "full-auto") as "safe" | "balanced" | "full-auto"}
+                                  onChange={(e) => setAgentForm({ ...form, executionMode: e.target.value as "safe" | "balanced" | "full-auto" })}
+                                >
+                                  <option value="safe">Safe</option>
+                                  <option value="balanced">Balanced</option>
+                                  <option value="full-auto">Full Auto</option>
+                                </select>
+                              </label>
+                            </div>
+                            <label>
+                              System prompt
+                              <textarea
+                                value={form.systemPrompt ?? agent.systemPrompt ?? ""}
+                                onChange={(e) => setAgentForm({ ...form, systemPrompt: e.target.value })}
+                                rows={6}
+                              />
+                            </label>
+                            <div className="settings-library-actions">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const name = (form.name ?? agent.name ?? "").trim();
+                                  if (!name) return;
+                                  const policyMap: Record<string, string> = { safe: "never", balanced: "unless-allow-listed", "full-auto": "full-auto" };
+                                  const sandboxMap: Record<string, string> = { safe: "read-only", balanced: "workspace-write", "full-auto": "danger-full-access" };
+                                  const execMode = (form.executionMode ?? agent.executionMode ?? "full-auto") as "safe" | "balanced" | "full-auto";
+                                  props.onUpdateBusyAgent({
+                                    ...agent,
+                                    name,
+                                    role: (form.role ?? agent.role ?? "").trim(),
+                                    icon: (form.icon ?? agent.icon ?? "bot").trim(),
+                                    base: (form.base ?? agent.base ?? "codex") as "codex" | "claude",
+                                    model: (form.model ?? agent.model ?? "").trim(),
+                                    executionMode: execMode,
+                                    approvalPolicy: policyMap[execMode],
+                                    sandboxMode: sandboxMap[execMode],
+                                    systemPrompt: (form.systemPrompt ?? agent.systemPrompt ?? "").trim(),
+                                    updatedAt: Date.now(),
+                                  });
+                                  setEditingAgentId(null);
+                                  setAgentForm({});
+                                }}
+                              >
+                                Save
+                              </button>
+                              <button type="button" onClick={() => { setEditingAgentId(null); setAgentForm({}); }}>Cancel</button>
+                              {!agent.isPreset && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCreatingAgent(true);
+                                    setEditingAgentId(null);
+                                    setAgentForm({
+                                      ...form,
+                                      name: `${form.name ?? agent.name} (copy)`,
+                                      isPreset: false,
+                                    });
+                                  }}
+                                >
+                                  Clone
+                                </button>
+                              )}
                             </div>
                           </div>
-                        ))}
+                        )}
                       </div>
-                    </>
-                  )}
-                </>
-              )}
+                    </article>
+                  );
+                })}
+              </div>
             </section>
           )}
 
@@ -499,77 +569,81 @@ export function SettingsView(props: SettingsViewProps) {
 
           {activeSection === "library" && (
             <section className="settings-section">
-              <p className="settings-helper">Save reusable prompts and functions for this app session history.</p>
-              <div className="settings-library-guide">
-                <h4>How to use saved prompts/functions</h4>
-                <ul>
-                  <li>
-                    <strong>Recommended:</strong> call saved entries using <code>@alias</code> (example: <code>@shipit</code>)
-                    directly in the composer prompt.
-                  </li>
-                  <li>
-                    Aliases should be short and stable; use name prefixes as optional tags for grouping
-                    (example: <code>[release] Ship It</code>, alias <code>shipit</code>).
-                  </li>
-                  <li>
-                    Type <code>@</code> in composer to open fuzzy typeahead and choose a saved alias quickly.
-                  </li>
-                </ul>
-              </div>
-              <div className="settings-library-create">
-                <label>
-                  Type
-                  <select value={newEntryKind} onChange={(e) => setNewEntryKind(e.target.value as "prompt" | "function")}>
-                    <option value="prompt">Prompt</option>
-                    <option value="function">Function</option>
-                  </select>
-                </label>
-                <label>
-                  Name
-                  <input
-                    value={newEntryName}
-                    onChange={(e) => setNewEntryName(e.target.value)}
-                    placeholder={newEntryKind === "function" ? "shipit" : "Release notes draft"}
-                  />
-                </label>
-                <label>
-                  Alias
-                  <input
-                    value={newEntryAlias}
-                    onChange={(e) => setNewEntryAlias(e.target.value)}
-                    placeholder={newEntryKind === "function" ? "shipit" : "release-notes"}
-                  />
-                </label>
-                <label>
-                  Content
-                  <textarea
-                    value={newEntryContent}
-                    onChange={(e) => setNewEntryContent(e.target.value)}
-                    rows={4}
-                    placeholder={newEntryKind === "function" ? "Add the changes, commit with a message..." : "Write release notes for this branch..."}
-                  />
-                </label>
+              <p className="settings-helper">Manage reusable prompts/functions and reference them in composer via <code>#alias</code>. Tag agents in composer via <code>@alias</code>.</p>
+              <div className="settings-library-toolbar">
                 <button
                   type="button"
+                  className="settings-library-new"
                   onClick={() => {
-                    const name = newEntryName.trim();
-                    const content = newEntryContent.trim();
-                    const alias = newEntryAlias.trim();
-                    if (!name || !content || !alias) return;
-                    props.onCreatePromptLibraryEntry({
-                      name,
-                      alias,
-                      kind: newEntryKind,
-                      content,
-                    });
-                    setNewEntryName("");
-                    setNewEntryAlias("");
-                    setNewEntryContent("");
-                    setNewEntryKind("prompt");
+                    setEditingId(null);
+                    setCreatingEntry((prev) => !prev);
                   }}
                 >
-                  Save Entry
+                  + New Entry
                 </button>
+              </div>
+              <div className={`settings-library-editor-shell ${creatingEntry ? "is-open" : ""}`}>
+                {creatingEntry && (
+                  <div className="settings-library-editor">
+                    <label>
+                      Type
+                      <select value={newEntryKind} onChange={(e) => setNewEntryKind(e.target.value as "prompt" | "function")}>
+                        <option value="prompt">Prompt</option>
+                        <option value="function">Function</option>
+                      </select>
+                    </label>
+                    <label>
+                      Name
+                      <input
+                        value={newEntryName}
+                        onChange={(e) => setNewEntryName(e.target.value)}
+                        placeholder={newEntryKind === "function" ? "shipit" : "Release notes draft"}
+                      />
+                    </label>
+                    <label>
+                      Alias
+                      <input
+                        value={newEntryAlias}
+                        onChange={(e) => setNewEntryAlias(e.target.value)}
+                        placeholder={newEntryKind === "function" ? "shipit" : "release-notes"}
+                      />
+                    </label>
+                    <label>
+                      Content
+                      <textarea
+                        value={newEntryContent}
+                        onChange={(e) => setNewEntryContent(e.target.value)}
+                        rows={4}
+                        placeholder={newEntryKind === "function" ? "Add the changes, commit with a message..." : "Write release notes for this branch..."}
+                      />
+                    </label>
+                    <div className="settings-library-actions">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const name = newEntryName.trim();
+                          const content = newEntryContent.trim();
+                          const alias = newEntryAlias.trim();
+                          if (!name || !content || !alias) return;
+                          props.onCreatePromptLibraryEntry({
+                            name,
+                            alias,
+                            kind: newEntryKind,
+                            content,
+                          });
+                          setNewEntryName("");
+                          setNewEntryAlias("");
+                          setNewEntryContent("");
+                          setNewEntryKind("prompt");
+                          setCreatingEntry(false);
+                        }}
+                      >
+                        Save Entry
+                      </button>
+                      <button type="button" onClick={() => setCreatingEntry(false)}>Cancel</button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="settings-library-list">
@@ -579,75 +653,77 @@ export function SettingsView(props: SettingsViewProps) {
                 {sortedLibrary.map((entry) => {
                   const isEditing = editingId === entry.id;
                   return (
-                    <article key={entry.id} className="settings-library-item">
-                      {isEditing ? (
-                        <>
-                          <label>
-                            Type
-                            <select value={editKind} onChange={(e) => setEditKind(e.target.value as "prompt" | "function")}>
-                              <option value="prompt">Prompt</option>
-                              <option value="function">Function</option>
-                            </select>
-                          </label>
-                          <label>
-                            Name
-                            <input value={editName} onChange={(e) => setEditName(e.target.value)} />
-                          </label>
-                          <label>
-                            Alias
-                            <input value={editAlias} onChange={(e) => setEditAlias(e.target.value)} />
-                          </label>
-                          <label>
-                            Content
-                            <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={4} />
-                          </label>
-                          <div className="settings-library-actions">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const name = editName.trim();
-                                const content = editContent.trim();
-                                const alias = editAlias.trim();
-                                if (!name || !content || !alias) return;
-                                props.onUpdatePromptLibraryEntry({
-                                  ...entry,
-                                  name,
-                                  alias,
-                                  kind: editKind,
-                                  content,
-                                  updatedAt: Date.now(),
-                                });
-                                setEditingId(null);
-                              }}
-                            >
-                              Save
-                            </button>
-                            <button type="button" onClick={() => setEditingId(null)}>Cancel</button>
+                    <article key={entry.id} className="settings-library-row">
+                      <div className="settings-library-row-head">
+                        <div className="settings-library-item-name">{entry.name} <code>#{entry.alias}</code></div>
+                        <span className="settings-library-kind">{entry.kind}</span>
+                        <div className="settings-library-actions settings-library-actions-inline">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCreatingEntry(false);
+                              setEditingId(isEditing ? null : entry.id);
+                              setEditName(entry.name);
+                              setEditAlias(entry.alias);
+                              setEditKind(entry.kind);
+                              setEditContent(entry.content);
+                            }}
+                          >
+                            {isEditing ? "Close" : "Edit"}
+                          </button>
+                          <button type="button" onClick={() => props.onDeletePromptLibraryEntry(entry.id)}>Delete</button>
+                        </div>
+                      </div>
+                      <div className={`settings-library-editor-shell ${isEditing ? "is-open" : ""}`}>
+                        {isEditing && (
+                          <div className="settings-library-editor">
+                            <label>
+                              Type
+                              <select value={editKind} onChange={(e) => setEditKind(e.target.value as "prompt" | "function")}>
+                                <option value="prompt">Prompt</option>
+                                <option value="function">Function</option>
+                              </select>
+                            </label>
+                            <label>
+                              Name
+                              <input value={editName} onChange={(e) => setEditName(e.target.value)} />
+                            </label>
+                            <label>
+                              Alias
+                              <input value={editAlias} onChange={(e) => setEditAlias(e.target.value)} />
+                            </label>
+                            <label>
+                              Content
+                              <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={4} />
+                            </label>
+                            <div className="settings-library-actions">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const name = editName.trim();
+                                  const content = editContent.trim();
+                                  const alias = editAlias.trim();
+                                  if (!name || !content || !alias) return;
+                                  props.onUpdatePromptLibraryEntry({
+                                    ...entry,
+                                    name,
+                                    alias,
+                                    kind: editKind,
+                                    content,
+                                    updatedAt: Date.now(),
+                                  });
+                                  setEditingId(null);
+                                }}
+                              >
+                                Save
+                              </button>
+                              <button type="button" onClick={() => setEditingId(null)}>Cancel</button>
+                            </div>
                           </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="settings-library-item-header">
-                            <div className="settings-library-item-name">{entry.name} <code>@{entry.alias}</code></div>
-                            <span className="settings-library-kind">{entry.kind}</span>
-                          </div>
-                          <pre className="settings-library-content-preview">{entry.content}</pre>
-                          <div className="settings-library-actions">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingId(entry.id);
-                                setEditName(entry.name);
-                                setEditAlias(entry.alias);
-                                setEditKind(entry.kind);
-                                setEditContent(entry.content);
-                              }}
-                            >
-                              Edit
-                            </button>
-                            <button type="button" onClick={() => props.onDeletePromptLibraryEntry(entry.id)}>Delete</button>
-                          </div>
-                        </>
+                        )}
+                      </div>
+                      {!isEditing && (
+                        <pre className="settings-library-content-preview">{entry.content}</pre>
                       )}
                     </article>
                   );

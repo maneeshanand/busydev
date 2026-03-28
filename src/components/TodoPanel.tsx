@@ -224,7 +224,7 @@ export function TodoPanel({
         <div className={`todo-player execution-player ${!todoMode ? "todo-player-disabled" : ""}`}>
           <button
             type="button"
-            className={`todo-player-btn ${todoMode ? "todo-player-active" : ""}`}
+            className={`todo-player-btn todo-player-mode ${todoMode ? "todo-player-mode-on" : ""}`}
             onClick={onToggleTodoMode}
             title={todoMode ? "Disable todo mode" : "Enable todo mode"}
           >

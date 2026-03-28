@@ -41,7 +41,7 @@ export function buildAliasMap(entries: SavedPromptEntry[]): Map<string, SavedPro
 export function getMentionedAliases(prompt: string, aliasMap: Map<string, SavedPromptEntry>): SavedPromptEntry[] {
   const out: SavedPromptEntry[] = [];
   const seen = new Set<string>();
-  const mentionRegex = /(^|\s)@([a-zA-Z0-9_-]+)/g;
+  const mentionRegex = /(^|\s)#([a-zA-Z0-9_-]+)/g;
   let match: RegExpExecArray | null;
   while ((match = mentionRegex.exec(prompt)) !== null) {
     const alias = normalizeAlias(match[2]);
@@ -73,11 +73,10 @@ export function getMentionSuggestions(
 }
 
 export function expandPromptAliases(prompt: string, aliasMap: Map<string, SavedPromptEntry>): string {
-  return prompt.replace(/(^|\s)@([a-zA-Z0-9_-]+)/g, (full, prefix: string, rawAlias: string) => {
+  return prompt.replace(/(^|\s)#([a-zA-Z0-9_-]+)/g, (full, prefix: string, rawAlias: string) => {
     const alias = normalizeAlias(rawAlias);
     const entry = aliasMap.get(alias);
     if (!entry) return full;
     return `${prefix}${entry.content}`;
   });
 }
-

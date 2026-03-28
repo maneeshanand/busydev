@@ -250,73 +250,65 @@
   margin: 0;
 }
 
-.settings-library-create {
-  width: min(640px, 100%);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  border: 1px solid #393939;
-  border-radius: 0;
-  background: #262626;
-}
-
-.settings-library-guide {
+.settings-library-toolbar {
   width: min(760px, 100%);
-  border: 1px solid #393939;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.settings-library-new {
+  min-height: 34px;
+  padding: 0 12px;
   border-radius: 0;
-  background: #262626;
-  padding: 12px;
+  border: 1px solid #0f62fe;
+  background: #0f62fe;
+  color: #fff;
+  font-size: 0.76rem;
+  font-weight: 600;
 }
 
-.settings-library-guide h4 {
-  margin: 0 0 8px;
-  font-size: 0.84rem;
-  color: #f4f4f4;
-}
-
-.settings-library-guide ul {
-  margin: 0;
-  padding-left: 18px;
-  color: #c6c6c6;
-  font-size: 0.78rem;
-  line-height: 1.5;
-}
-
-.settings-library-guide code {
-  font-family: var(--vp-font-family-mono);
-  font-size: 0.75rem;
-  color: #f4f4f4;
+.settings-library-new:hover {
+  background: #0353e9;
+  border-color: #0353e9;
 }
 
 .settings-library-list {
   width: min(760px, 100%);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
 }
 
-.settings-library-item {
+.settings-library-row {
   border: 1px solid #393939;
   border-radius: 0;
   background: #262626;
-  padding: 12px;
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
+  border-top: none;
 }
 
-.settings-library-item-header {
+.settings-library-row:first-child {
+  border-top: 1px solid #393939;
+}
+
+.settings-library-row-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 10px;
+  width: 100%;
 }
 
 .settings-library-item-name {
   font-size: 0.84rem;
   font-weight: 600;
   color: #f4f4f4;
+  min-width: 0;
+  flex: 1;
 }
 
 .settings-library-kind {
@@ -328,10 +320,11 @@
   border: 1px solid #525252;
   border-radius: 0;
   padding: 3px 8px;
+  flex-shrink: 0;
 }
 
 .settings-library-content-preview {
-  margin: 0;
+  margin: 8px 0 0;
   font-family: var(--vp-font-family-mono);
   font-size: 0.76rem;
   line-height: 1.4;
@@ -346,37 +339,97 @@
   word-break: break-word;
 }
 
+.settings-library-editor-shell {
+  width: min(760px, 100%);
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.2s ease;
+}
+
+.settings-library-editor-shell.is-open {
+  grid-template-rows: 1fr;
+  margin-top: 10px;
+}
+
+.settings-library-editor {
+  min-height: 0;
+  overflow: hidden;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #393939;
+  border-radius: 0;
+  background: #161616;
+}
+
 .settings-library-actions {
   display: flex;
   gap: 8px;
 }
 
-.settings-library-create > button,
+.settings-library-actions-inline {
+  margin-left: auto;
+}
+
+.agent-row-icon {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #c6c6c6;
+}
+
+.agent-row-meta {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.agent-row-role {
+  font-size: 0.72rem;
+  color: #a8a8a8;
+}
+
+.agent-editor-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 10px;
+}
+
+.agent-editor-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
 .settings-library-actions button {
-  min-height: 36px;
-  padding: 0 14px;
+  min-height: 30px;
+  padding: 0 12px;
   border-radius: 0;
-  font-size: 0.8rem;
+  font-size: 0.74rem;
   font-weight: 600;
   border: 1px solid #525252;
   background: #262626;
   color: #f4f4f4;
 }
 
-.settings-library-create > button {
+.settings-library-actions button:first-child {
   background: #0f62fe;
   border-color: #0f62fe;
   color: #fff;
 }
 
-.settings-library-create > button:hover,
 .settings-library-actions button:hover {
   border-color: #6f6f6f;
   color: #fff;
   background: #393939;
 }
 
-.settings-library-create > button:hover {
+.settings-library-actions button:first-child:hover {
   background: #0353e9;
   border-color: #0353e9;
 }

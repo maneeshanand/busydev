@@ -134,7 +134,7 @@ body.body-dark .status-banner {
 }
 
 .progress-stats {
-  color: var(--vp-c-text-1);
+  color: #24a148;
   font-weight: 500;
   font-family: var(--todo-ui-font-sans);
 }
@@ -148,7 +148,7 @@ body.body-dark .status-banner {
 
 .progress-bar-fill {
   height: 100%;
-  background-color: var(--vp-c-brand-1);
+  background-color: #24a148;
   transition: width 0.3s ease;
 }
 
@@ -282,10 +282,41 @@ body.body-dark .queue-icon-wrapper.is-running { background-color: #001141; }
 
 .todo-checkbox {
   flex-shrink: 0;
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
   cursor: pointer;
-  accent-color: var(--vp-c-brand-1);
+  appearance: none;
+  border: 1px solid #8d8d8d;
+  border-radius: 0;
+  background: transparent;
+  position: relative;
+  outline: none;
+}
+
+.todo-checkbox:hover {
+  border-color: #a8a8a8;
+}
+
+.todo-checkbox:focus-visible {
+  border-color: #78a9ff;
+  box-shadow: 0 0 0 1px #78a9ff;
+}
+
+.todo-checkbox:checked {
+  border-color: #0f62fe;
+  background: #0f62fe;
+}
+
+.todo-checkbox:checked::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #ffffff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 
 .todo-text {
@@ -370,10 +401,20 @@ body.body-dark .queue-icon-wrapper.is-running { background-color: #001141; }
   padding: 0;
   font-size: 1.1rem;
   border-radius: 0;
-  background: var(--vp-c-brand-1);
-  border: 1px solid var(--vp-c-brand-2);
+  background: #0f62fe;
+  border: 1px solid #0f62fe;
   color: #fff;
   cursor: pointer;
+}
+
+.todo-add-button:hover {
+  background: #0353e9;
+  border-color: #0353e9;
+}
+
+.todo-add-button:focus-visible {
+  outline: 1px solid #78a9ff;
+  outline-offset: 1px;
 }
 
 .todo-player {
@@ -401,9 +442,35 @@ body.body-dark .queue-icon-wrapper.is-running { background-color: #001141; }
   cursor: pointer;
 }
 
+.todo-player-mode {
+  border-color: #6f6f6f;
+  color: #c6c6c6;
+}
+
+.todo-player-mode:hover {
+  border-color: #8d8d8d;
+  color: #f4f4f4;
+}
+
+.todo-player-mode-on {
+  background: #24a148;
+  border-color: #24a148;
+  color: #ffffff;
+}
+
+.todo-player-mode-on:hover {
+  background: #198038;
+  border-color: #198038;
+}
+
+.todo-player-mode-on:focus-visible {
+  outline: 1px solid #42be65;
+  outline-offset: 1px;
+}
+
 .todo-player-play {
-  background: var(--vp-c-brand-1);
-  border-color: var(--vp-c-brand-2);
+  background: #0f62fe;
+  border-color: #0f62fe;
   color: #fff;
 }
 
@@ -414,9 +481,21 @@ body.body-dark .queue-icon-wrapper.is-running { background-color: #001141; }
 }
 
 .todo-player-active {
-  background: var(--vp-c-brand-1);
-  border-color: var(--vp-c-brand-2);
+  background: #0f62fe;
+  border-color: #0f62fe;
   color: #fff;
+}
+
+.todo-player-play:hover,
+.todo-player-active:hover {
+  background: #0353e9;
+  border-color: #0353e9;
+}
+
+.todo-player-play:focus-visible,
+.todo-player-active:focus-visible {
+  outline: 1px solid #78a9ff;
+  outline-offset: 1px;
 }
 
 .todo-player-disabled {
@@ -473,9 +552,19 @@ body.body-dark .queue-icon-wrapper.is-running { background-color: #001141; }
   padding: 7px 12px;
   font-size: 12px;
   font-family: var(--todo-ui-font-sans);
-  background: var(--vp-c-brand-1);
+  background: #0f62fe;
   color: white;
-  border: none;
+  border: 1px solid #0f62fe;
   border-radius: 0;
   cursor: pointer;
+}
+
+.todo-goal-go:hover {
+  background: #0353e9;
+  border-color: #0353e9;
+}
+
+.todo-goal-go:focus-visible {
+  outline: 1px solid #78a9ff;
+  outline-offset: 1px;
 }

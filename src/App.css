@@ -1155,7 +1155,7 @@ body.body-dark .search-highlight {
 .chat-bubble-user {
   background: transparent;
   border: none;
-  color: #e5e7eb;
+  color: var(--vp-c-text-1);
   font-family: var(--vp-font-family-mono);
 }
 
@@ -1163,14 +1163,14 @@ body.body-dark .search-highlight {
   content: ">";
   display: inline-block;
   margin-right: 10px;
-  color: #60a5fa;
+  color: var(--vp-c-brand-1);
   font-weight: 600;
 }
 
 .chat-bubble-agent {
   background: transparent;
   border: none;
-  color: #9ca3af;
+  color: var(--vp-c-text-1);
   font-family: var(--vp-font-family-mono);
   animation: none;
 }
@@ -1191,7 +1191,7 @@ body.body-dark .search-highlight {
   max-width: 100%;
   white-space: pre-wrap;
   word-break: break-word;
-  color: #9ca3af;
+  color: var(--vp-c-text-1);
   animation: none;
 }
 
@@ -1299,6 +1299,26 @@ body.body-dark .ev-message.ev-message-deepseek {
   font-family: var(--vp-font-family-mono);
 }
 
+.ev-warning {
+  width: 100%;
+  margin: 4px 0 8px;
+  padding: 8px 10px;
+  border: 1px solid #b45309;
+  border-left: 3px solid #f59e0b;
+  background: #fffbeb;
+  color: #92400e;
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+body.body-dark .ev-warning {
+  border: 1px solid #92400e;
+  border-left-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.14);
+  color: #fcd34d;
+}
+
 .ev-error {
   font-family: var(--vp-font-family-mono);
   font-size: 0.74rem;
@@ -1327,7 +1347,7 @@ body.body-dark .ev-message.ev-message-deepseek {
   max-width: 100%;
   font-size: 0.76rem;
   line-height: 1.6;
-  color: #d1d5db;
+  color: var(--vp-c-text-1);
 }
 
 .fmt-code {
@@ -1337,6 +1357,27 @@ body.body-dark .ev-message.ev-message-deepseek {
   border: 1px solid var(--vp-c-divider);
   border-radius: 2px;
   padding: 1px 4px;
+  color: var(--vp-c-text-1);
+}
+
+body.body-dark .chat-bubble-user {
+  color: #e5e7eb;
+}
+
+body.body-dark .chat-bubble-user::before {
+  color: #60a5fa;
+}
+
+body.body-dark .chat-bubble-agent {
+  color: #9ca3af;
+}
+
+body.body-dark .ev-message {
+  color: #9ca3af;
+}
+
+body.body-dark .ev-message-final {
+  color: #d1d5db;
 }
 
 .fmt-path {
@@ -1882,8 +1923,8 @@ pre.json {
 }
 
 .prompt-action-run {
-  background: var(--vp-c-brand-1);
-  border-color: var(--vp-c-brand-2);
+  background: #0f62fe;
+  border-color: #0f62fe;
   color: #fff;
 }
 
@@ -1941,8 +1982,14 @@ pre.json {
 }
 
 .prompt-action-run:hover:not(:disabled) {
-  background: var(--vp-c-brand-2);
+  background: #0353e9;
+  border-color: #0353e9;
   color: #fff;
+}
+
+.prompt-action-run:focus-visible {
+  outline: 1px solid #78a9ff;
+  outline-offset: 1px;
 }
 
 

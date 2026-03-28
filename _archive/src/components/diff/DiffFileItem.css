@@ -37,7 +37,7 @@
 }
 
 .diff-file-item__path {
-  font-family: "SF Mono", "Fira Code", monospace;
+  font-family: var(--app-font-family-mono);
   font-size: 12px;
 }
 
@@ -46,7 +46,7 @@
   display: flex;
   gap: 6px;
   font-size: 11px;
-  font-family: "SF Mono", "Fira Code", monospace;
+  font-family: var(--app-font-family-mono);
 }
 
 .diff-file-item__additions {
