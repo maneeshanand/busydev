@@ -1089,7 +1089,7 @@ function App() {
   const projectsRef = useRef<Project[]>([]);
   const activeProjectIdRef = useRef<string | null>(null);
   const activeSessionIdRef = useRef<string | null>(null);
-  const autoPlayTodosRef = useRef(false);
+
 
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -1112,10 +1112,14 @@ function App() {
   const [appVersion, setAppVersion] = useState("unknown");
   const appBuild = __APP_BUILD__;
 
-  const anyRunning = Object.keys(inFlightRuns).length > 0;
   const activeInFlightRun = activeTabId ? inFlightRuns[activeTabId] ?? null : null;
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
   const activeSession = activeProject?.sessions.find((s) => s.id === activeProject.activeSessionId) ?? null;
+  // Session-scoped running: only counts runs owned by the active session
+  const sessionRunning = Object.keys(inFlightRuns).some((runId) => {
+    const owner = runSessionMapRef.current[runId];
+    return owner && owner.projectId === activeProjectId && owner.sessionId === activeProject?.activeSessionId;
+  });
   const sessionRuns = activeSession?.runs ?? [];
   const todos = activeSession?.todos ?? [];
   const agent = activeSession?.agent ?? "codex";
@@ -1189,7 +1193,7 @@ function App() {
   projectsRef.current = projects;
   activeProjectIdRef.current = activeProjectId;
   activeSessionIdRef.current = activeProject?.activeSessionId ?? null;
-  autoPlayTodosRef.current = autoPlayTodos;
+
   todoMaxRetriesRef.current = todoMaxRetries;
 
   function openSettings(section: SectionId) {
@@ -1473,7 +1477,7 @@ function App() {
     requestAnimationFrame(() => {
       streamBottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
     });
-  }, [loading, sessionRuns, activeInFlightRun, anyRunning, error]);
+  }, [loading, sessionRuns, activeInFlightRun, sessionRunning, error]);
 
   useEffect(() => {
     const panel = streamPanelRef.current;
@@ -1503,14 +1507,14 @@ function App() {
   }, [splashEnabled, splashDurationMs]);
 
   useEffect(() => {
-    if (!anyRunning || !activeTabId) return;
+    if (!sessionRunning || !activeTabId) return;
     const startTime = startTimeMapRef.current[activeTabId];
     if (!startTime) return;
     const interval = setInterval(() => {
       setElapsed(Math.floor((Date.now() - startTime) / 10) / 100);
     }, 10);
     return () => clearInterval(interval);
-  }, [anyRunning, activeTabId]);
+  }, [sessionRunning, activeTabId]);
 
   useEffect(() => {
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -1798,11 +1802,6 @@ function App() {
   // Switching just resets ephemeral UI state; derived values auto-update from projects.
 
   function resetEphemeralState() {
-    // Immediately kill auto-play ref to prevent race with delayed callbacks
-    autoPlayTodosRef.current = false;
-    // Clear retry counters for the previous session
-    todoRetryCountRef.current = {};
-
     setTransitioning(true);
     setTimeout(() => {
       setActiveTabId(null);
@@ -1956,45 +1955,64 @@ function App() {
     systemPromptOverride?: string;
     approvalPolicyOverride?: string;
     sandboxModeOverride?: string;
+    targetSession?: { projectId: string; sessionId: string };
   }) {
+    // Resolve session context: use targetSession (background auto-play) or active session
+    const target = overrides?.targetSession;
+    const tProject = target
+      ? projectsRef.current.find((p) => p.id === target.projectId)
+      : activeProject;
+    const tSession = target
+      ? tProject?.sessions.find((s) => s.id === target.sessionId)
+      : activeSession;
+    const tProjectId = target?.projectId ?? activeProjectId;
+    const tSessionId = target?.sessionId ?? tProject?.activeSessionId;
+    const tSessionRuns = tSession?.runs ?? [];
+    const tTodos = tSession?.todos ?? [];
+    const tTodoMode = tSession?.todoMode ?? false;
+    const tWorkingDirectory = tSession?.worktreePath ?? tProject?.path ?? "";
+    const isBackground = !!target;
+
     const submittedPrompt = overridePrompt ?? prompt;
     const { busyAgent: taggedBusyAgent, cleanedPrompt: strippedPrompt } = extractTaggedBusyAgent(submittedPrompt);
     const expandedPrompt = expandPromptAliases(strippedPrompt, aliasMap);
     const requestedTodoMatch = submittedPrompt.match(/work on todo #(\d+)/i);
     const requestedTodoIndex = requestedTodoMatch ? Number.parseInt(requestedTodoMatch[1], 10) : null;
-    if (submittedPrompt.trim()) {
+    if (!isBackground && submittedPrompt.trim()) {
       setPromptHistory((prev) => [...prev, submittedPrompt]);
       setHistoryIndex(-1);
     }
-    const runNumber = sessionRuns.length + Object.keys(inFlightRuns).length + 1;
+    const runNumber = tSessionRuns.length + Object.keys(inFlightRuns).length + 1;
     const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-    setPrompt("");
-    setError(null);
+    if (!isBackground) {
+      setPrompt("");
+      setError(null);
+    }
 
     // Initialize per-run tracking
     streamRowsMapRef.current[runId] = [];
     nextRowIdRef.current[runId] = 1;
 
     // Track which session owns this run
-    if (activeProjectId && activeProject?.activeSessionId) {
+    if (tProjectId && tSessionId) {
       runSessionMapRef.current[runId] = {
-        projectId: activeProjectId,
-        sessionId: activeProject.activeSessionId,
+        projectId: tProjectId,
+        sessionId: tSessionId,
       };
     }
     stoppedMapRef.current[runId] = false;
     startTimeMapRef.current[runId] = Date.now();
 
     // Capture the requested todo ID at run start for stable loop-guard identity
-    if (requestedTodoIndex !== null && activeSession) {
-      const todos = activeSession.todos ?? [];
+    if (requestedTodoIndex !== null && tSession) {
+      const sessionTodos = tSession.todos ?? [];
       const idx = requestedTodoIndex - 1;
-      runTodoIdRef.current[runId] = idx >= 0 && idx < todos.length ? todos[idx].id : null;
+      runTodoIdRef.current[runId] = idx >= 0 && idx < sessionTodos.length ? sessionTodos[idx].id : null;
     } else {
       runTodoIdRef.current[runId] = null;
     }
-    setElapsed(0);
+    if (!isBackground) setElapsed(0);
 
     // Strip system instructions from display — keep only the user-visible portion
     let displayPrompt = submittedPrompt;
@@ -2009,15 +2027,15 @@ function App() {
       displayPrompt = `Todo #${todoWorkMatch[1]}: ${todoWorkMatch[2]}`;
     }
 
-    // Add to in-flight runs and switch to this tab
+    // Add to in-flight runs and switch to this tab (skip tab switch for background runs)
     setInFlightRuns((prev) => ({
       ...prev,
       [runId]: { id: runNumber, runId, prompt: displayPrompt, streamRows: [] },
     }));
-    setActiveTabId(runId);
+    if (!isBackground) setActiveTabId(runId);
 
     // Build session context from recent runs (toggleable in settings)
-    const recentRuns = sessionRuns.slice(-5);
+    const recentRuns = tSessionRuns.slice(-5);
     let sessionContext = "";
     if (includeSessionHistoryInPrompt && recentRuns.length > 0) {
       const history = recentRuns.map((r, i) => {
@@ -2027,8 +2045,8 @@ function App() {
       sessionContext = `## Session History (last ${recentRuns.length} runs)\n\n${history}\n\n---\n\n`;
     }
 
-    const basePrompt = todoMode && todos.length > 0
-      ? buildTodoPrompt(expandedPrompt, todos)
+    const basePrompt = tTodoMode && tTodos.length > 0
+      ? buildTodoPrompt(expandedPrompt, tTodos)
       : expandedPrompt;
 
     // Prepend system prompt from BusyAgent if available
@@ -2071,11 +2089,11 @@ function App() {
         prompt: effectivePrompt,
         approvalPolicy: effectiveApprovalPolicy,
         sandboxMode: effectiveSandboxMode,
-        workingDirectory,
+        workingDirectory: tWorkingDirectory,
         model: effectiveModel || undefined,
         skipGitRepoCheck,
         previousPrompts: effectiveAgent === "claude" && claudeAutoContinue
-          ? sessionRuns.map((r) => r.prompt).slice(-10)
+          ? tSessionRuns.map((r) => r.prompt).slice(-10)
           : undefined,
       });
 
@@ -2169,11 +2187,6 @@ function App() {
             const latestOwner = projectsRef.current.find((p) => p.id === owner.projectId)
               ?.sessions.find((s) => s.id === owner.sessionId);
             if (!latestOwner?.autoPlay || !latestOwner?.todoMode) return;
-            // handleRun targets the active session — only continue if owner is still active
-            if (owner.projectId !== activeProjectIdRef.current || owner.sessionId !== activeSessionIdRef.current) {
-              fireNotification("Auto-play paused", "Session is no longer active. Switch back to continue.", "warning", owner.projectId, owner.sessionId);
-              return;
-            }
             const latestTodos = latestOwner.todos ?? [];
             const sourceTodos = latestTodos.length > 0 ? latestTodos : updatedOwnerTodos;
             const decision = getTodoAutoPlayDecision(sourceTodos, requestedTodoId, todoProgressMade);
@@ -2200,12 +2213,15 @@ function App() {
             );
             const nextTodo = decision.nextTodo!;
             const apBa = nextTodo.busyAgentId ? allAgents.find((a) => a.id === nextTodo.busyAgentId) : null;
+            // Use targetSession so auto-play continues even if user switched away
+            const isOwnerActive = owner.projectId === activeProjectIdRef.current && owner.sessionId === activeSessionIdRef.current;
             void handleRun(autoPlayPrompt, {
               agentOverride: apBa?.base ?? nextTodo.agent,
               modelOverride: apBa?.model ?? nextTodo.model,
               systemPromptOverride: apBa?.systemPrompt,
               approvalPolicyOverride: apBa?.approvalPolicy,
               sandboxModeOverride: apBa?.sandboxMode,
+              ...(!isOwnerActive && { targetSession: { projectId: owner.projectId, sessionId: owner.sessionId } }),
             });
           }, 1000);
         }
@@ -2399,13 +2415,13 @@ function App() {
           setSearchQuery("");
           return;
         }
-        if (anyRunning && activeTabId) {
+        if (sessionRunning && activeTabId) {
           e.preventDefault();
           void handleStop();
         }
         return;
       }
-      if (anyRunning && activeTabId && e.ctrlKey && e.key === "c") {
+      if (sessionRunning && activeTabId && e.ctrlKey && e.key === "c") {
         e.preventDefault();
         void handleStop();
       }
@@ -2859,7 +2875,7 @@ function App() {
             collapsed={rightCollapsed}
             busyAgents={allAgents}
             canRun={workingDirectory.length > 0}
-            running={anyRunning}
+            running={sessionRunning}
             onAdd={handleAddTodo}
             onToggle={handleToggleTodo}
             onDelete={handleDeleteTodo}
