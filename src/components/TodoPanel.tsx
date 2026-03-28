@@ -22,10 +22,13 @@ interface TodoPanelProps {
   onClearTodos?: () => void;
   onSaveTodos?: () => void;
   onToggleAutoPlay?: () => void;
+  onToggleTodoMode?: () => void;
   onReorder?: (fromIndex: number, toIndex: number) => void;
   onUpdateTodo?: (id: string, updates: Partial<TodoItem>) => void;
   busyAgents?: BusyAgent[];
 }
+
+type TabId = "execution" | "todo";
 
 function SkipIcon() {
   return (
@@ -70,17 +73,36 @@ function PauseIcon() {
   );
 }
 
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="12" height="12">
+      <path d="M20 6L9 17L4 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="12" height="12">
+      <path d="M23 4v6h-6M1 20v-6h6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function MinusIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="12" height="12">
+      <path d="M5 12h14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function ChecklistIcon() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M9 5H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"
-        fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"
-      />
-      <path d="M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2Z"
-        fill="none" stroke="currentColor" strokeWidth="1.7"
-      />
-      <path d="m9 14 2 2 4-4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="12" height="12">
+      <path d="M9 7h10M9 12h10M9 17h10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M4.5 7.5l1 1 2-2M4.5 12.5l1 1 2-2M4.5 17.5l1 1 2-2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -99,6 +121,7 @@ export function TodoPanel({
   onClearTodos,
   onSaveTodos,
   onToggleAutoPlay,
+  onToggleTodoMode,
   canRun,
   running,
   todoMode,
@@ -107,6 +130,7 @@ export function TodoPanel({
   onUpdateTodo,
   busyAgents,
 }: TodoPanelProps) {
+  const [activeTab, setActiveTab] = useState<TabId>("execution");
   const [newText, setNewText] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
@@ -118,6 +142,8 @@ export function TodoPanel({
 
   const doneCount = todos.filter((t) => t.done).length;
   const pending = todos.filter((t) => !t.done);
+  const currentTask = pending[0];
+  const progressPercent = todos.length > 0 ? (doneCount / todos.length) * 100 : 0;
 
   function handleGenerate() {
     if (!goalInput.trim() || !onGenerateTodos) return;
@@ -189,57 +215,95 @@ export function TodoPanel({
         />
       );
     }
-    // Selected todo was deleted — fall back to list
     setSelectedTodoId(null);
   }
 
-  return (
-    <div className="todo-panel">
-      <div className="todo-panel-header">
-        <h3>Todos</h3>
-        <div className="todo-header-actions">
-          {todos.length > 0 && (
-            <span className="todo-progress">{doneCount}/{todos.length}</span>
-          )}
-          {onSaveTodos && todos.length > 0 && (
-            <button type="button" className="panel-collapse-btn" onClick={onSaveTodos} title="Save as JSON">
-              <SaveIcon />
-            </button>
-          )}
-          {onClearTodos && todos.length > 0 && !running && (
-            <button type="button" className="panel-collapse-btn todo-header-danger" onClick={onClearTodos} title="Clear all">
-              <ClearIcon />
-            </button>
-          )}
-          {onGenerateTodos && !running && (
-            <button
-              type="button"
-              className="panel-collapse-btn"
-              onClick={() => setShowGoalInput((prev) => !prev)}
-              disabled={!canRun}
-              title="Break down a goal into todos"
-            >
-              +AI
-            </button>
-          )}
-        </div>
-      </div>
-      {showGoalInput && todos.length > 0 && (
-        <div className="todo-goal-bar">
-          <input
-            type="text"
-            value={goalInput}
-            onChange={(e) => setGoalInput(e.target.value)}
-            onKeyDown={handleGoalKeyDown}
-            placeholder="Break down a goal..."
-            className="todo-goal-field"
-            autoFocus
-          />
-          <button type="button" className="todo-goal-go" onClick={handleGenerate} disabled={!goalInput.trim() || !canRun}>
-            Go
+  const renderExecutionView = () => (
+    <div className="execution-view">
+      {!readonly && pending.length > 0 && (
+        <div className={`todo-player execution-player ${!todoMode ? "todo-player-disabled" : ""}`}>
+          <button
+            type="button"
+            className={`todo-player-btn ${todoMode ? "todo-player-active" : ""}`}
+            onClick={onToggleTodoMode}
+            title={todoMode ? "Disable todo mode" : "Enable todo mode"}
+          >
+            <ChecklistIcon />
           </button>
+          {running ? (
+            <button type="button" className="todo-player-btn todo-player-stop" onClick={onStopTodos} disabled={!todoMode} title={todoMode ? "Stop" : "Enable todo mode to use player"}>
+              <PauseIcon />
+            </button>
+          ) : (
+            <button type="button" className="todo-player-btn todo-player-play" onClick={onRunTodos} disabled={!todoMode || !canRun} title={todoMode ? "Run next todo" : "Enable todo mode to use player"}>
+              <PlayIcon />
+            </button>
+          )}
+          <button
+            type="button"
+            className={`todo-player-btn ${autoPlay ? "todo-player-active" : ""}`}
+            onClick={onToggleAutoPlay}
+            disabled={!todoMode}
+            title={!todoMode ? "Enable todo mode to use auto-play" : autoPlay ? "Auto-play ON" : "Auto-play OFF"}
+          >
+            <SkipIcon />
+          </button>
+          <span className="todo-player-status">
+            {!todoMode ? "Mode off" : running ? "Running..." : `${pending.length} left`}
+          </span>
         </div>
       )}
+
+      <div className="status-banner">
+        <div className="status-banner-indicator" />
+        <div className="status-banner-content">
+          <div className="status-banner-title">
+            {running ? "Agent running" : doneCount === todos.length && todos.length > 0 ? "Completed" : "Idle"}
+          </div>
+          <div className="status-banner-subtitle">
+            {running && currentTask ? currentTask.text : doneCount === todos.length && todos.length > 0 ? "All tasks finished" : "Waiting to start"}
+          </div>
+        </div>
+      </div>
+
+      <div className="section-label">PROGRESS</div>
+      <div className="progress-container">
+        <div className="progress-header">
+          <span className="progress-title">Task completion</span>
+          <span className="progress-stats">{doneCount} / {todos.length}</span>
+        </div>
+        <div className="progress-bar-bg">
+          <div className="progress-bar-fill" style={{ width: `${progressPercent}%` }} />
+        </div>
+      </div>
+
+      <div className="section-label">QUEUE</div>
+      <div className="queue-list">
+        {todos.map((todo) => {
+          const isCurrent = running && todo.id === currentTask?.id;
+          return (
+            <div key={todo.id} className="queue-item">
+              <div className={`queue-icon-wrapper ${todo.done ? "is-done" : isCurrent ? "is-running" : "is-pending"}`}>
+                {todo.done ? <CheckIcon /> : isCurrent ? <RefreshIcon /> : <MinusIcon />}
+              </div>
+              <div className="queue-item-content">
+                <div className="queue-item-title">{todo.text}</div>
+                <div className="queue-item-subtitle">
+                  {todo.done ? "Completed" : isCurrent ? "Edit — in progress" : "Pending"}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {todos.length === 0 && (
+          <div className="queue-empty">No tasks in queue</div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderTodoView = () => (
+    <div className="todo-list-view">
       <div className="todo-list">
         {todos.length === 0 && onGenerateTodos && (
           <div className="todo-empty">
@@ -303,9 +367,6 @@ export function TodoPanel({
                 className="todo-checkbox"
               />
             )}
-            {readonly && (
-              <span className={`todo-bullet ${item.done ? "todo-bullet-done" : ""}`} />
-            )}
             {editingId === item.id ? (
               <input
                 type="text"
@@ -324,23 +385,16 @@ export function TodoPanel({
                 {item.text}
               </span>
             )}
-            {item.source === "agent" && item.done && (
-              <span className="todo-agent-badge">agent</span>
-            )}
             {!readonly && editingId !== item.id && (
               <button
                 type="button"
                 className="todo-delete"
-                onClick={() => onDelete(item.id)}
+                onClick={(e) => { e.stopPropagation(); onDelete(item.id); }}
                 title="Delete"
               >
                 ×
               </button>
             )}
-            {item.busyAgentId && busyAgents && (() => {
-              const ba = busyAgents.find((a) => a.id === item.busyAgentId);
-              return ba ? <span className="todo-item-agent-badge" title={ba.name}><AgentIcon name={ba.icon} size={14} /></span> : null;
-            })()}
             <span className="todo-item-arrow">&rarr;</span>
           </div>
         ))}
@@ -360,33 +414,31 @@ export function TodoPanel({
               +
             </button>
           </div>
-          {pending.length > 0 && (
-            <div className={`todo-player ${!todoMode ? "todo-player-disabled" : ""}`}>
-              {running ? (
-                <button type="button" className="todo-player-btn todo-player-stop" onClick={onStopTodos} disabled={!todoMode} title={todoMode ? "Stop" : "Enable todo mode to use player"}>
-                  <PauseIcon />
-                </button>
-              ) : (
-                <button type="button" className="todo-player-btn todo-player-play" onClick={onRunTodos} disabled={!todoMode || !canRun} title={todoMode ? "Run next todo" : "Enable todo mode to use player"}>
-                  <PlayIcon />
-                </button>
-              )}
-              <button
-                type="button"
-                className={`todo-player-btn ${autoPlay ? "todo-player-active" : ""}`}
-                onClick={onToggleAutoPlay}
-                disabled={!todoMode}
-                title={!todoMode ? "Enable todo mode to use auto-play" : autoPlay ? "Auto-play ON — will run all todos" : "Auto-play OFF — pauses between todos"}
-              >
-                <SkipIcon />
-              </button>
-              <span className="todo-player-status">
-                {!todoMode ? "Mode off" : running ? "Running..." : `${pending.length} left`}
-              </span>
-            </div>
-          )}
         </div>
       )}
+    </div>
+  );
+
+  return (
+    <div className="todo-panel">
+      <div className="todo-tabs">
+        <button
+          className={`todo-tab ${activeTab === "execution" ? "active" : ""}`}
+          onClick={() => setActiveTab("execution")}
+        >
+          Execution
+        </button>
+        <button
+          className={`todo-tab ${activeTab === "todo" ? "active" : ""}`}
+          onClick={() => setActiveTab("todo")}
+        >
+          To-do
+        </button>
+      </div>
+
+      <div className="todo-tab-content">
+        {activeTab === "execution" ? renderExecutionView() : renderTodoView()}
+      </div>
     </div>
   );
 }

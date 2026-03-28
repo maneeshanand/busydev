@@ -6,6 +6,7 @@ import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { load as loadStore } from "@tauri-apps/plugin-store";
 import { getVersion } from "@tauri-apps/api/app";
+import { CheckmarkFilled, Close, ErrorFilled, InformationFilled, Notification as NotificationIcon, NotificationFilled, WarningAltFilled } from "@carbon/icons-react";
 import {
   CODEX_STREAM_EVENT,
   runCodexExec,
@@ -20,6 +21,7 @@ import {
 import type { BusyAgent, StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session, SavedPromptEntry } from "./types";
 import { mergeWithPresets, findAgentBySlug, buildAgentRoster } from "./lib/busyAgents";
 import { agentIconLabel } from "./components/AgentIcon";
+import { ProjectNavigator } from "./components/ProjectNavigator";
 import { TodoPanel } from "./components/TodoPanel";
 import { ResizeHandle } from "./components/ResizeHandle";
 import { SettingsView, type SectionId } from "./components/SettingsView";
@@ -85,21 +87,6 @@ function RunIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-    </svg>
-  );
-}
-
-function ChecklistIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M9 5H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"
-        fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"
-      />
-      <path d="M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2Z"
-        fill="none" stroke="currentColor" strokeWidth="1.7"
-      />
-      <path d="m9 14 2 2 4-4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -911,6 +898,13 @@ function NotificationPanel({ onClose, onNavigate }: { onClose: () => void; onNav
         <div className="notif-panel-list">
           {[...notifications].reverse().map((n) => {
             const canNav = !!(n.projectId && n.sessionId && onNavigate);
+            const LevelIcon = n.level === "success"
+              ? CheckmarkFilled
+              : n.level === "warning"
+                ? WarningAltFilled
+                : n.level === "error"
+                  ? ErrorFilled
+                  : InformationFilled;
             return (
               <div
                 key={n.id}
@@ -923,11 +917,16 @@ function NotificationPanel({ onClose, onNavigate }: { onClose: () => void; onNav
                   }
                 }}
               >
+                <span className="notif-panel-item-icon" aria-hidden="true">
+                  <LevelIcon size={14} />
+                </span>
                 <div className="notif-panel-item-content">
                   <strong>{n.title}</strong>
                   <span>{n.message}</span>
                 </div>
-                <button type="button" className="notif-panel-item-dismiss" onClick={(e) => { e.stopPropagation(); dismiss(n.id); }}>×</button>
+                <button type="button" className="notif-panel-item-dismiss" onClick={(e) => { e.stopPropagation(); dismiss(n.id); }}>
+                  <Close size={14} />
+                </button>
               </div>
             );
           })}
@@ -1118,6 +1117,16 @@ function App() {
   const approvalPolicy = activeSession?.approvalPolicy ?? "full-auto";
   const sandboxMode = activeSession?.sandboxMode ?? "read-only";
   const workingDirectory = activeSession?.worktreePath ?? activeProject?.path ?? "";
+  const headerProjectName = activeProject?.name ?? "No project";
+  const headerSessionName = activeSession?.name ?? "No session";
+  const headerPathRaw = activeSession?.worktreePath ?? activeProject?.path ?? "";
+  const headerPathNormalized = headerPathRaw.replace(/^\/Users\/[^/]+/, "~");
+  const HEADER_PATH_TAIL_CHARS = 42;
+  const headerPath = headerPathNormalized.length > HEADER_PATH_TAIL_CHARS
+    ? `…${headerPathNormalized.slice(-HEADER_PATH_TAIL_CHARS)}`
+    : headerPathNormalized;
+  const headerBranch = activeSession?.worktreeBranch ?? "";
+  const hasWorktree = Boolean(activeSession?.worktreePath);
   const canRun = workingDirectory.length > 0 && prompt.length > 0;
   const aliasMap = useMemo(() => buildAliasMap(promptLibrary), [promptLibrary]);
   const mentionedAliases = useMemo(() => getMentionedAliases(prompt, aliasMap), [aliasMap, prompt]);
@@ -2338,7 +2347,30 @@ function App() {
   return (
     <div className={`container theme-${colorMode} density-${uiDensity}`}>
       <div className="app-header">
-        <h1>busydev</h1>
+        <div className="app-header-left">
+          <div className="app-header-brand" title="busydev">
+            <span className="app-header-brand-mark" aria-hidden="true" />
+            <span className="app-header-brand-text">
+              <span className="app-header-brand-busy">busy</span>
+              <span className="app-header-brand-dev">dev</span>
+            </span>
+          </div>
+          <span className="app-header-divider" aria-hidden="true" />
+
+          <div className="app-header-context">
+            <span className="app-header-project">{headerProjectName}</span>
+            <span className="app-header-sep">/</span>
+            <span className="app-header-session">{headerSessionName}</span>
+            {headerPath && (
+              <>
+                <span className="app-header-sep">/</span>
+                <span className="app-header-path" title={headerPathRaw}>{headerPath}</span>
+              </>
+            )}
+            {headerBranch && <span className="app-header-branch-badge">{headerBranch}</span>}
+            {hasWorktree && <span className="app-header-worktree-badge">worktree</span>}
+          </div>
+        </div>
         <div className="header-controls">
           {/* Terminal hidden — MAN-157: re-enable when scoped per project/session */}
           <div className="bell-wrapper">
@@ -2355,10 +2387,7 @@ function App() {
               }}
               title={missedAlerts > 0 ? `${missedAlerts} missed alert${missedAlerts > 1 ? "s" : ""}` : "Notifications"}
             >
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-              </svg>
+              {missedAlerts > 0 ? <NotificationFilled size={16} /> : <NotificationIcon size={16} />}
               {missedAlerts > 0 && <span className="bell-badge">{missedAlerts}</span>}
             </button>
             {notifPanelOpen && <NotificationPanel onClose={() => setNotifPanelOpen(false)} onNavigate={navigateToSession} />}
@@ -2368,30 +2397,15 @@ function App() {
 
       <div className="app-content">
         <div className="project-rail">
-          <div className="project-rail-header">
-            <h2>Projects</h2>
-          </div>
-          <div className="project-rail-list">
-            {projects.map((p) => (
-              <div
-                key={p.id}
-                className={`project-item ${p.id === activeProjectId ? "project-item-active" : ""}`}
-                onClick={() => switchToProject(p.id)}
-              >
-                {runningProjectIds.has(p.id) && <span className="project-item-spinner" />}
-                <span className="project-item-name">{p.name}</span>
-                <button
-                  type="button"
-                  className="project-item-remove"
-                  onClick={(e) => { e.stopPropagation(); handleRemoveProject(p.id); }}
-                  title="Remove project"
-                >×</button>
-              </div>
-            ))}
-            <button type="button" className="project-rail-add" onClick={handleAddProject}>
-              <span>+</span> Add Project
-            </button>
-          </div>
+          <ProjectNavigator
+            projects={projects}
+            activeProjectId={activeProjectId}
+            runningProjectIds={runningProjectIds}
+            addingProject={addingProject}
+            onSelect={switchToProject}
+            onAdd={handleAddProject}
+            onRemove={handleRemoveProject}
+          />
           <div className="project-rail-footer">
             <button
               type="button"
@@ -2718,21 +2732,6 @@ function App() {
               )}
             </div>
             <div className="prompt-actions">
-              <button
-                type="button"
-                className={`prompt-action prompt-action-todo ${todoMode ? "is-active" : ""}`}
-                onClick={() => {
-                  if (todoMode) {
-                    setTodoMode(false);
-                  } else {
-                    setConfirmTodoMode(true);
-                  }
-                }}
-                title={todoMode ? "Disable todo mode" : "Enable todo mode"}
-                aria-label="Toggle todo mode"
-              >
-                <ChecklistIcon />
-              </button>
               {activeInFlightRun ? (
                 <button
                   type="button"
@@ -2828,6 +2827,13 @@ function App() {
             todoMode={todoMode}
             autoPlay={autoPlayTodos}
             onToggleAutoPlay={() => setAutoPlayTodos(!autoPlayTodos)}
+            onToggleTodoMode={() => {
+              if (todoMode) {
+                setTodoMode(false);
+              } else {
+                setConfirmTodoMode(true);
+              }
+            }}
             onClearTodos={handleClearTodos}
             onSaveTodos={handleSaveTodos}
             onReorder={(from, to) => {

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { CheckmarkFilled, Close, ErrorFilled, InformationFilled, WarningAltFilled } from "@carbon/icons-react";
 import { useNotificationStore, type AppNotification } from "../stores/notificationStore";
 import "./NotificationToasts.css";
 
@@ -22,6 +23,13 @@ function NotificationToast({
   }, [dismiss, notification.id]);
 
   const canNavigate = !!(notification.projectId && notification.sessionId && onNavigate);
+  const LevelIcon = notification.level === "success"
+    ? CheckmarkFilled
+    : notification.level === "warning"
+      ? WarningAltFilled
+      : notification.level === "error"
+        ? ErrorFilled
+        : InformationFilled;
 
   return (
     <div
@@ -35,6 +43,9 @@ function NotificationToast({
         }
       }}
     >
+      <span className="notification-toast__icon" aria-hidden="true">
+        <LevelIcon size={16} />
+      </span>
       <div className="notification-toast__content">
         <strong>{notification.title}</strong>
         <p>{notification.message}</p>
@@ -45,7 +56,7 @@ function NotificationToast({
         aria-label="Dismiss notification"
         onClick={(e) => { e.stopPropagation(); dismiss(notification.id); }}
       >
-        ×
+        <Close size={16} />
       </button>
     </div>
   );
