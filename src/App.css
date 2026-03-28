@@ -932,7 +932,7 @@ button:disabled {
   align-items: center;
   gap: 8px;
   font-size: 0.78rem;
-  color: var(--vp-c-text-1);
+  color: #e0e0e0;
 }
 
 .ev-approval-icon {
@@ -983,8 +983,8 @@ button:disabled {
   padding: 3px 12px;
   border-radius: 3px;
   background: transparent;
-  border: 1px solid var(--vp-c-divider);
-  color: var(--vp-c-text-2);
+  border: 1px solid #333;
+  color: #888;
   cursor: pointer;
   font-family: inherit;
 }
@@ -1155,7 +1155,7 @@ body.body-dark .search-highlight {
 .chat-bubble-user {
   background: transparent;
   border: none;
-  color: var(--vp-c-text-1);
+  color: #e5e7eb;
   font-family: var(--vp-font-family-mono);
 }
 
@@ -1163,14 +1163,14 @@ body.body-dark .search-highlight {
   content: ">";
   display: inline-block;
   margin-right: 10px;
-  color: var(--vp-c-brand-1);
+  color: #60a5fa;
   font-weight: 600;
 }
 
 .chat-bubble-agent {
   background: transparent;
   border: none;
-  color: var(--vp-c-text-1);
+  color: #9ca3af;
   font-family: var(--vp-font-family-mono);
   animation: none;
 }
@@ -1191,7 +1191,7 @@ body.body-dark .search-highlight {
   max-width: 100%;
   white-space: pre-wrap;
   word-break: break-word;
-  color: var(--vp-c-text-1);
+  color: #9ca3af;
   animation: none;
 }
 
@@ -1347,61 +1347,41 @@ body.body-dark .ev-warning {
   max-width: 100%;
   font-size: 0.76rem;
   line-height: 1.6;
-  color: var(--vp-c-text-1);
+  color: #d1d5db;
 }
 
 .fmt-code {
   font-family: var(--vp-font-family-mono);
   font-size: 0.82em;
-  background: var(--vp-c-bg-mute);
-  border: 1px solid var(--vp-c-divider);
+  background: #1a1a1a;
+  border: 1px solid #333;
   border-radius: 2px;
   padding: 1px 4px;
-  color: var(--vp-c-text-1);
-}
-
-body.body-dark .chat-bubble-user {
-  color: #e5e7eb;
-}
-
-body.body-dark .chat-bubble-user::before {
-  color: #60a5fa;
-}
-
-body.body-dark .chat-bubble-agent {
-  color: #9ca3af;
-}
-
-body.body-dark .ev-message {
-  color: #9ca3af;
-}
-
-body.body-dark .ev-message-final {
-  color: #d1d5db;
+  color: #e0e0e0;
 }
 
 .fmt-path {
   cursor: pointer;
   text-decoration: underline;
-  text-decoration-color: var(--vp-c-brand-3);
+  text-decoration-color: #d1d5ff;
   text-underline-offset: 2px;
-  color: var(--vp-c-brand-1);
+  color: #a8b1ff;
 }
 
 .fmt-path:hover {
-  text-decoration-color: var(--vp-c-brand-1);
+  text-decoration-color: #a8b1ff;
 }
 
 .fmt-link {
-  color: var(--vp-c-brand-1);
+  color: #a8b1ff;
   text-decoration: underline;
-  text-decoration-color: var(--vp-c-brand-3);
+  text-decoration-color: #d1d5ff;
   text-underline-offset: 2px;
   cursor: pointer;
 }
 
 .fmt-link:hover {
-  text-decoration-color: var(--vp-c-brand-1);
+  text-decoration-color: #a8b1ff;
 }
 
 .fmt-bullet {
