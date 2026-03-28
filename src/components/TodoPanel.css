@@ -193,6 +193,16 @@ body.body-dark .status-banner {
 body.body-dark .queue-icon-wrapper.is-done { background-color: #07190d; }
 body.body-dark .queue-icon-wrapper.is-running { background-color: #001141; }
 
+.queue-progress-spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: runSpinner 0.7s linear infinite;
+}
+
 .queue-item-content {
   flex: 1;
   min-width: 0;
