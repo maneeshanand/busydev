@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { TodoItem, BusyAgent } from "../types";
 import { TodoDetailView } from "./TodoDetailView";
-import { AgentIcon } from "./AgentIcon";
+
 import "./TodoPanel.css";
 
 interface TodoPanelProps {
@@ -39,22 +39,6 @@ function SkipIcon() {
   );
 }
 
-function ClearIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M6 6l12 12M6 18L18 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function SaveIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 3v12m0 0l-4-4m4 4l4-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 function PlayIcon() {
   return (
@@ -100,7 +84,7 @@ function ChecklistIcon() {
 
 export function TodoPanel({
   todos,
-  collapsed,
+  collapsed: _collapsed,
   readonly,
   onAdd,
   onToggle,
@@ -109,8 +93,8 @@ export function TodoPanel({
   onRunTodos,
   onStopTodos,
   onGenerateTodos,
-  onClearTodos,
-  onSaveTodos,
+  onClearTodos: _onClearTodos,
+  onSaveTodos: _onSaveTodos,
   onToggleAutoPlay,
   onToggleTodoMode,
   canRun,
@@ -126,7 +110,7 @@ export function TodoPanel({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [goalInput, setGoalInput] = useState("");
-  const [showGoalInput, setShowGoalInput] = useState(false);
+  const [, setShowGoalInput] = useState(false);
   const [dragFromIndex, setDragFromIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [selectedTodoId, setSelectedTodoId] = useState<string | null>(null);

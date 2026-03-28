@@ -1181,7 +1181,7 @@ function App() {
     : null;
   const todoMode = activeSession?.todoMode ?? false;
   const autoPlayTodos = activeSession?.autoPlay ?? false;
-  const [todoPanelOpen, setTodoPanelOpen] = useState(true);
+  const [todoPanelOpen] = useState(true);
   const [confirmTodoMode, setConfirmTodoMode] = useState(false);
   const rightCollapsed = !todoPanelOpen;
 
@@ -2865,7 +2865,7 @@ function App() {
             onDelete={handleDeleteTodo}
             onEdit={handleEditTodo}
             onUpdateTodo={handleUpdateTodo}
-            onCollapse={() => {}}
+
             onRunTodos={() => {
               const nextTodo = todos.find((t) => !t.done);
               if (!nextTodo) return;
