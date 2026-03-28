@@ -47,6 +47,7 @@ import {
   getMentionSuggestions,
   normalizeAlias,
 } from "./lib/promptAliases";
+import { getRandomPhrase } from "./lib/wittyPhrases";
 
 function WrenchIcon() {
   return (
@@ -116,6 +117,28 @@ function BookIcon() {
       />
       <path d="M8 19V7a2 2 0 0 1 2-2h9" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
       <path d="M10.5 10h5.5M10.5 13h5.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function GridIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="3" width="7" height="7" rx="1" fill="none" stroke="currentColor" strokeWidth="1.7" />
+      <rect x="14" y="3" width="7" height="7" rx="1" fill="none" stroke="currentColor" strokeWidth="1.7" />
+      <rect x="3" y="14" width="7" height="7" rx="1" fill="none" stroke="currentColor" strokeWidth="1.7" />
+      <rect x="14" y="14" width="7" height="7" rx="1" fill="none" stroke="currentColor" strokeWidth="1.7" />
+    </svg>
+  );
+}
+
+function UsersIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="9" cy="7" r="4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -1012,6 +1035,7 @@ function SessionTabs({ sessions, activeSessionId, sessionRunCounts, sessionAlert
 
 function App() {
   const [loading, setLoading] = useState(true);
+  const wittyPhrase = useMemo(() => getRandomPhrase(), []);
   const [splashFading, setSplashFading] = useState(false);
   const [colorMode, setColorMode] = useState<"light" | "dark">("light");
   const [uiDensity, setUiDensity] = useState<"comfortable" | "compact">("comfortable");
@@ -1103,7 +1127,7 @@ function App() {
     : null;
   const todoMode = activeSession?.todoMode ?? false;
   const autoPlayTodos = activeSession?.autoPlay ?? false;
-  const [todoPanelOpen, setTodoPanelOpen] = useState(false);
+  const [todoPanelOpen, setTodoPanelOpen] = useState(true);
   const [confirmTodoMode, setConfirmTodoMode] = useState(false);
   const rightCollapsed = !todoPanelOpen;
 
@@ -1707,7 +1731,6 @@ function App() {
       setSearchQuery("");
       setSearchOpen(false);
       setNotifPanelOpen(false);
-      setTodoPanelOpen(false);
       setElapsed(0);
       requestAnimationFrame(() => setTransitioning(false));
     }, 120);
@@ -2292,18 +2315,21 @@ function App() {
   if (loading) {
     return (
       <div className={`splash ${splashFading ? "splash-fade-out" : ""}`}>
-        <div className="splash-text">
-          {"busy".split("").map((char, i) => (
-            <span key={i} className="splash-char" style={{ animationDelay: `${i * 0.18}s` }}>
-              {char}
-            </span>
-          ))}
-          {"dev".split("").map((char, i) => (
-            <span key={i + 4} className="splash-char splash-char-blue" style={{ animationDelay: `${(i + 4) * 0.18}s` }}>
-              {char}
-            </span>
-          ))}
-          <span className="splash-cursor" />
+        <div className="splash-content">
+          <div className="splash-text">
+            {"busy".split("").map((char, i) => (
+              <span key={i} className="splash-char" style={{ animationDelay: `${i * 0.18}s` }}>
+                {char}
+              </span>
+            ))}
+            {"dev".split("").map((char, i) => (
+              <span key={i + 4} className="splash-char splash-char-blue" style={{ animationDelay: `${(i + 4) * 0.18}s` }}>
+                {char}
+              </span>
+            ))}
+            <span className="splash-cursor" />
+          </div>
+          <div className="splash-subtext">{wittyPhrase}</div>
         </div>
       </div>
     );
@@ -2311,101 +2337,117 @@ function App() {
 
   return (
     <div className={`container theme-${colorMode} density-${uiDensity}`}>
-      <div className="main-column">
-        <div className="app-header">
-          <h1>busydev</h1>
-          <div className="header-controls">
-            {/* Terminal hidden — MAN-157: re-enable when scoped per project/session */}
+      <div className="app-header">
+        <h1>busydev</h1>
+        <div className="header-controls">
+          {/* Terminal hidden — MAN-157: re-enable when scoped per project/session */}
+          <div className="bell-wrapper">
             <button
               type="button"
-              className="todo-toggle"
+              className={`bell-icon ${missedAlerts > 0 ? "has-alerts" : ""}`}
+              onClick={() => {
+                setNotifPanelOpen((prev) => !prev);
+                if (missedAlerts > 0) {
+                  setMissedAlerts(0);
+                  badgeCountRef.current = 0;
+                  void updateTrayBadge(0);
+                }
+              }}
+              title={missedAlerts > 0 ? `${missedAlerts} missed alert${missedAlerts > 1 ? "s" : ""}` : "Notifications"}
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+              {missedAlerts > 0 && <span className="bell-badge">{missedAlerts}</span>}
+            </button>
+            {notifPanelOpen && <NotificationPanel onClose={() => setNotifPanelOpen(false)} onNavigate={navigateToSession} />}
+          </div>
+        </div>
+      </div>
+
+      <div className="app-content">
+        <div className="project-rail">
+          <div className="project-rail-header">
+            <h2>Projects</h2>
+          </div>
+          <div className="project-rail-list">
+            {projects.map((p) => (
+              <div
+                key={p.id}
+                className={`project-item ${p.id === activeProjectId ? "project-item-active" : ""}`}
+                onClick={() => switchToProject(p.id)}
+              >
+                {runningProjectIds.has(p.id) && <span className="project-item-spinner" />}
+                <span className="project-item-name">{p.name}</span>
+                <button
+                  type="button"
+                  className="project-item-remove"
+                  onClick={(e) => { e.stopPropagation(); handleRemoveProject(p.id); }}
+                  title="Remove project"
+                >×</button>
+              </div>
+            ))}
+            <button type="button" className="project-rail-add" onClick={handleAddProject}>
+              <span>+</span> Add Project
+            </button>
+          </div>
+          <div className="project-rail-footer">
+            <button
+              type="button"
+              className="project-rail-action"
               onClick={() => setGlobalViewOpen(true)}
               title="All sessions (⌘K)"
-              aria-label="All sessions"
             >
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
-                <rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
-              </svg>
+              <GridIcon />
+              <span>All Sessions</span>
             </button>
             <button
               type="button"
-              className="todo-toggle"
+              className="project-rail-action"
               onClick={() => openSettings("library")}
               title="Prompt library (⌘L)"
-              aria-label="Prompt library"
             >
               <BookIcon />
+              <span>Library</span>
             </button>
-            <div className="bell-wrapper">
-              <button
-                type="button"
-                className={`bell-icon ${missedAlerts > 0 ? "has-alerts" : ""}`}
-                onClick={() => {
-                  setNotifPanelOpen((prev) => !prev);
-                  if (missedAlerts > 0) {
-                    setMissedAlerts(0);
-                    badgeCountRef.current = 0;
-                    void updateTrayBadge(0);
-                  }
-                }}
-                title={missedAlerts > 0 ? `${missedAlerts} missed alert${missedAlerts > 1 ? "s" : ""}` : "Notifications"}
-              >
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                </svg>
-                {missedAlerts > 0 && <span className="bell-badge">{missedAlerts}</span>}
-              </button>
-              {notifPanelOpen && <NotificationPanel onClose={() => setNotifPanelOpen(false)} onNavigate={navigateToSession} />}
-            </div>
             <button
               type="button"
-              className="todo-toggle"
+              className="project-rail-action"
+              onClick={() => openSettings("agents")}
+              title="Agents"
+            >
+              <UsersIcon />
+              <span>Agents</span>
+            </button>
+            <button
+              type="button"
+              className="project-rail-action"
               onClick={() => openSettings("general")}
-              title="Open settings"
-              aria-label="Open settings"
+              title="Settings"
             >
               <WrenchIcon />
+              <span>Settings</span>
             </button>
           </div>
         </div>
 
-        <div className="project-bar">
-          {projects.map((p) => (
-            <div
-              key={p.id}
-              className={`project-tab ${p.id === activeProjectId ? "project-tab-active" : ""}`}
-              onClick={() => switchToProject(p.id)}
-            >
-              {runningProjectIds.has(p.id) && <span className="project-tab-spinner" />}
-              <span>{p.name}</span>
-              <button
-                type="button"
-                className="project-tab-remove"
-                onClick={(e) => { e.stopPropagation(); handleRemoveProject(p.id); }}
-                title="Remove project"
-              >×</button>
-            </div>
-          ))}
-          <button type="button" className="project-tab-add" onClick={handleAddProject}>+</button>
-        </div>
+        <div className="main-column">
+          {activeProject && activeProject.sessions.length > 0 && (
+            <SessionTabs
+              sessions={activeProject.sessions}
+              activeSessionId={activeProject.activeSessionId}
+              sessionRunCounts={sessionRunCounts}
+              sessionAlerts={sessionAlerts}
+              projectId={activeProject.id}
+              onSelect={(sid) => switchSession(activeProject.id, sid)}
+              onNew={handleNewSession}
+              onRename={handleRenameSession}
+              onDelete={handleDeleteSession}
+            />
+          )}
 
-        {activeProject && activeProject.sessions.length > 0 && (
-          <SessionTabs
-            sessions={activeProject.sessions}
-            activeSessionId={activeProject.activeSessionId}
-            sessionRunCounts={sessionRunCounts}
-            sessionAlerts={sessionAlerts}
-            projectId={activeProject.id}
-            onSelect={(sid) => switchSession(activeProject.id, sid)}
-            onNew={handleNewSession}
-            onRename={handleRenameSession}
-            onDelete={handleDeleteSession}
-          />
-        )}
-
-        <div className="session-workspace">
+          <div className="session-workspace">
         <div className="session-main">
         {searchOpen && (
           <div className="search-bar">
@@ -2682,7 +2724,6 @@ function App() {
                 onClick={() => {
                   if (todoMode) {
                     setTodoMode(false);
-                    setTodoPanelOpen(false);
                   } else {
                     setConfirmTodoMode(true);
                   }
@@ -2735,7 +2776,6 @@ function App() {
                   style={{ background: "var(--vp-c-brand-1)", color: "white" }}
                   onClick={() => {
                     setTodoMode(true);
-                    setTodoPanelOpen(true);
                     if (rightPanelWidth < 220) setRightPanelWidth(280);
                     setConfirmTodoMode(false);
                   }}
@@ -2753,7 +2793,6 @@ function App() {
         <div
           className={`session-todo ${rightCollapsed ? "session-todo-collapsed" : ""}`}
           style={rightCollapsed ? undefined : { width: rightPanelWidth }}
-          onClick={() => { if (rightCollapsed) { setTodoPanelOpen(true); } }}
         >
             <TodoPanel
             todos={todos}
@@ -2766,9 +2805,7 @@ function App() {
             onDelete={handleDeleteTodo}
             onEdit={handleEditTodo}
             onUpdateTodo={handleUpdateTodo}
-            onCollapse={() => {
-              setTodoPanelOpen(false);
-            }}
+            onCollapse={() => {}}
             onRunTodos={() => {
               const nextTodo = todos.find((t) => !t.done);
               if (!nextTodo) return;
@@ -2817,8 +2854,10 @@ ADD_TODO: step three description`);
         </div>
         {/* end session-workspace */}
         </div>
-      </div>
-      {/* end main-column */}
+        {/* end main-column */}
+        </div>
+        {/* end app-content */}
+        </div>
 
       <SettingsView
         open={settingsOpen}

@@ -16,7 +16,6 @@ interface TodoPanelProps {
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
   onEdit: (id: string, text: string) => void;
-  onCollapse: () => void;
   onRunTodos?: () => void;
   onStopTodos?: () => void;
   onGenerateTodos?: (goal: string) => void;
@@ -71,16 +70,6 @@ function PauseIcon() {
   );
 }
 
-function CollapseRightIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" strokeWidth="1.5" />
-      <line x1="15" y1="3" x2="15" y2="21" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M10 10l2 2-2 2" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 function ChecklistIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -104,7 +93,6 @@ export function TodoPanel({
   onToggle,
   onDelete,
   onEdit,
-  onCollapse,
   onRunTodos,
   onStopTodos,
   onGenerateTodos,
@@ -186,19 +174,6 @@ export function TodoPanel({
     }
   }
 
-  if (collapsed) {
-    return (
-      <div className="todo-panel todo-panel-collapsed">
-        <div className="todo-panel-icon">
-          <ChecklistIcon />
-        </div>
-        {todos.length > 0 && (
-          <div className="todo-panel-badge">{doneCount}/{todos.length}</div>
-        )}
-      </div>
-    );
-  }
-
   if (selectedTodoId && onUpdateTodo) {
     const todoIndex = todos.findIndex((t) => t.id === selectedTodoId);
     const selectedTodo = todos[todoIndex];
@@ -247,9 +222,6 @@ export function TodoPanel({
               +AI
             </button>
           )}
-          <button type="button" className="panel-collapse-btn" onClick={onCollapse} title="Collapse panel">
-            <CollapseRightIcon />
-          </button>
         </div>
       </div>
       {showGoalInput && todos.length > 0 && (
