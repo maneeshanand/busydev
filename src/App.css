@@ -1692,6 +1692,28 @@ pre.json {
   margin: 0;
 }
 
+.prompt-idle textarea {
+  caret-color: transparent;
+}
+
+.prompt-idle::after {
+  content: "";
+  position: absolute;
+  top: 12px;
+  left: 13px;
+  width: 2px;
+  height: 1.1em;
+  background: var(--vp-c-brand-1);
+  animation: promptBlink 1s step-end infinite;
+  pointer-events: none;
+  font-size: 0.86rem;
+}
+
+@keyframes promptBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 .prompt-section textarea {
   display: block;
   width: 100%;

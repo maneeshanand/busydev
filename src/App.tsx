@@ -2679,7 +2679,7 @@ function App() {
         {/* Terminal hidden — MAN-157: re-enable when scoped per project/session */}
 
         <div className="bottom-panel">
-          <div className="prompt-section">
+          <div className={`prompt-section ${!sessionRunning && !prompt ? "prompt-idle" : ""}`}>
             <textarea
               ref={promptInputRef}
               rows={3}
