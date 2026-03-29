@@ -6,7 +6,7 @@ import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { load as loadStore } from "@tauri-apps/plugin-store";
 import { getVersion } from "@tauri-apps/api/app";
-import { CheckmarkFilled, ChartBar, Close, ErrorFilled, IbmKnowledgeCatalog, InformationFilled, Notification as NotificationIcon, NotificationFilled, WarningAltFilled } from "@carbon/icons-react";
+import { BuildRun, CheckmarkFilled, ChartBar, Close, ErrorFilled, IbmKnowledgeCatalog, InformationFilled, Notification as NotificationIcon, NotificationFilled, WarningAltFilled } from "@carbon/icons-react";
 import {
   CODEX_STREAM_EVENT,
   runCodexExec,
@@ -77,20 +77,7 @@ function StopIcon() {
   );
 }
 
-function RunIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M8 18c2 0 3.5-1.2 4.2-3l.8-2.2 2.2 1.2c.4.2.9.3 1.3.3H21m-9-7.8a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6Zm-1.5 2.1-1.8 2.1H5m7.5.6 2.3-2.3h2.7"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
+
 
 function GridIcon() {
   return (
@@ -2848,7 +2835,7 @@ function App() {
                   title="Run"
                   aria-label="Run"
                 >
-                  <RunIcon />
+                  <BuildRun size={20} />
                 </button>
               )}
             </div>

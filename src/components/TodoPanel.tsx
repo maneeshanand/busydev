@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Rocket } from "@carbon/icons-react";
 import type { TodoItem, BusyAgent } from "../types";
 import { TodoDetailView } from "./TodoDetailView";
 
@@ -292,8 +293,8 @@ export function TodoPanel({
                 placeholder="e.g., add auth with JWT..."
                 className="todo-goal-field"
               />
-              <button type="button" className="todo-goal-go" onClick={handleGenerate} disabled={!goalInput.trim() || !canRun}>
-                Generate
+              <button type="button" className="todo-goal-go" onClick={handleGenerate} disabled={!goalInput.trim() || !canRun} title="Generate">
+                <Rocket size={16} />
               </button>
             </div>
           </div>
