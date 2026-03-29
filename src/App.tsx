@@ -2439,6 +2439,7 @@ function App() {
           </div>
           <div className="splash-subtext">{wittyPhrase}</div>
         </div>
+        <div className="splash-version">v{appVersion}</div>
       </div>
     );
   }
