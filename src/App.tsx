@@ -18,7 +18,7 @@ import {
   updateTrayBadge,
   type CodexStreamEvent,
 } from "./invoke";
-import type { BusyAgent, StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session, SavedPromptEntry } from "./types";
+import type { BusyAgent, StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session, SavedPromptEntry, LlmProvider } from "./types";
 import { mergeWithPresets, findAgentBySlug, buildAgentRoster, agentSlug } from "./lib/busyAgents";
 import { agentIconLabel } from "./components/AgentIcon";
 import { ProjectNavigator } from "./components/ProjectNavigator";
@@ -26,6 +26,7 @@ import { TodoPanel } from "./components/TodoPanel";
 import { ResizeHandle } from "./components/ResizeHandle";
 import { SettingsView, type SectionId } from "./components/SettingsView";
 import { SETTINGS_VERSION, migrateStoredSettings, type StoredSettings } from "./lib/settings";
+import { getEnabledProviders, getModelsForProvider, mergeWithDefaults } from "./lib/providers";
 import { getSettings, saveSettings } from "./settingsInvoke";
 // Terminal hidden — MAN-157
 // import { TerminalPanel } from "./components/Terminal";
@@ -1042,6 +1043,7 @@ function App() {
   const [prompt, setPrompt] = useState("");
   const [promptLibrary, setPromptLibrary] = useState<SavedPromptEntry[]>([]);
   const [busyAgents, setBusyAgents] = useState<BusyAgent[]>([]);
+  const [providers, setProviders] = useState<LlmProvider[]>(() => mergeWithDefaults([]));
   const allAgents = useMemo(() => mergeWithPresets(busyAgents), [busyAgents]);
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
@@ -1210,6 +1212,7 @@ function App() {
     terminalLineHeight,
     promptLibrary,
     busyAgents,
+    providers,
     windowWidth: windowSize.windowWidth,
     windowHeight: windowSize.windowHeight,
   }), [
@@ -1231,6 +1234,7 @@ function App() {
     terminalLineHeight,
     promptLibrary,
     busyAgents,
+    providers,
     windowSize.windowWidth,
     windowSize.windowHeight,
   ]);
@@ -1324,6 +1328,7 @@ function App() {
           setTerminalLineHeight(migrated.terminalLineHeight);
           setPromptLibrary(migrated.promptLibrary);
           setBusyAgents(migrated.busyAgents);
+          if (migrated.providers) setProviders(mergeWithDefaults(migrated.providers));
           setWindowSize({
             windowWidth: migrated.windowWidth,
             windowHeight: migrated.windowHeight,
@@ -1703,6 +1708,10 @@ function App() {
 
   function deleteBusyAgent(id: string) {
     setBusyAgents((prev) => prev.filter((a) => a.id !== id));
+  }
+
+  function updateProvider(provider: LlmProvider) {
+    setProviders((prev) => prev.map((p) => p.id === provider.id ? provider : p));
   }
 
   function resetBusyAgentToPreset(id: string) {
@@ -2747,9 +2756,9 @@ function App() {
                 }}
                 title="Agent"
               >
-                <option value="raw:codex">Codex</option>
-                <option value="raw:claude">Claude</option>
-                <option value="raw:deepseek">DeepSeek</option>
+                {getEnabledProviders(providers).map((p) => (
+                  <option key={p.id} value={`raw:${p.id}`}>{p.name}</option>
+                ))}
                 <option disabled>── BusyAgents ──</option>
                 {allAgents.filter((a) => a.isPreset).map((a) => (
                   <option key={a.id} value={a.id}>{agentIconLabel(a.icon)} {a.name}</option>
@@ -2772,21 +2781,9 @@ function App() {
                     onChange={(e) => setModel(e.target.value)}
                     title="Model"
                   >
-                    {agent === "claude" ? (
-                      <>
-                        <option value="">claude-sonnet-4-6</option>
-                        <option value="claude-opus-4-6">claude-opus-4-6</option>
-                        <option value="claude-haiku-4-5">claude-haiku-4-5</option>
-                      </>
-                    ) : agent === "deepseek" ? (
-                      <option value="">deepseek-reasoner</option>
-                    ) : (
-                      <>
-                        <option value="">codex-mini</option>
-                        <option value="o3">o3</option>
-                        <option value="o4-mini">o4-mini</option>
-                      </>
-                    )}
+                    {getModelsForProvider(providers, agent).map((m, i) => (
+                      <option key={m} value={i === 0 ? "" : m}>{m}</option>
+                    ))}
                   </select>
                   <select
                     className="meta-chip-select"
@@ -2993,6 +2990,8 @@ ADD_TODO: step three description`);
         onCreatePromptLibraryEntry={createPromptLibraryEntry}
         onUpdatePromptLibraryEntry={updatePromptLibraryEntry}
         onDeletePromptLibraryEntry={deletePromptLibraryEntry}
+        providers={providers}
+        onUpdateProvider={updateProvider}
         busyAgents={allAgents}
         onCreateBusyAgent={createBusyAgent}
         onUpdateBusyAgent={updateBusyAgent}

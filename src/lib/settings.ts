@@ -54,6 +54,7 @@ type LegacyStoredSettings = {
   terminalLineHeight?: number;
   promptLibrary?: SavedPromptEntry[];
   busyAgents?: BusyAgent[];
+  providers?: LlmProvider[];
   windowWidth?: number;
   windowHeight?: number;
 };
