@@ -1,0 +1,219 @@
+/* ── Analytics theme tokens ─────────────────────────────────────────── */
+
+.analytics-view {
+  --an-axis: rgba(60, 60, 67, 0.25);
+  --an-tick: rgba(60, 60, 67, 0.56);
+  --an-tooltip-bg: #ffffff;
+  --an-tooltip-border: #e2e2e3;
+  --an-tooltip-text: rgba(60, 60, 67, 1);
+}
+
+body.body-dark .analytics-view {
+  --an-axis: #333;
+  --an-tick: #666;
+  --an-tooltip-bg: #1a1a1a;
+  --an-tooltip-border: #333;
+  --an-tooltip-text: #ccc;
+}
+
+/* ── Analytics View ─────────────────────────────────────────────────── */
+
+.analytics-view {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--vp-c-bg-soft);
+  padding: 16px 24px;
+  font-family: var(--vp-font-family-mono);
+  color: var(--vp-c-text-1);
+}
+
+/* ── Scope bar ─────────────────────────────────────────────────────── */
+
+.analytics-scope-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.analytics-scope-btn {
+  background: var(--vp-c-bg);
+  border: 1px solid var(--vp-c-divider);
+  color: var(--vp-c-text-2);
+  padding: 5px 14px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: var(--vp-font-family-mono);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.analytics-scope-btn:hover {
+  border-color: var(--vp-c-text-3);
+  color: var(--vp-c-text-1);
+}
+
+.analytics-scope-btn.active {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #fff;
+}
+
+.analytics-scope-select {
+  background: var(--vp-c-bg);
+  border: 1px solid var(--vp-c-divider);
+  color: var(--vp-c-text-1);
+  padding: 5px 28px 5px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: var(--vp-font-family-mono);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+
+.analytics-scope-select:hover {
+  border-color: var(--vp-c-text-3);
+}
+
+.analytics-scope-select:focus {
+  outline: none;
+  border-color: #6366f1;
+}
+
+.analytics-scope-context {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--vp-c-text-3);
+}
+
+/* ── Summary cards ─────────────────────────────────────────────────── */
+
+.analytics-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.analytics-card {
+  background: var(--vp-c-bg);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.analytics-card-label {
+  font-size: 11px;
+  color: var(--vp-c-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.analytics-card-value {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--vp-c-text-1);
+  line-height: 1.2;
+}
+
+.analytics-card-value.success {
+  color: #16a34a;
+}
+
+body.body-dark .analytics-card-value.success {
+  color: #22c55e;
+}
+
+.analytics-card-sub {
+  font-size: 11px;
+  color: var(--vp-c-text-3);
+  margin-top: 4px;
+}
+
+/* ── Chart panels ──────────────────────────────────────────────────── */
+
+.analytics-chart-panel {
+  background: var(--vp-c-bg);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.analytics-chart-title {
+  font-size: 12px;
+  color: var(--vp-c-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+
+/* ── Bottom row ────────────────────────────────────────────────────── */
+
+.analytics-bottom-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* ── Agent breakdown ───────────────────────────────────────────────── */
+
+.analytics-agent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.analytics-agent-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.analytics-agent-name {
+  width: 70px;
+  color: var(--vp-c-text-2);
+  text-transform: capitalize;
+  flex-shrink: 0;
+}
+
+.analytics-agent-bar {
+  flex: 1;
+  height: 20px;
+  background: var(--vp-c-bg-mute);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.analytics-agent-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.analytics-agent-count {
+  width: 60px;
+  text-align: right;
+  color: var(--vp-c-text-3);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+/* ── Empty state ───────────────────────────────────────────────────── */
+
+.analytics-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 300px;
+  color: var(--vp-c-text-3);
+  font-size: 14px;
+}

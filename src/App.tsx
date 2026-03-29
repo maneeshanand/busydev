@@ -6,7 +6,7 @@ import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { load as loadStore } from "@tauri-apps/plugin-store";
 import { getVersion } from "@tauri-apps/api/app";
-import { CheckmarkFilled, Close, ErrorFilled, IbmKnowledgeCatalog, InformationFilled, Notification as NotificationIcon, NotificationFilled, WarningAltFilled } from "@carbon/icons-react";
+import { BuildRun, CheckmarkFilled, ChartBar, Close, ErrorFilled, IbmKnowledgeCatalog, InformationFilled, Notification as NotificationIcon, NotificationFilled, WarningAltFilled } from "@carbon/icons-react";
 import {
   CODEX_STREAM_EVENT,
   runCodexExec,
@@ -32,6 +32,7 @@ import { getSettings, saveSettings } from "./settingsInvoke";
 import { useNotificationStore } from "./stores/notificationStore";
 import { NotificationToasts } from "./components/NotificationToasts";
 import { GlobalSessionViewer } from "./components/GlobalSessionViewer";
+import { AnalyticsView } from "./components/AnalyticsView";
 import {
   buildTodoWorkPrompt,
   buildTodoPrompt,
@@ -76,20 +77,7 @@ function StopIcon() {
   );
 }
 
-function RunIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M8 18c2 0 3.5-1.2 4.2-3l.8-2.2 2.2 1.2c.4.2.9.3 1.3.3H21m-9-7.8a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6Zm-1.5 2.1-1.8 2.1H5m7.5.6 2.3-2.3h2.7"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
+
 
 function GridIcon() {
   return (
@@ -1106,6 +1094,7 @@ function App() {
   const [missedAlerts, setMissedAlerts] = useState(0);
   const [notifPanelOpen, setNotifPanelOpen] = useState(false);
   const [globalViewOpen, setGlobalViewOpen] = useState(false);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const storeReadyRef = useRef(false);
   const [windowSize, setWindowSize] = useState<{ windowWidth?: number; windowHeight?: number }>({});
@@ -1910,6 +1899,7 @@ function App() {
   }
 
   function switchToProject(projectId: string) {
+    setAnalyticsOpen(false);
     if (projectId === activeProjectId) return;
     setActiveProjectId(projectId);
     resetEphemeralState();
@@ -2449,6 +2439,7 @@ function App() {
           </div>
           <div className="splash-subtext">{wittyPhrase}</div>
         </div>
+        <div className="splash-version">v{appVersion}</div>
       </div>
     );
   }
@@ -2518,6 +2509,15 @@ function App() {
           <div className="project-rail-footer">
             <button
               type="button"
+              className={`project-rail-action ${analyticsOpen ? "project-rail-action-active" : ""}`}
+              onClick={() => setAnalyticsOpen(!analyticsOpen)}
+              title="Analytics"
+            >
+              <ChartBar size={16} />
+              <span>Analytics</span>
+            </button>
+            <button
+              type="button"
               className="project-rail-action"
               onClick={() => setGlobalViewOpen(true)}
               title="All sessions (⌘K)"
@@ -2556,6 +2556,14 @@ function App() {
         </div>
 
         <div className="main-column">
+          {analyticsOpen ? (
+            <AnalyticsView
+              projects={projects}
+              activeProjectId={activeProjectId}
+              activeSessionId={activeProject?.activeSessionId ?? null}
+            />
+          ) : (
+            <>
           {activeProject && activeProject.sessions.length > 0 && (
             <SessionTabs
               sessions={activeProject.sessions}
@@ -2672,7 +2680,7 @@ function App() {
         {/* Terminal hidden — MAN-157: re-enable when scoped per project/session */}
 
         <div className="bottom-panel">
-          <div className="prompt-section">
+          <div className={`prompt-section ${!sessionRunning && !prompt ? "prompt-idle" : ""}`}>
             <textarea
               ref={promptInputRef}
               rows={3}
@@ -2828,7 +2836,7 @@ function App() {
                   title="Run"
                   aria-label="Run"
                 >
-                  <RunIcon />
+                  <BuildRun size={20} />
                 </button>
               )}
             </div>
@@ -2937,6 +2945,8 @@ ADD_TODO: step three description`);
         </div>
         {/* end session-workspace */}
         </div>
+            </>
+          )}
         {/* end main-column */}
         </div>
         {/* end app-content */}

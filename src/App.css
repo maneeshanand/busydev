@@ -150,6 +150,20 @@ body {
   color: var(--vp-c-brand-1);
 }
 
+.project-rail-action-active {
+  color: #e0e0e0;
+  background: rgba(99, 102, 241, 0.15);
+}
+
+.project-rail-action-active:hover {
+  color: #e0e0e0;
+  background: rgba(99, 102, 241, 0.2);
+}
+
+.project-rail-action-active svg {
+  color: #818cf8;
+}
+
 .side-panel-right {
   flex-shrink: 0;
   display: flex;
@@ -1678,6 +1692,28 @@ pre.json {
   margin: 0;
 }
 
+.prompt-idle textarea {
+  caret-color: transparent;
+}
+
+.prompt-idle::after {
+  content: "";
+  position: absolute;
+  top: 12px;
+  left: 13px;
+  width: 8px;
+  height: 1.1em;
+  background: var(--vp-c-brand-1);
+  animation: promptBlink 1s step-end infinite;
+  pointer-events: none;
+  font-size: 0.86rem;
+}
+
+@keyframes promptBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 .prompt-section textarea {
   display: block;
   width: 100%;
@@ -2083,6 +2119,18 @@ input[type="text"] {
   animation-delay: 1.8s;
   letter-spacing: 0.035em;
   text-transform: lowercase;
+}
+
+.splash-version {
+  position: absolute;
+  bottom: 16px;
+  right: 20px;
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.7rem;
+  color: #6f6f6f;
+  opacity: 0;
+  animation: splashFadeIn 0.5s forwards;
+  animation-delay: 2s;
 }
 
 @keyframes splashFadeIn {
