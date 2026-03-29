@@ -37,7 +37,7 @@ export interface PersistedRun {
   durationMs: number;
   finalSummary: string;
   stopped?: boolean;
-  agent?: "codex" | "claude" | "deepseek";
+  agent?: "codex" | "claude" | "deepseek" | "gemini";
 }
 
 export interface InFlightRun {

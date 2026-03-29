@@ -299,6 +299,160 @@ async fn run_deepseek_exec(
     })
 }
 
+async fn run_gemini_exec(
+    app: &AppHandle,
+    input: &CodexExecInput,
+    run_id: &str,
+    start: Instant,
+) -> Result<CodexExecOutput, String> {
+    let api_key = std::env::var("GEMINI_API_KEY")
+        .map_err(|_| "GEMINI_API_KEY is not set".to_string())?;
+    let base_url = std::env::var("GEMINI_BASE_URL")
+        .unwrap_or_else(|_| "https://generativelanguage.googleapis.com/v1beta".to_string());
+    let model = input
+        .model
+        .clone()
+        .filter(|m| !m.trim().is_empty())
+        .unwrap_or_else(|| "gemini-2.5-pro".to_string());
+    let endpoint = format!(
+        "{}/models/{}:streamGenerateContent?alt=sse&key={}",
+        base_url.trim_end_matches('/'),
+        model,
+        api_key
+    );
+    let effective_prompt = build_effective_prompt(input);
+
+    emit_stream_event(
+        app,
+        CodexStreamEvent {
+            run_id: run_id.to_string(),
+            kind: "stdout".into(),
+            line: Some("gemini request started".into()),
+            parsed_json: Some(json!({
+                "item": {
+                    "type": "command_execution",
+                    "command": format!("gemini: {}", model),
+                    "status": "in_progress"
+                }
+            })),
+            exit_code: None,
+            duration_ms: None,
+        },
+    );
+
+    let payload = json!({
+        "contents": [
+            { "parts": [{ "text": effective_prompt }] }
+        ]
+    });
+
+    let response = reqwest::Client::new()
+        .post(&endpoint)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Gemini request failed: {e}"))?;
+
+    if !response.status().is_success() {
+        let status = response.status().as_u16();
+        let body = response.text().await.unwrap_or_default();
+        return Err(format!("Gemini API error ({status}): {body}"));
+    }
+
+    let mut stdout_raw = String::new();
+    let mut parsed_lines: Vec<serde_json::Value> = Vec::new();
+    let mut full_text = String::new();
+    let mut buffer = String::new();
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let bytes = chunk.map_err(|e| format!("Gemini stream read failed: {e}"))?;
+        let text = String::from_utf8_lossy(&bytes);
+        buffer.push_str(&text);
+
+        while let Some(pos) = buffer.find('\n') {
+            let line = buffer[..pos].trim_end_matches('\r').to_string();
+            buffer = buffer[pos + 1..].to_string();
+            if line.is_empty() || !line.starts_with("data:") {
+                continue;
+            }
+            let data = line.trim_start_matches("data:").trim();
+            if data == "[DONE]" {
+                continue;
+            }
+            if !stdout_raw.is_empty() {
+                stdout_raw.push('\n');
+            }
+            stdout_raw.push_str(data);
+
+            let parsed = serde_json::from_str::<serde_json::Value>(data)
+                .map_err(|e| format!("Gemini stream JSON parse failed: {e}; data={data}"))?;
+
+            // Gemini SSE: { "candidates": [{ "content": { "parts": [{ "text": "..." }] } }] }
+            if let Some(delta) = parsed
+                .get("candidates")
+                .and_then(|c| c.as_array())
+                .and_then(|arr| arr.first())
+                .and_then(|first| first.get("content"))
+                .and_then(|c| c.get("parts"))
+                .and_then(|p| p.as_array())
+                .and_then(|parts| parts.first())
+                .and_then(|part| part.get("text"))
+                .and_then(|t| t.as_str())
+            {
+                if !delta.is_empty() {
+                    full_text.push_str(delta);
+                    let stream_event = json!({
+                        "type": "assistant",
+                        "message": {
+                            "content": [
+                                { "type": "text", "text": delta }
+                            ]
+                        }
+                    });
+                    parsed_lines.push(stream_event.clone());
+                    emit_stream_event(
+                        app,
+                        CodexStreamEvent {
+                            run_id: run_id.to_string(),
+                            kind: "stdout".into(),
+                            line: Some(delta.to_string()),
+                            parsed_json: Some(stream_event),
+                            exit_code: None,
+                            duration_ms: None,
+                        },
+                    );
+                }
+            }
+        }
+    }
+
+    let final_message = json!({
+        "item": { "type": "agent_message", "text": full_text.clone() }
+    });
+    parsed_lines.push(final_message.clone());
+
+    let duration_ms = start.elapsed().as_millis() as u64;
+    emit_stream_event(
+        app,
+        CodexStreamEvent {
+            run_id: run_id.to_string(),
+            kind: "completed".into(),
+            line: None,
+            parsed_json: None,
+            exit_code: Some(0),
+            duration_ms: Some(duration_ms),
+        },
+    );
+
+    Ok(CodexExecOutput {
+        stdout_raw,
+        stderr_raw: String::new(),
+        parsed_json: Some(serde_json::Value::Array(parsed_lines)),
+        exit_code: Some(0),
+        duration_ms,
+    })
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CodexExecOutput {
@@ -393,6 +547,10 @@ pub async fn run_codex_exec(
 
     if agent_name == "deepseek" {
         return run_deepseek_exec(&app, &input, &run_id, start).await;
+    }
+
+    if agent_name == "gemini" {
+        return run_gemini_exec(&app, &input, &run_id, start).await;
     }
 
     let (program, args) = build_agent_command(&input);
