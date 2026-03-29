@@ -9,22 +9,25 @@ import {
 } from "./providers";
 
 describe("DEFAULT_PROVIDERS", () => {
-  it("contains codex, claude, and deepseek", () => {
-    expect(DEFAULT_PROVIDERS).toHaveLength(3);
+  it("contains codex, claude, deepseek, and gemini", () => {
+    expect(DEFAULT_PROVIDERS).toHaveLength(4);
     expect(DEFAULT_PROVIDERS.map((p) => p.id)).toEqual([
       "codex",
       "claude",
       "deepseek",
+      "gemini",
     ]);
   });
 
-  it("has codex and claude enabled, deepseek disabled", () => {
+  it("has codex and claude enabled, deepseek and gemini disabled", () => {
     const codex = DEFAULT_PROVIDERS.find((p) => p.id === "codex")!;
     const claude = DEFAULT_PROVIDERS.find((p) => p.id === "claude")!;
     const deepseek = DEFAULT_PROVIDERS.find((p) => p.id === "deepseek")!;
+    const gemini = DEFAULT_PROVIDERS.find((p) => p.id === "gemini")!;
     expect(codex.enabled).toBe(true);
     expect(claude.enabled).toBe(true);
     expect(deepseek.enabled).toBe(false);
+    expect(gemini.enabled).toBe(false);
   });
 
   it("has correct default models", () => {
@@ -136,12 +139,13 @@ describe("mergeWithDefaults", () => {
       },
     ];
     const result = mergeWithDefaults(userProviders);
-    expect(result).toHaveLength(3);
-    expect(result.map((p) => p.id)).toEqual(["codex", "claude", "deepseek"]);
+    expect(result).toHaveLength(DEFAULT_PROVIDERS.length);
+    expect(result.map((p) => p.id)).toEqual(["codex", "claude", "deepseek", "gemini"]);
     // The codex from user should preserve enabled=false
     expect(result.find((p) => p.id === "codex")!.enabled).toBe(false);
-    // claude and deepseek should come from defaults
+    // Others should come from defaults
     expect(result.find((p) => p.id === "claude")!.enabled).toBe(true);
     expect(result.find((p) => p.id === "deepseek")!.enabled).toBe(false);
+    expect(result.find((p) => p.id === "gemini")!.enabled).toBe(false);
   });
 });
