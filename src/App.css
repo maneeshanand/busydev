@@ -1701,7 +1701,7 @@ pre.json {
   position: absolute;
   top: 12px;
   left: 13px;
-  width: 2px;
+  width: 8px;
   height: 1.1em;
   background: var(--vp-c-brand-1);
   animation: promptBlink 1s step-end infinite;
