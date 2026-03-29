@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import type { BusyAgent, SavedPromptEntry } from "../types";
+import type { BusyAgent, LlmProvider, SavedPromptEntry } from "../types";
+import { getModelsForProvider } from "../lib/providers";
 import { AgentIcon } from "./AgentIcon";
 import "./SettingsView.css";
 
@@ -9,6 +10,7 @@ export type SectionId =
   | "todo"
   | "library"
   | "agents"
+  | "providers"
   | "terminal"
   | "advanced";
 
@@ -58,6 +60,8 @@ interface SettingsViewProps {
   onUpdateBusyAgent: (agent: BusyAgent) => void;
   onDeleteBusyAgent: (id: string) => void;
   onResetBusyAgent: (id: string) => void;
+  providers: LlmProvider[];
+  onUpdateProvider: (provider: LlmProvider) => void;
   onResetEnvironment: () => void;
 }
 
@@ -67,6 +71,7 @@ const SECTION_LABELS: Record<SectionId, string> = {
   todo: "Todo",
   library: "Prompt Library",
   agents: "Agents",
+  providers: "Providers",
   terminal: "Terminal",
   advanced: "Advanced",
 };
@@ -322,9 +327,7 @@ export function SettingsView(props: SettingsViewProps) {
                           value={agentForm.model ?? ""}
                           onChange={(e) => setAgentForm({ ...agentForm, model: e.target.value })}
                         >
-                          {((agentForm.base ?? "codex") === "claude"
-                            ? ["claude-sonnet-4-6", "claude-opus-4-6", "claude-haiku-4-5"]
-                            : ["codex-mini", "o3", "o4-mini"]).map((m) => <option key={m} value={m}>{m}</option>)}
+                          {(getModelsForProvider(props.providers, agentForm.base ?? "codex")).map((m) => <option key={m} value={m}>{m}</option>)}
                         </select>
                       </label>
                       <label>
@@ -386,9 +389,7 @@ export function SettingsView(props: SettingsViewProps) {
                   const isEditing = editingAgentId === agent.id;
                   const form = agentForm;
                   const base = (form.base ?? agent.base ?? "codex") as "codex" | "claude";
-                  const modelOptions = base === "claude"
-                    ? ["claude-sonnet-4-6", "claude-opus-4-6", "claude-haiku-4-5"]
-                    : ["codex-mini", "o3", "o4-mini"];
+                  const modelOptions = getModelsForProvider(props.providers, base);
                   return (
                     <article key={agent.id} className="settings-library-row">
                       <div className="settings-library-row-head">
@@ -537,6 +538,58 @@ export function SettingsView(props: SettingsViewProps) {
                 })}
               </div>
             </section>
+          )}
+
+          {activeSection === "providers" && (
+            <div className="settings-section">
+              <h2>Providers</h2>
+              <p className="settings-hint">
+                Enable or disable LLM providers and set default models. Enabled providers appear in the prompt composer.
+              </p>
+              <div className="settings-provider-list">
+                {props.providers.map((provider) => (
+                  <div key={provider.id} className="settings-provider-row">
+                    <div className="settings-provider-header">
+                      <label className="settings-provider-toggle">
+                        <input
+                          type="checkbox"
+                          checked={provider.enabled}
+                          disabled={provider.comingSoon}
+                          onChange={(e) =>
+                            props.onUpdateProvider({ ...provider, enabled: e.target.checked })
+                          }
+                        />
+                        <span className="settings-provider-name">{provider.name}</span>
+                        {provider.comingSoon && <span className="settings-provider-badge-soon">coming soon</span>}
+                      </label>
+                    </div>
+                    {provider.enabled && !provider.comingSoon && (
+                      <div className="settings-provider-details">
+                        <label className="settings-provider-model-label">
+                          Default model
+                          <select
+                            value={provider.defaultModel}
+                            onChange={(e) =>
+                              props.onUpdateProvider({ ...provider, defaultModel: e.target.value })
+                            }
+                          >
+                            {provider.models.map((m) => (
+                              <option key={m} value={m}>{m}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <div className="settings-provider-models">
+                          <span className="settings-provider-models-label">Available models:</span>
+                          {provider.models.map((m) => (
+                            <span key={m} className="settings-provider-model-chip">{m}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
           {activeSection === "terminal" && (
