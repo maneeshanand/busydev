@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import {
   BarChart,
   Bar,
@@ -155,6 +155,23 @@ export function AnalyticsView({
   const [scope, setScope] = useState<AnalyticsScope>(defaultScope);
   const data = useAnalytics(projects, scope);
 
+  // Read CSS custom properties for recharts inline styles
+  const viewRef = useRef<HTMLDivElement>(null);
+  const [chartTheme, setChartTheme] = useState({
+    axis: "#333", tick: "#666", tooltipBg: "#1a1a1a", tooltipBorder: "#333", tooltipText: "#ccc",
+  });
+  useEffect(() => {
+    if (!viewRef.current) return;
+    const s = getComputedStyle(viewRef.current);
+    setChartTheme({
+      axis: s.getPropertyValue("--an-axis").trim() || "#333",
+      tick: s.getPropertyValue("--an-tick").trim() || "#666",
+      tooltipBg: s.getPropertyValue("--an-tooltip-bg").trim() || "#1a1a1a",
+      tooltipBorder: s.getPropertyValue("--an-tooltip-border").trim() || "#333",
+      tooltipText: s.getPropertyValue("--an-tooltip-text").trim() || "#ccc",
+    });
+  }, []);
+
   // Compute "this week" runs
   const runsThisWeek = useMemo(() => {
     const now = new Date();
@@ -185,7 +202,7 @@ export function AnalyticsView({
 
   if (data.totalRuns === 0) {
     return (
-      <div className="analytics-view">
+      <div className="analytics-view" ref={viewRef}>
         <ScopeBar
           projects={projects}
           scope={scope}
@@ -200,7 +217,7 @@ export function AnalyticsView({
   }
 
   return (
-    <div className="analytics-view">
+    <div className="analytics-view" ref={viewRef}>
       <ScopeBar
         projects={projects}
         scope={scope}
@@ -255,24 +272,24 @@ export function AnalyticsView({
           <BarChart data={last14Runs}>
             <XAxis
               dataKey="label"
-              tick={{ fill: "#666", fontSize: 11 }}
-              axisLine={{ stroke: "#333" }}
+              tick={{ fill: chartTheme.tick, fontSize: 11 }}
+              axisLine={{ stroke: chartTheme.axis }}
               tickLine={false}
             />
             <YAxis
               allowDecimals={false}
-              tick={{ fill: "#666", fontSize: 11 }}
+              tick={{ fill: chartTheme.tick, fontSize: 11 }}
               axisLine={false}
               tickLine={false}
               width={30}
             />
             <Tooltip
               contentStyle={{
-                background: "#1a1a1a",
-                border: "1px solid #333",
+                background: chartTheme.tooltipBg,
+                border: `1px solid ${chartTheme.tooltipBorder}`,
                 borderRadius: 4,
                 fontSize: 12,
-                color: "#ccc",
+                color: chartTheme.tooltipText,
               }}
             />
             <Bar
@@ -308,12 +325,12 @@ export function AnalyticsView({
               </defs>
               <XAxis
                 dataKey="label"
-                tick={{ fill: "#666", fontSize: 11 }}
-                axisLine={{ stroke: "#333" }}
+                tick={{ fill: chartTheme.tick, fontSize: 11 }}
+                axisLine={{ stroke: chartTheme.axis }}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fill: "#666", fontSize: 11 }}
+                tick={{ fill: chartTheme.tick, fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
                 width={40}
