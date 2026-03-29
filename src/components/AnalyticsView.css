@@ -1,0 +1,197 @@
+/* ── Analytics View ─────────────────────────────────────────────────── */
+
+.analytics-view {
+  flex: 1;
+  overflow-y: auto;
+  background: #161616;
+  padding: 16px 24px;
+  font-family: var(--vp-font-family-mono);
+  color: #e0e0e0;
+}
+
+/* ── Scope bar ─────────────────────────────────────────────────────── */
+
+.analytics-scope-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.analytics-scope-btn {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #aaa;
+  padding: 5px 14px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: var(--vp-font-family-mono);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.analytics-scope-btn:hover {
+  border-color: #555;
+  color: #ddd;
+}
+
+.analytics-scope-btn.active {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #fff;
+}
+
+.analytics-scope-select {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #ccc;
+  padding: 5px 28px 5px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: var(--vp-font-family-mono);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+
+.analytics-scope-select:hover {
+  border-color: #555;
+}
+
+.analytics-scope-select:focus {
+  outline: none;
+  border-color: #6366f1;
+}
+
+.analytics-scope-context {
+  margin-left: auto;
+  font-size: 11px;
+  color: #666;
+}
+
+/* ── Summary cards ─────────────────────────────────────────────────── */
+
+.analytics-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.analytics-card {
+  background: #1a1a1a;
+  border: 1px solid #222;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.analytics-card-label {
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.analytics-card-value {
+  font-size: 24px;
+  font-weight: 600;
+  color: #f0f0f0;
+  line-height: 1.2;
+}
+
+.analytics-card-value.success {
+  color: #22c55e;
+}
+
+.analytics-card-sub {
+  font-size: 11px;
+  color: #666;
+  margin-top: 4px;
+}
+
+/* ── Chart panels ──────────────────────────────────────────────────── */
+
+.analytics-chart-panel {
+  background: #1a1a1a;
+  border: 1px solid #222;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.analytics-chart-title {
+  font-size: 12px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+
+/* ── Bottom row ────────────────────────────────────────────────────── */
+
+.analytics-bottom-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* ── Agent breakdown ───────────────────────────────────────────────── */
+
+.analytics-agent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.analytics-agent-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.analytics-agent-name {
+  width: 70px;
+  color: #aaa;
+  text-transform: capitalize;
+  flex-shrink: 0;
+}
+
+.analytics-agent-bar {
+  flex: 1;
+  height: 20px;
+  background: #222;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.analytics-agent-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.analytics-agent-count {
+  width: 60px;
+  text-align: right;
+  color: #888;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+/* ── Empty state ───────────────────────────────────────────────────── */
+
+.analytics-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 300px;
+  color: #555;
+  font-size: 14px;
+}
