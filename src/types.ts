@@ -93,6 +93,14 @@ export interface BusyAgent {
   updatedAt: number;
 }
 
+export interface LlmProvider {
+  id: string;
+  name: string;
+  enabled: boolean;
+  models: string[];
+  defaultModel: string;
+}
+
 export interface Session {
   id: string;
   projectId: string;
