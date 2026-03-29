@@ -2127,7 +2127,7 @@ input[type="text"] {
   right: 20px;
   font-family: var(--vp-font-family-mono);
   font-size: 0.7rem;
-  color: #525252;
+  color: #6f6f6f;
   opacity: 0;
   animation: splashFadeIn 0.5s forwards;
   animation-delay: 2s;
