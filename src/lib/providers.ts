@@ -28,7 +28,6 @@ export const DEFAULT_PROVIDERS: LlmProvider[] = [
     enabled: false,
     models: ["gemini-2.5-pro", "gemini-2.5-flash"],
     defaultModel: "gemini-2.5-pro",
-    comingSoon: true,
   },
 ];
 

@@ -185,9 +185,10 @@ function shortenPath(path: string): string {
   return parts.length > 2 ? parts.slice(-2).join("/") : path;
 }
 
-function formatAgentLabel(agent?: "codex" | "claude" | "deepseek" | string): string {
+function formatAgentLabel(agent?: "codex" | "claude" | "deepseek" | "gemini" | string): string {
   if (agent === "claude") return "Claude";
   if (agent === "deepseek") return "DeepSeek";
+  if (agent === "gemini") return "Gemini";
   return "Codex";
 }
 
@@ -2062,16 +2063,17 @@ function App() {
       overrides?.agentOverride
       || taggedBusyAgent?.base
       || agent
-    ) as "codex" | "claude" | "deepseek";
+    ) as "codex" | "claude" | "deepseek" | "gemini";
     const effectiveModel = overrides?.modelOverride || taggedBusyAgent?.model || model;
     const effectiveApprovalPolicy = overrides?.approvalPolicyOverride || taggedBusyAgent?.approvalPolicy || approvalPolicy;
     const effectiveSandboxMode = overrides?.sandboxModeOverride || taggedBusyAgent?.sandboxMode || sandboxMode;
 
-    if (effectiveAgent === "deepseek") {
+    if (effectiveAgent === "deepseek" || effectiveAgent === "gemini") {
+      const label = effectiveAgent === "deepseek" ? "DeepSeek" : "Gemini";
       const warningRow: StreamRow = {
         id: nextRowIdRef.current[runId]++,
         category: "warning",
-        text: "DeepSeek is running in chat-completions mode only. CLI automation/tools are unavailable for this run.",
+        text: `${label} is running in chat-completions mode only. CLI automation/tools are unavailable for this run.`,
       };
       streamRowsMapRef.current[runId] = [...(streamRowsMapRef.current[runId] || []), warningRow];
       setInFlightRuns((prev) => {
