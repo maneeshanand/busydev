@@ -6,7 +6,7 @@ import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { load as loadStore } from "@tauri-apps/plugin-store";
 import { getVersion } from "@tauri-apps/api/app";
-import { CheckmarkFilled, Close, ErrorFilled, IbmKnowledgeCatalog, InformationFilled, Notification as NotificationIcon, NotificationFilled, WarningAltFilled } from "@carbon/icons-react";
+import { CheckmarkFilled, ChartBar, Close, ErrorFilled, IbmKnowledgeCatalog, InformationFilled, Notification as NotificationIcon, NotificationFilled, WarningAltFilled } from "@carbon/icons-react";
 import {
   CODEX_STREAM_EVENT,
   runCodexExec,
@@ -32,6 +32,7 @@ import { getSettings, saveSettings } from "./settingsInvoke";
 import { useNotificationStore } from "./stores/notificationStore";
 import { NotificationToasts } from "./components/NotificationToasts";
 import { GlobalSessionViewer } from "./components/GlobalSessionViewer";
+import { AnalyticsView } from "./components/AnalyticsView";
 import {
   buildTodoWorkPrompt,
   buildTodoPrompt,
@@ -1106,6 +1107,7 @@ function App() {
   const [missedAlerts, setMissedAlerts] = useState(0);
   const [notifPanelOpen, setNotifPanelOpen] = useState(false);
   const [globalViewOpen, setGlobalViewOpen] = useState(false);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const storeReadyRef = useRef(false);
   const [windowSize, setWindowSize] = useState<{ windowWidth?: number; windowHeight?: number }>({});
@@ -1910,6 +1912,7 @@ function App() {
   }
 
   function switchToProject(projectId: string) {
+    setAnalyticsOpen(false);
     if (projectId === activeProjectId) return;
     setActiveProjectId(projectId);
     resetEphemeralState();
@@ -2518,6 +2521,15 @@ function App() {
           <div className="project-rail-footer">
             <button
               type="button"
+              className={`project-rail-action ${analyticsOpen ? "project-rail-action-active" : ""}`}
+              onClick={() => setAnalyticsOpen(!analyticsOpen)}
+              title="Analytics"
+            >
+              <ChartBar size={16} />
+              <span>Analytics</span>
+            </button>
+            <button
+              type="button"
               className="project-rail-action"
               onClick={() => setGlobalViewOpen(true)}
               title="All sessions (⌘K)"
@@ -2556,6 +2568,14 @@ function App() {
         </div>
 
         <div className="main-column">
+          {analyticsOpen ? (
+            <AnalyticsView
+              projects={projects}
+              activeProjectId={activeProjectId}
+              activeSessionId={activeProject?.activeSessionId ?? null}
+            />
+          ) : (
+            <>
           {activeProject && activeProject.sessions.length > 0 && (
             <SessionTabs
               sessions={activeProject.sessions}
@@ -2937,6 +2957,8 @@ ADD_TODO: step three description`);
         </div>
         {/* end session-workspace */}
         </div>
+            </>
+          )}
         {/* end main-column */}
         </div>
         {/* end app-content */}
