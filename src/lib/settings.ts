@@ -1,6 +1,6 @@
-import type { BusyAgent, PersistedRun, Project, SavedPromptEntry, Session, SubTask, TodoItem } from "../types";
+import type { BusyAgent, LlmProvider, PersistedRun, Project, SavedPromptEntry, Session, SubTask, TodoItem } from "../types";
 
-export const SETTINGS_VERSION = 2;
+export const SETTINGS_VERSION = 3;
 
 export interface StoredSettings {
   settingsVersion: number;
@@ -22,6 +22,7 @@ export interface StoredSettings {
   terminalLineHeight: number;
   promptLibrary: SavedPromptEntry[];
   busyAgents: BusyAgent[];
+  providers: LlmProvider[];
   windowWidth?: number;
   windowHeight?: number;
 }
@@ -347,6 +348,7 @@ export function migrateStoredSettings(saved: unknown): StoredSettings | null {
     busyAgents: (Array.isArray(legacy.busyAgents) ? legacy.busyAgents : [])
       .map(sanitizeBusyAgent)
       .filter(Boolean) as BusyAgent[],
+    providers: Array.isArray(legacy.providers) ? legacy.providers : [],
     windowWidth: typeof legacy.windowWidth === "number" ? legacy.windowWidth : undefined,
     windowHeight: typeof legacy.windowHeight === "number" ? legacy.windowHeight : undefined,
   };
