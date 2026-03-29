@@ -554,14 +554,16 @@ export function SettingsView(props: SettingsViewProps) {
                         <input
                           type="checkbox"
                           checked={provider.enabled}
+                          disabled={provider.comingSoon}
                           onChange={(e) =>
                             props.onUpdateProvider({ ...provider, enabled: e.target.checked })
                           }
                         />
                         <span className="settings-provider-name">{provider.name}</span>
+                        {provider.comingSoon && <span className="settings-provider-badge-soon">coming soon</span>}
                       </label>
                     </div>
-                    {provider.enabled && (
+                    {provider.enabled && !provider.comingSoon && (
                       <div className="settings-provider-details">
                         <label className="settings-provider-model-label">
                           Default model

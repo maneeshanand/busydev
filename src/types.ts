@@ -99,6 +99,7 @@ export interface LlmProvider {
   enabled: boolean;
   models: string[];
   defaultModel: string;
+  comingSoon?: boolean;
 }
 
 export interface Session {

@@ -28,11 +28,12 @@ export const DEFAULT_PROVIDERS: LlmProvider[] = [
     enabled: false,
     models: ["gemini-2.5-pro", "gemini-2.5-flash"],
     defaultModel: "gemini-2.5-pro",
+    comingSoon: true,
   },
 ];
 
 export function getEnabledProviders(providers: LlmProvider[]): LlmProvider[] {
-  return providers.filter((p) => p.enabled);
+  return providers.filter((p) => p.enabled && !p.comingSoon);
 }
 
 export function getModelsForProvider(

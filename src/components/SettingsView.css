@@ -651,6 +651,17 @@
   color: var(--vp-c-text-2);
 }
 
+.settings-provider-badge-soon {
+  font-size: 0.66rem;
+  padding: 1px 8px;
+  background: var(--vp-c-bg-mute);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 10px;
+  color: var(--vp-c-text-3);
+  margin-left: 4px;
+  font-style: italic;
+}
+
 .settings-danger-zone {
   margin-top: 24px;
   padding-top: 16px;

@@ -57,6 +57,16 @@ describe("getEnabledProviders", () => {
   it("returns empty array for empty input", () => {
     expect(getEnabledProviders([])).toEqual([]);
   });
+
+  it("excludes coming-soon providers even if enabled", () => {
+    const providers: LlmProvider[] = [
+      { id: "a", name: "A", enabled: true, models: ["m"], defaultModel: "m" },
+      { id: "b", name: "B", enabled: true, models: ["m"], defaultModel: "m", comingSoon: true },
+    ];
+    const result = getEnabledProviders(providers);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("a");
+  });
 });
 
 describe("getModelsForProvider", () => {
