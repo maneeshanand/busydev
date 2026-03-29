@@ -150,6 +150,20 @@ body {
   color: var(--vp-c-brand-1);
 }
 
+.project-rail-action-active {
+  color: #e0e0e0;
+  background: rgba(99, 102, 241, 0.15);
+}
+
+.project-rail-action-active:hover {
+  color: #e0e0e0;
+  background: rgba(99, 102, 241, 0.2);
+}
+
+.project-rail-action-active svg {
+  color: #818cf8;
+}
+
 .side-panel-right {
   flex-shrink: 0;
   display: flex;
