@@ -1687,6 +1687,17 @@ pre.json {
   flex-shrink: 0;
 }
 
+.prompt-resize-handle {
+  height: 5px;
+  cursor: row-resize;
+  background: transparent;
+  transition: background-color 0.15s;
+}
+
+.prompt-resize-handle:hover {
+  background: var(--vp-c-brand-1);
+}
+
 .prompt-section {
   position: relative;
   margin: 0;
@@ -1718,7 +1729,7 @@ pre.json {
   display: block;
   width: 100%;
   min-height: 98px;
-  resize: vertical;
+  resize: none;
   font-family: var(--vp-font-family-mono);
   background: var(--vp-c-bg-soft);
   border: 1px solid var(--vp-c-divider);

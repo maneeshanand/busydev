@@ -6,8 +6,6 @@ import type { TodoItem } from "../types";
 import {
   buildTodoWorkPrompt,
   buildTodoPrompt,
-  classifyEvent,
-  cleanCommand,
   formatInline,
   formatMessage,
   formatTimestamp,
@@ -18,6 +16,8 @@ import {
   shouldRenderFinalSummary,
   stripTodoMarkers,
 } from "./frontendUtils";
+import { cleanCommand } from "./adapters/shared";
+import { getAdapter } from "./adapters";
 
 function renderNode(node: React.ReactNode): string {
   return renderToStaticMarkup(<>{node}</>);
@@ -71,7 +71,7 @@ describe("formatTimestamp", () => {
   });
 });
 
-describe("classifyEvent", () => {
+describe("classifyEvent (via adapters)", () => {
   it("maps codex command in progress", () => {
     const event: CodexStreamEvent = {
       runId: "r1",
@@ -85,7 +85,7 @@ describe("classifyEvent", () => {
       },
     };
 
-    const row = classifyEvent(event);
+    const row = getAdapter("codex").classifyEvent(event);
     expect(row.category).toBe("command");
     expect(row.command).toBe("ls -la");
     expect(row.status).toBe("running");
@@ -106,7 +106,7 @@ describe("classifyEvent", () => {
       },
     };
 
-    const row = classifyEvent(event);
+    const row = getAdapter("claude").classifyEvent(event);
     expect(row.category).toBe("approval");
     expect(row.requestId).toBe("req_1");
     expect(row.approvalState).toBe("pending");
@@ -114,7 +114,7 @@ describe("classifyEvent", () => {
 
   it("maps stderr to error", () => {
     const event: CodexStreamEvent = { runId: "r1", kind: "stderr", line: "boom" };
-    const row = classifyEvent(event);
+    const row = getAdapter("codex").classifyEvent(event);
     expect(row.category).toBe("error");
     expect(row.text).toBe("boom");
   });
