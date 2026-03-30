@@ -195,7 +195,7 @@ body {
   justify-content: space-between;
   height: 32px;
   padding: 0 18px;
-  background: #000;
+  background: #161616; /* Carbon gray100 — matches native titlebar */
   flex-shrink: 0;
   color: #fff;
 }
