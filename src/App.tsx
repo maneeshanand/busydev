@@ -41,8 +41,8 @@ import {
   parseTodoAdditions,
   parseTodoCompletions,
   shouldRenderFinalSummary,
-  stripTodoMarkers,
 } from "./lib/frontendUtils";
+import { getAdapter, formatAgentLabel, stripTodoMarkers } from "./lib/adapters";
 import {
   buildAliasMap,
   expandPromptAliases,
@@ -112,51 +112,17 @@ function summarizePrompt(prompt: string): string {
   return compact.length > 90 ? `${compact.slice(0, 90)}...` : compact;
 }
 
-function extractLastAgentMessage(parsedJson: unknown): string | null {
-  if (!Array.isArray(parsedJson)) return null;
-  let lastMessage: string | null = null;
-
-  for (const event of parsedJson) {
-    if (!event || typeof event !== "object" || Array.isArray(event)) continue;
-    const obj = event as Record<string, unknown>;
-
-    // Codex: item.type === "agent_message"
-    const item = obj.item;
-    if (item && typeof item === "object" && !Array.isArray(item)) {
-      const eventItem = item as Record<string, unknown>;
-      if (eventItem.type === "agent_message") {
-        const text = typeof eventItem.text === "string" ? eventItem.text.trim() : "";
-        if (text) lastMessage = text;
-      }
-    }
-
-    // Claude: type === "assistant" with text content blocks
-    if (obj.type === "assistant") {
-      const message = obj.message as Record<string, unknown> | undefined;
-      const content = message?.content;
-      if (Array.isArray(content)) {
-        for (const block of content) {
-          if (block && typeof block === "object" && (block as Record<string, unknown>).type === "text") {
-            const text = typeof (block as Record<string, unknown>).text === "string"
-              ? ((block as Record<string, unknown>).text as string).trim()
-              : "";
-            if (text) lastMessage = text;
-          }
-        }
-      }
-    }
-  }
-
-  return lastMessage;
-}
 
 function buildFinalSummary(run: RunEntry): string {
   if (run.stopped) {
     return "Stopped. What should I do instead?";
   }
 
-  const lastAgentMessage = extractLastAgentMessage(run.output.parsedJson);
-  if (lastAgentMessage) return stripTodoMarkers(lastAgentMessage);
+  // Try each adapter to extract the last message (agent type unknown at this point)
+  for (const agent of ["codex", "claude", "gemini"] as const) {
+    const msg = getAdapter(agent).extractLastMessage(run.output.parsedJson);
+    if (msg) return stripTodoMarkers(msg);
+  }
 
   if ((run.output.exitCode ?? 1) === 0) {
     return `You asked me to ${summarizePrompt(run.prompt)}, and I finished it.`;
@@ -173,258 +139,6 @@ function formatTimestamp(ts: number): string {
   return `${date}, ${time}`;
 }
 
-function cleanCommand(raw: string): string {
-  const m = raw.match(/^\/bin\/(?:ba|z)?sh\s+-\w*c\s+['"](.+)['"]$/s);
-  if (m) return m[1];
-  const m2 = raw.match(/^\/bin\/(?:ba|z)?sh\s+-\w*c\s+'(.+)'$/s);
-  return m2 ? m2[1] : raw;
-}
-
-function shortenPath(path: string): string {
-  const parts = path.split("/");
-  return parts.length > 2 ? parts.slice(-2).join("/") : path;
-}
-
-function formatAgentLabel(agent?: "codex" | "claude" | "deepseek" | string): string {
-  if (agent === "claude") return "Claude";
-  if (agent === "deepseek") return "DeepSeek";
-  return "Codex";
-}
-
-function isNoisyInfraOutput(text: string): boolean {
-  return /(rmcp::transport::worker|unexpectedcontenttype|transport channel closed|cloudflare|cf-error|<!doctype html>|cdn-cgi\/styles)/i.test(text);
-}
-
-type ClassifiedRow = Omit<StreamRow, "id">;
-
-function extractAssistantTextChunk(event: CodexStreamEvent): string | null {
-  const value = event.parsedJson;
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const obj = value as Record<string, unknown>;
-  if (obj.type !== "assistant") return null;
-  const message = obj.message as Record<string, unknown> | undefined;
-  const content = message?.content;
-  if (!Array.isArray(content) || content.length === 0) return null;
-  const block = content[content.length - 1];
-  if (!block || typeof block !== "object" || Array.isArray(block)) return null;
-  const textBlock = block as Record<string, unknown>;
-  if (textBlock.type !== "text") return null;
-  const text = typeof textBlock.text === "string" ? textBlock.text : "";
-  return text.length > 0 ? text : null;
-}
-
-function classifyEvent(event: CodexStreamEvent): ClassifiedRow {
-  // Handle non-stdout lifecycle events from the runner
-  if (event.kind === "completed") {
-    return { category: "status", text: "", hidden: true };
-  }
-  if (event.kind === "started") {
-    return { category: "status", text: "Starting...", hidden: true };
-  }
-  if (event.kind === "spawn_error") {
-    return { category: "error", text: event.line ?? "Failed to start process" };
-  }
-  if (event.kind === "stderr") {
-    const text = event.line?.trim() || "stderr output";
-    if (isNoisyInfraOutput(text)) {
-      return { category: "status", text: "", hidden: true };
-    }
-    const clipped = text.length > 260 ? `${text.slice(0, 260)}...` : text;
-    return { category: "error", text: clipped };
-  }
-
-  // Parse structured JSON events from stdout
-  const value = event.parsedJson;
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    const obj = value as Record<string, unknown>;
-    const type = typeof obj.type === "string" ? obj.type : "";
-
-    // ── Claude Code events ──────────────────────────────────────
-    // System events (hooks, init) — hide
-    if (type === "system") {
-      const subtype = typeof obj.subtype === "string" ? obj.subtype : "";
-      if (subtype === "init") {
-        return { category: "status", text: "", hidden: true };
-      }
-      return { category: "status", text: "", hidden: true };
-    }
-
-    if (type === "rate_limit_event") {
-      return { category: "status", text: "", hidden: true };
-    }
-
-    // Claude: permission request via --permission-prompt-tool stdio
-    if (type === "control_request") {
-      const request = obj.request as Record<string, unknown> | undefined;
-      if (request?.subtype === "can_use_tool") {
-        const toolName = typeof request.tool_name === "string" ? request.tool_name : "unknown";
-        const input = request.input as Record<string, unknown> | undefined;
-        const requestId = typeof obj.request_id === "string" ? obj.request_id : "";
-
-        let summary = toolName;
-        if (toolName === "Bash" && input?.command) {
-          summary = `Bash: ${cleanCommand(String(input.command))}`;
-        } else if ((toolName === "Edit" || toolName === "Write" || toolName === "Read") && input?.file_path) {
-          summary = `${toolName}: ${shortenPath(String(input.file_path))}`;
-        }
-
-        return {
-          category: "approval",
-          text: summary,
-          toolName,
-          toolInput: input ?? {},
-          requestId,
-          approvalState: "pending" as const,
-        };
-      }
-    }
-
-    // Assistant messages — thinking, tool_use, text
-    if (type === "assistant") {
-      const message = obj.message as Record<string, unknown> | undefined;
-      const content = message?.content;
-      if (Array.isArray(content) && content.length > 0) {
-        const block = content[content.length - 1] as Record<string, unknown>;
-        const blockType = typeof block.type === "string" ? block.type : "";
-
-        if (blockType === "thinking") {
-          const thinking = typeof block.thinking === "string" ? block.thinking.trim() : "";
-          if (!thinking) return { category: "status", text: "", hidden: true };
-          const display = thinking.length > 200 ? `${thinking.slice(0, 200)}...` : thinking;
-          return { category: "message", text: display };
-        }
-
-        if (blockType === "tool_use") {
-          const toolName = typeof block.name === "string" ? block.name : "tool";
-          const input = block.input as Record<string, unknown> | undefined;
-          let summary = toolName;
-          if (toolName === "Read" && input?.file_path) {
-            summary = `Read ${shortenPath(String(input.file_path))}`;
-          } else if (toolName === "Edit" && input?.file_path) {
-            summary = `Edit ${shortenPath(String(input.file_path))}`;
-          } else if (toolName === "Write" && input?.file_path) {
-            summary = `Write ${shortenPath(String(input.file_path))}`;
-          } else if (toolName === "Bash" && input?.command) {
-            summary = cleanCommand(String(input.command));
-          } else if (toolName === "Glob" && input?.pattern) {
-            summary = `Glob ${String(input.pattern)}`;
-          } else if (toolName === "Grep" && input?.pattern) {
-            summary = `Grep ${String(input.pattern)}`;
-          } else if (toolName === "WebSearch" && input?.query) {
-            summary = `Search: ${String(input.query)}`;
-          } else if (toolName === "WebFetch" && input?.url) {
-            summary = `Fetch ${String(input.url)}`;
-          }
-          return { category: "command", text: summary, command: summary, status: "running" };
-        }
-
-        if (blockType === "text") {
-          const raw = typeof block.text === "string" ? block.text.trim() : "";
-          const text = stripTodoMarkers(raw);
-          if (!text) return { category: "status", text: "", hidden: true };
-          const isTodoSummary = /working on #\d/i.test(text) || (/todo/i.test(text) && /#\d/.test(text));
-          return { category: "message", text, isTodoSummary };
-        }
-      }
-      return { category: "status", text: "", hidden: true };
-    }
-
-    // Tool results — mark the corresponding tool_use as done
-    if (type === "user") {
-      const toolResult = obj.tool_use_result as Record<string, unknown> | undefined;
-      if (toolResult) {
-        // This is a tool result — we want to merge into the running command row
-        // Return as a completed command so the listener merges it
-        return { category: "command", text: "", command: "", status: "done" };
-      }
-      return { category: "status", text: "", hidden: true };
-    }
-
-    // Final result — show cost/duration
-    if (type === "result") {
-      const cost = typeof obj.total_cost_usd === "number" ? `$${obj.total_cost_usd.toFixed(4)}` : "";
-      const turns = typeof obj.num_turns === "number" ? `${obj.num_turns} turns` : "";
-      const parts = [turns, cost].filter(Boolean).join(" · ");
-      return { category: "status", text: parts || "Done" };
-    }
-
-    // ── Codex events ────────────────────────────────────────────
-    const item = obj.item && typeof obj.item === "object" && !Array.isArray(obj.item)
-      ? (obj.item as Record<string, unknown>)
-      : null;
-
-    // Hide plumbing events
-    if (type === "thread.started" || type === "turn.started") {
-      return { category: "status", text: "", hidden: true };
-    }
-
-    if (type === "turn.completed") {
-      return { category: "status", text: "", hidden: true };
-    }
-
-    if (item) {
-      const itemType = typeof item.type === "string" ? item.type : "";
-
-      if (itemType === "agent_message") {
-        const raw = typeof item.text === "string" ? item.text.trim() : "";
-        const text = stripTodoMarkers(raw);
-        const isTodoSummary = /working on #\d/i.test(text) || (/todo/i.test(text) && /#\d/.test(text));
-        return { category: "message", text: text || "Thinking...", isTodoSummary };
-      }
-
-      if (itemType === "command_execution") {
-        const rawCmd = typeof item.command === "string" ? item.command : "command";
-        const cmd = cleanCommand(rawCmd);
-        const itemStatus = typeof item.status === "string" ? item.status : "";
-        const exitCode = typeof item.exit_code === "number" ? item.exit_code : null;
-
-        if (itemStatus === "in_progress") {
-          return { category: "command", text: cmd, command: cmd, status: "running" };
-        }
-        if (itemStatus === "completed") {
-          const failed = exitCode !== null && exitCode !== 0;
-          return {
-            category: "command",
-            text: cmd,
-            command: cmd,
-            status: failed ? "failed" : "done",
-            exitCode,
-          };
-        }
-        return { category: "command", text: cmd, command: cmd, status: "running" };
-      }
-
-      if (itemType === "file_change") {
-        const changes = Array.isArray(item.changes) ? item.changes : [];
-        const paths = changes
-          .map((c) => {
-            if (c && typeof c === "object" && "path" in c && typeof (c as Record<string, unknown>).path === "string") {
-              return shortenPath((c as Record<string, unknown>).path as string);
-            }
-            return null;
-          })
-          .filter(Boolean) as string[];
-        const count = changes.length;
-        const text = paths.length > 0
-          ? paths.join(", ")
-          : count > 0 ? `${count} file${count === 1 ? "" : "s"}` : "files";
-        return { category: "file_change", text, filePaths: paths };
-      }
-    }
-  }
-
-  // Fallback for unstructured stdout lines
-  if (event.line && event.line.trim().length > 0) {
-    const trimmed = event.line.trim();
-    if (isNoisyInfraOutput(trimmed)) {
-      return { category: "status", text: "", hidden: true };
-    }
-    const text = trimmed.length > 220 ? `${trimmed.slice(0, 220)}...` : trimmed;
-    return { category: "message", text };
-  }
-
-  return { category: "status", text: "", hidden: true };
-}
 
 interface MessageSegment {
   type: "text" | "code";
@@ -1071,6 +785,8 @@ function App() {
 
   // Track which session owns which runId (for background run completion)
   const runSessionMapRef = useRef<Record<string, { projectId: string; sessionId: string }>>({});
+  // Track which agent backend each run uses (for adapter dispatch)
+  const runAgentMapRef = useRef<Record<string, string>>({});
   // Track which todo ID was requested for each run (stable identity across reorders)
   const runTodoIdRef = useRef<Record<string, string | null>>({});
   // Track retry count per todo ID (resets when a different todo is attempted)
@@ -1086,6 +802,8 @@ function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const [promptHeight, setPromptHeight] = useState<number | null>(null);
+  const promptDragRef = useRef<{ startY: number; startH: number } | null>(null);
   const streamPanelRef = useRef<HTMLDivElement | null>(null);
   const streamBottomRef = useRef<HTMLDivElement | null>(null);
   const streamRowsMapRef = useRef<Record<string, StreamRow[]>>({});
@@ -1386,7 +1104,8 @@ function App() {
       // Only process events for runs we're tracking
       if (!streamRowsMapRef.current[rid]) return;
 
-      const assistantChunk = extractAssistantTextChunk(payload);
+      const adapter = getAdapter(runAgentMapRef.current[rid]);
+      const assistantChunk = adapter.extractTextChunk(payload);
       if (assistantChunk !== null) {
         const appendChunk = (rows: StreamRow[]): StreamRow[] => {
           if (!nextRowIdRef.current[rid]) nextRowIdRef.current[rid] = 1;
@@ -1408,7 +1127,7 @@ function App() {
         return;
       }
 
-      const classified = classifyEvent(payload);
+      const classified = adapter.classifyEvent(payload);
       if (classified.hidden) return;
 
       const isCommandDone = classified.category === "command" &&
@@ -2062,16 +1781,24 @@ function App() {
       overrides?.agentOverride
       || taggedBusyAgent?.base
       || agent
-    ) as "codex" | "claude" | "deepseek";
-    const effectiveModel = overrides?.modelOverride || taggedBusyAgent?.model || model;
+    ) as "codex" | "claude" | "deepseek" | "gemini";
+    const rawModel = overrides?.modelOverride || taggedBusyAgent?.model || model;
+    // Only pass the model if it belongs to the effective agent's provider; avoids
+    // cross-provider leaks (e.g. passing "gemini-2.5-flash" to Codex).
+    const validModels = getModelsForProvider(providers, effectiveAgent);
+    const effectiveModel = rawModel && validModels.includes(rawModel) ? rawModel : "";
     const effectiveApprovalPolicy = overrides?.approvalPolicyOverride || taggedBusyAgent?.approvalPolicy || approvalPolicy;
     const effectiveSandboxMode = overrides?.sandboxModeOverride || taggedBusyAgent?.sandboxMode || sandboxMode;
 
+    // Track agent backend for this run (used by stream adapter dispatch)
+    runAgentMapRef.current[runId] = effectiveAgent;
+
     if (effectiveAgent === "deepseek") {
+      const label = "DeepSeek";
       const warningRow: StreamRow = {
         id: nextRowIdRef.current[runId]++,
         category: "warning",
-        text: "DeepSeek is running in chat-completions mode only. CLI automation/tools are unavailable for this run.",
+        text: `${label} is running in chat-completions mode only. CLI automation/tools are unavailable for this run.`,
       };
       streamRowsMapRef.current[runId] = [...(streamRowsMapRef.current[runId] || []), warningRow];
       setInFlightRuns((prev) => {
@@ -2336,6 +2063,31 @@ function App() {
       }
     }
   }
+
+  const handlePromptResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const textarea = promptInputRef.current;
+    if (!textarea) return;
+    const startH = textarea.offsetHeight;
+    promptDragRef.current = { startY: e.clientY, startH };
+    const onMove = (ev: MouseEvent) => {
+      if (!promptDragRef.current) return;
+      const delta = promptDragRef.current.startY - ev.clientY;
+      const next = Math.max(60, Math.min(promptDragRef.current.startH + delta, window.innerHeight * 0.7));
+      setPromptHeight(next);
+    };
+    const onUp = () => {
+      promptDragRef.current = null;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.body.style.cursor = "row-resize";
+    document.body.style.userSelect = "none";
+  }, []);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -2689,10 +2441,12 @@ function App() {
         {/* Terminal hidden — MAN-157: re-enable when scoped per project/session */}
 
         <div className="bottom-panel">
+          <div className="prompt-resize-handle" onMouseDown={handlePromptResizeStart} />
           <div className={`prompt-section ${!sessionRunning && !prompt ? "prompt-idle" : ""}`}>
             <textarea
               ref={promptInputRef}
               rows={3}
+              style={promptHeight ? { height: promptHeight, minHeight: 60 } : undefined}
               value={prompt}
               onChange={(e) => {
                 const next = e.target.value;

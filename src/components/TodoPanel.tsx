@@ -237,7 +237,7 @@ export function TodoPanel({
             {running ? "Agent running" : doneCount === todos.length && todos.length > 0 ? "Completed" : "Idle"}
           </div>
           <div className="status-banner-subtitle">
-            {running && currentTask ? currentTask.text : doneCount === todos.length && todos.length > 0 ? "All tasks finished" : "Waiting to start"}
+            {running && todoMode && currentTask ? currentTask.text : doneCount === todos.length && todos.length > 0 ? "All tasks finished" : "Waiting to start"}
           </div>
         </div>
       </div>
@@ -256,7 +256,7 @@ export function TodoPanel({
       <div className="section-label">QUEUE</div>
       <div className="queue-list">
         {todos.map((todo) => {
-          const isCurrent = running && todo.id === currentTask?.id;
+          const isCurrent = running && todoMode && todo.id === currentTask?.id;
           return (
             <div key={todo.id} className="queue-item">
               <div className={`queue-icon-wrapper ${todo.done ? "is-done" : isCurrent ? "is-running" : "is-pending"}`}>

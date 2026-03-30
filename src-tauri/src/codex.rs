@@ -59,6 +59,22 @@ fn build_agent_command(input: &CodexExecInput) -> (String, Vec<String>) {
 
     match agent {
         "deepseek" => ("deepseek".to_string(), Vec::new()),
+        "gemini" => {
+            let mut args = vec![
+                "-p".to_string(),
+                input.prompt.clone(),
+                "--yolo".to_string(),
+                "--output-format".to_string(),
+                "stream-json".to_string(),
+            ];
+            if let Some(ref model) = input.model {
+                if !model.is_empty() {
+                    args.push("--model".to_string());
+                    args.push(model.clone());
+                }
+            }
+            ("gemini".to_string(), args)
+        }
         "claude" => {
             let mut args = vec![
                 "-p".to_string(),
@@ -394,6 +410,7 @@ pub async fn run_codex_exec(
     if agent_name == "deepseek" {
         return run_deepseek_exec(&app, &input, &run_id, start).await;
     }
+
 
     let (program, args) = build_agent_command(&input);
 
