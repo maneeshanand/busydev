@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Rocket } from "@carbon/icons-react";
-import type { TodoItem, BusyAgent } from "../types";
+import type { TodoItem, BusyAgent, TodoArchive } from "../types";
 import { TodoDetailView } from "./TodoDetailView";
 
 import "./TodoPanel.css";
@@ -27,9 +27,13 @@ interface TodoPanelProps {
   onReorder?: (fromIndex: number, toIndex: number) => void;
   onUpdateTodo?: (id: string, updates: Partial<TodoItem>) => void;
   busyAgents?: BusyAgent[];
+  onArchiveTodos?: () => void;
+  onDeleteArchive?: (archiveId: string) => void;
+  onLoadPlan?: () => void;
+  todoArchives?: TodoArchive[];
 }
 
-type TabId = "execution" | "todo";
+type TabId = "execution" | "todo" | "archives";
 
 function SkipIcon() {
   return (
@@ -83,6 +87,16 @@ function ChecklistIcon() {
   );
 }
 
+function ArchiveIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="12" height="12">
+      <rect x="2" y="3" width="20" height="5" rx="1" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path d="M4 8v10a2 2 0 002 2h12a2 2 0 002-2V8" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path d="M10 12h4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function TodoPanel({
   todos,
   collapsed: _collapsed,
@@ -94,7 +108,7 @@ export function TodoPanel({
   onRunTodos,
   onStopTodos,
   onGenerateTodos,
-  onClearTodos: _onClearTodos,
+  onClearTodos,
   onSaveTodos: _onSaveTodos,
   onToggleAutoPlay,
   onToggleTodoMode,
@@ -105,6 +119,10 @@ export function TodoPanel({
   onReorder,
   onUpdateTodo,
   busyAgents,
+  onArchiveTodos,
+  onDeleteArchive,
+  onLoadPlan,
+  todoArchives,
 }: TodoPanelProps) {
   const [activeTab, setActiveTab] = useState<TabId>("execution");
   const [newText, setNewText] = useState("");
@@ -297,6 +315,30 @@ export function TodoPanel({
                 <Rocket size={16} />
               </button>
             </div>
+            {onLoadPlan && (
+              <button type="button" className="todo-load-plan" onClick={onLoadPlan} disabled={!canRun}>
+                Load Plan (.md)
+              </button>
+            )}
+          </div>
+        )}
+        {todos.length > 0 && !readonly && (
+          <div className="todo-actions-bar">
+            {onLoadPlan && (
+              <button type="button" className="todo-action-btn" onClick={onLoadPlan} disabled={!canRun} title="Load plan from markdown">
+                Load Plan
+              </button>
+            )}
+            {onArchiveTodos && (
+              <button type="button" className="todo-action-btn" onClick={onArchiveTodos} title="Archive current todos">
+                <ArchiveIcon /> Archive
+              </button>
+            )}
+            {onClearTodos && (
+              <button type="button" className="todo-action-btn todo-action-danger" onClick={onClearTodos} title="Clear all todos">
+                Clear
+              </button>
+            )}
           </div>
         )}
         {todos.map((item, index) => (
@@ -395,6 +437,52 @@ export function TodoPanel({
     </div>
   );
 
+  const renderArchivesView = () => {
+    const archives = todoArchives ?? [];
+    return (
+      <div className="archives-view">
+        {archives.length === 0 ? (
+          <div className="queue-empty">No archives yet</div>
+        ) : (
+          <div className="archives-list">
+            {[...archives].reverse().map((archive) => (
+              <details key={archive.id} className="archive-entry">
+                <summary className="archive-summary">
+                  <span className="archive-name">{archive.name}</span>
+                  <span className="archive-meta">
+                    {archive.todos.filter((t) => t.done).length}/{archive.todos.length} done
+                  </span>
+                  {onDeleteArchive && (
+                    <button
+                      type="button"
+                      className="archive-delete"
+                      onClick={(e) => { e.preventDefault(); onDeleteArchive(archive.id); }}
+                      title="Delete archive"
+                    >
+                      ×
+                    </button>
+                  )}
+                </summary>
+                <div className="archive-todos">
+                  {archive.todos.map((todo) => (
+                    <div key={todo.id} className={`queue-item ${todo.done ? "archive-done" : ""}`}>
+                      <div className={`queue-icon-wrapper ${todo.done ? "is-done" : "is-pending"}`}>
+                        {todo.done ? <CheckIcon /> : <MinusIcon />}
+                      </div>
+                      <div className="queue-item-content">
+                        <div className="queue-item-title">{todo.text}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="todo-panel">
       <div className="todo-tabs">
@@ -410,10 +498,16 @@ export function TodoPanel({
         >
           To-do
         </button>
+        <button
+          className={`todo-tab ${activeTab === "archives" ? "active" : ""}`}
+          onClick={() => setActiveTab("archives")}
+        >
+          Archives
+        </button>
       </div>
 
       <div className="todo-tab-content">
-        {activeTab === "execution" ? renderExecutionView() : renderTodoView()}
+        {activeTab === "execution" ? renderExecutionView() : activeTab === "todo" ? renderTodoView() : renderArchivesView()}
       </div>
     </div>
   );

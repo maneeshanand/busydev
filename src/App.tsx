@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { load as loadStore } from "@tauri-apps/plugin-store";
@@ -18,7 +18,7 @@ import {
   updateTrayBadge,
   type CodexStreamEvent,
 } from "./invoke";
-import type { BusyAgent, StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session, SavedPromptEntry, LlmProvider } from "./types";
+import type { BusyAgent, StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session, SavedPromptEntry, LlmProvider, TodoArchive } from "./types";
 import { mergeWithPresets, findAgentBySlug, buildAgentRoster, agentSlug } from "./lib/busyAgents";
 import { agentIconLabel } from "./components/AgentIcon";
 import { ProjectNavigator } from "./components/ProjectNavigator";
@@ -896,6 +896,7 @@ function App() {
   const autoPlayTodos = activeSession?.autoPlay ?? false;
   const [todoPanelOpen] = useState(true);
   const [confirmTodoMode, setConfirmTodoMode] = useState(false);
+  const [confirmClearTodos, setConfirmClearTodos] = useState(false);
   const rightCollapsed = !todoPanelOpen;
 
   // Keep refs current so async run completions don't rely on stale render state.
@@ -1261,9 +1262,35 @@ function App() {
   function handleUpdateTodo(id: string, updates: Partial<TodoItem>) {
     setTodos((prev) => prev.map((t) => t.id === id ? { ...t, ...updates } : t));
   }
+  function handleArchiveTodos() {
+    if (todos.length === 0) return;
+    const now = Date.now();
+    const d = new Date(now);
+    const name = `Archive — ${d.toLocaleDateString([], { month: "short", day: "numeric" })}, ${d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+    const archive: TodoArchive = {
+      id: crypto.randomUUID(),
+      name,
+      createdAt: now,
+      todos: structuredClone(todos),
+    };
+    updateActiveSession((s) => ({
+      ...s,
+      todoArchives: [...(s.todoArchives ?? []), archive],
+    }));
+  }
+
+  function handleDeleteArchive(archiveId: string) {
+    updateActiveSession((s) => ({
+      ...s,
+      todoArchives: (s.todoArchives ?? []).filter((a) => a.id !== archiveId),
+    }));
+  }
+
   function handleClearTodos() {
+    handleArchiveTodos();
     setTodos([]);
     setAutoPlayTodos(false);
+    setConfirmClearTodos(false);
   }
   async function handleSaveTodos() {
     const filePath = await save({
@@ -1273,6 +1300,28 @@ function App() {
     if (!filePath) return;
     const data = JSON.stringify(todos, null, 2);
     await writeTextFile(filePath, data);
+  }
+
+  async function handleLoadPlan() {
+    const filePath = await open({
+      multiple: false,
+      filters: [{ name: "Markdown", extensions: ["md"] }],
+    });
+    if (!filePath) return;
+    const contents = await readTextFile(filePath as string);
+    void handleRun(`IMPORTANT: Do NOT ask questions, do NOT use skills, do NOT brainstorm. Just output a todo list immediately.
+
+Read this plan document and break it into concrete, ordered implementation tasks.
+Output ONLY ADD_TODO: lines, nothing else. No explanation, no questions, no preamble.
+Each task should be a single actionable step.
+If a task should be assigned to a specific agent, prefix with [agent:slug].
+
+Example output format:
+ADD_TODO: step one description
+ADD_TODO: [agent:backend-dev] step two description
+
+Plan:
+${contents}`);
   }
 
   // Resize handler
@@ -2623,6 +2672,28 @@ function App() {
           </div>
         )}
 
+        {confirmClearTodos && (
+          <div className="confirm-overlay" onClick={() => setConfirmClearTodos(false)}>
+            <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="confirm-title">Clear all todos?</div>
+              <p className="confirm-body">
+                The current todo list will be archived before clearing. You can view it in the Archives tab.
+              </p>
+              <div className="confirm-actions">
+                <button type="button" className="confirm-cancel" onClick={() => setConfirmClearTodos(false)}>Cancel</button>
+                <button
+                  type="button"
+                  className="confirm-cancel"
+                  style={{ background: "var(--vp-c-brand-1)", color: "white" }}
+                  onClick={handleClearTodos}
+                >
+                  Archive &amp; Clear
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {!rightCollapsed && (
           <ResizeHandle side="right" onResize={handleRightResize} onResizeEnd={handleResizeEnd} />
         )}
@@ -2671,8 +2742,12 @@ function App() {
                 setConfirmTodoMode(true);
               }
             }}
-            onClearTodos={handleClearTodos}
+            onClearTodos={() => todos.length > 0 ? setConfirmClearTodos(true) : handleClearTodos()}
             onSaveTodos={handleSaveTodos}
+            onArchiveTodos={handleArchiveTodos}
+            onDeleteArchive={handleDeleteArchive}
+            onLoadPlan={handleLoadPlan}
+            todoArchives={activeSession?.todoArchives ?? []}
             onReorder={(from, to) => {
               setTodos((prev) => {
                 const next = [...prev];

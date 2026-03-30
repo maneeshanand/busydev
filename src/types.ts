@@ -67,6 +67,13 @@ export interface TodoItem {
   busyAgentId?: string;
 }
 
+export interface TodoArchive {
+  id: string;
+  name: string;
+  createdAt: number;
+  todos: TodoItem[];
+}
+
 export interface SavedPromptEntry {
   id: string;
   name: string;
@@ -117,6 +124,7 @@ export interface Session {
   worktreeBranch?: string;
   todoMode?: boolean;
   autoPlay?: boolean;
+  todoArchives?: TodoArchive[];
   busyAgentId?: string;
 }
 

@@ -421,6 +421,98 @@ describe("migrateStoredSettings", () => {
     expect(session.todos[0].busyAgentId).toBe("preset-security-reviewer");
   });
 
+  describe("TodoArchive sanitization", () => {
+    const baseProject = (sessions: unknown[]) => ({
+      projects: [{
+        id: "p1", name: "P", path: "/tmp/p", createdAt: Date.now(),
+        activeSessionId: "s1",
+        sessions,
+      }],
+    });
+
+    const baseSession = (extras: Record<string, unknown> = {}) => ({
+      id: "s1", projectId: "p1", name: "S1", createdAt: Date.now(),
+      runs: [], todos: [],
+      ...extras,
+    });
+
+    it("preserves valid todoArchives through sanitization", () => {
+      const migrated = migrateStoredSettings(baseProject([
+        baseSession({
+          todoArchives: [
+            {
+              id: "arch-1",
+              name: "Sprint 1",
+              createdAt: 1000,
+              todos: [
+                { id: "t1", text: "Done task", done: true, source: "user", createdAt: 1 },
+              ],
+            },
+          ],
+        }),
+      ]));
+
+      const session = migrated!.projects[0].sessions[0];
+      expect(session.todoArchives).toHaveLength(1);
+      expect(session.todoArchives![0].id).toBe("arch-1");
+      expect(session.todoArchives![0].name).toBe("Sprint 1");
+      expect(session.todoArchives![0].createdAt).toBe(1000);
+      expect(session.todoArchives![0].todos).toHaveLength(1);
+      expect(session.todoArchives![0].todos[0].text).toBe("Done task");
+    });
+
+    it("filters out archives with invalid or missing required fields", () => {
+      const migrated = migrateStoredSettings(baseProject([
+        baseSession({
+          todoArchives: [
+            { id: "arch-1", name: "Good", createdAt: 1000, todos: [] },
+            { id: "", name: "No id", createdAt: 1000, todos: [] },
+            { id: "arch-3", name: "", createdAt: 1000, todos: [] },
+            { id: "arch-4", name: "No createdAt", createdAt: 0, todos: [] },
+            "not-an-object",
+            null,
+          ],
+        }),
+      ]));
+
+      const session = migrated!.projects[0].sessions[0];
+      expect(session.todoArchives).toHaveLength(1);
+      expect(session.todoArchives![0].id).toBe("arch-1");
+    });
+
+    it("defaults todoArchives to undefined when not present", () => {
+      const migrated = migrateStoredSettings(baseProject([
+        baseSession(),
+      ]));
+
+      const session = migrated!.projects[0].sessions[0];
+      expect(session.todoArchives).toBeUndefined();
+    });
+
+    it("filters out invalid todos within an archive but keeps the archive", () => {
+      const migrated = migrateStoredSettings(baseProject([
+        baseSession({
+          todoArchives: [
+            {
+              id: "arch-1",
+              name: "Mixed",
+              createdAt: 2000,
+              todos: [
+                { id: "t1", text: "Valid", done: false, source: "user", createdAt: 1 },
+                { id: "t2", text: "  ", done: false, source: "user", createdAt: 2 }, // blank text
+                "not-a-todo",
+              ],
+            },
+          ],
+        }),
+      ]));
+
+      const archive = migrated!.projects[0].sessions[0].todoArchives![0];
+      expect(archive.todos).toHaveLength(1);
+      expect(archive.todos[0].text).toBe("Valid");
+    });
+  });
+
   it("defaults busyAgentId to undefined when not set", () => {
     const migrated = migrateStoredSettings({
       projects: [{
