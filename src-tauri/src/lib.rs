@@ -16,6 +16,25 @@ pub fn run() {
             app.manage(db);
             app.manage(tray::TrayState::new());
             tray::setup_tray(app.handle()).map_err(|e| Box::<dyn std::error::Error>::from(e))?;
+
+            // Probe the user's full PATH from their login+interactive shell.
+            // macOS GUI apps don't inherit shell profile PATH entries, so we
+            // resolve it once at startup and inject it into the environment.
+            if cfg!(target_os = "macos") {
+                let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+                if let Ok(output) = std::process::Command::new(&shell)
+                    .args(["-l", "-i", "-c", "echo $PATH"])
+                    .output()
+                {
+                    if let Ok(path) = String::from_utf8(output.stdout) {
+                        let path = path.trim();
+                        if !path.is_empty() {
+                            std::env::set_var("PATH", path);
+                        }
+                    }
+                }
+            }
+
             Ok(())
         })
         .plugin(tauri_plugin_dialog::init())
