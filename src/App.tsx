@@ -1550,8 +1550,9 @@ function App() {
       try {
         const isGit = await isGitRepo(activeProject.path);
         if (isGit) {
+          const shortId = session.id.split("-")[0];
           const slug = session.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-          const branch = `busydev/${slug}`;
+          const branch = `busydev/${slug}-${shortId}`;
           const projectSlug = activeProject.path.replace(/\//g, "-").replace(/^-/, "");
           const wtPath = `/tmp/busydev-worktrees/${projectSlug}/${session.id}`;
           await createWorktree(activeProject.path, wtPath, branch);
