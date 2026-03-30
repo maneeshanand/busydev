@@ -1909,13 +1909,14 @@ ${contents}`);
         }));
       }
 
-      // Auto-update todos in the owning session (check the OWNER's todoMode, not the active session's)
+      // Always parse ADD_TODO/DONE markers from completed runs, regardless of todoMode.
+      // This allows todo generation (goal input, load plan) to work without todoMode enabled.
       const ownerSession = owner
         ? projectsRef.current.find((p) => p.id === owner.projectId)
             ?.sessions.find((s) => s.id === owner.sessionId)
         : null;
-      if (ownerSession?.todoMode && !wasStopped && owner) {
-        const ownerTodos = ownerSession?.todos ?? [];
+      if (!wasStopped && owner && ownerSession) {
+        const ownerTodos = ownerSession.todos ?? [];
         const requestedTodoId = runTodoIdRef.current[runId] ?? null;
         const completedIds = parseTodoCompletions(out, ownerTodos);
         const newTodoAdditions = parseTodoAdditions(out);
@@ -1945,19 +1946,17 @@ ${contents}`);
           }));
         }
 
-        // Track retries per todo for auto-play loop guard
-        if (requestedTodoId) {
+        // Track retries per todo for auto-play loop guard (only relevant in todoMode)
+        if (ownerSession.todoMode && requestedTodoId) {
           if (todoProgressMade) {
-            // Progress was made — reset retry counter
             todoRetryCountRef.current[requestedTodoId] = 0;
           } else {
-            // No progress — increment retry counter
             todoRetryCountRef.current[requestedTodoId] = (todoRetryCountRef.current[requestedTodoId] ?? 0) + 1;
           }
         }
 
-        // Auto-play: check the OWNER session's autoPlay, not the active session
-        if (ownerSession?.autoPlay && !wasStopped) {
+        // Auto-play: only when todoMode is on and the OWNER session's autoPlay is enabled
+        if (ownerSession.todoMode && ownerSession.autoPlay && !wasStopped) {
           setTimeout(() => {
             // Re-read owner session to verify auto-play and todoMode are still enabled
             const latestOwner = projectsRef.current.find((p) => p.id === owner.projectId)
