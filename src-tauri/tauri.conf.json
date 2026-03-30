@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/nicerapp/tauri/dev/crates/tauri-config-schema/schema.json",
+  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/tauri-v2/crates/tauri-config-schema/schema.json",
   "productName": "busydev",
   "version": "0.2.0",
   "identifier": "com.busydev.desktop",
@@ -23,7 +23,8 @@
       {
         "title": "busydev",
         "width": 1280,
-        "height": 800
+        "height": 800,
+        "backgroundColor": "#161616"
       }
     ],
     "security": {
