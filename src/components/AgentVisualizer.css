@@ -6,26 +6,28 @@
   outline: none;
 }
 
+/* ── Back button: Carbon ghost button style ─────────────────── */
 .viz-back {
   position: fixed;
   top: 12px;
   left: 16px;
   z-index: 10001;
-  background: rgba(22, 22, 22, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.7);
-  padding: 6px 14px;
-  font-size: 13px;
+  background: #262626; /* Carbon gray90 */
+  border: none;
+  color: var(--vp-c-text-2, #888);
+  padding: 7px 16px;
+  font-size: 0.82rem;
   cursor: pointer;
-  font-family: var(--vp-font-family-mono, monospace);
-  transition: color 0.15s, border-color 0.15s;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  transition: background-color 0.1s, color 0.1s;
 }
 
 .viz-back:hover {
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.3);
+  background: #393939; /* Carbon gray80 */
+  color: var(--vp-c-text-1, #e0e0e0);
 }
 
+/* ── Controls bar (top-right) ───────────────────────────────── */
 .viz-controls {
   position: fixed;
   top: 12px;
@@ -37,27 +39,38 @@
 }
 
 .viz-mode-select {
-  background: rgba(22, 22, 22, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.7);
-  padding: 5px 10px;
-  font-size: 12px;
-  font-family: var(--vp-font-family-mono, monospace);
+  appearance: none;
+  -webkit-appearance: none;
+  background: #262626; /* Carbon gray90 */
+  border: none;
+  border-bottom: 2px solid #393939; /* Carbon gray80 */
+  color: var(--vp-c-text-2, #888);
+  padding: 7px 28px 7px 12px;
+  font-size: 0.82rem;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
   cursor: pointer;
   outline: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23888'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
 }
 
 .viz-mode-select:hover {
-  border-color: rgba(255, 255, 255, 0.3);
-  color: #fff;
+  background-color: #393939;
+  color: var(--vp-c-text-1, #e0e0e0);
+}
+
+.viz-mode-select:focus {
+  border-bottom-color: #0f62fe; /* Carbon blue60 */
 }
 
 .viz-info-text {
-  color: rgba(255, 255, 255, 0.4);
-  font-size: 12px;
-  font-family: var(--vp-font-family-mono, monospace);
+  color: var(--vp-c-text-3, #555);
+  font-size: 0.78rem;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+/* ── Detail modal ───────────────────────────────────────────── */
 .viz-modal-overlay {
   position: fixed;
   bottom: 0;
@@ -65,7 +78,7 @@
   right: 0;
   top: 0;
   z-index: 10002;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: flex-end;
 }
@@ -73,49 +86,58 @@
 .viz-modal {
   width: 100%;
   max-height: 45vh;
-  background: rgba(22, 22, 22, 0.97);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: #161616; /* Carbon gray100 */
+  border-top: 1px solid var(--vp-c-divider, #222);
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
 .viz-modal-header {
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--vp-c-divider, #222);
   flex-shrink: 0;
   position: relative;
+  background: #262626; /* Carbon gray90 */
 }
 
 .viz-modal-title {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 14px;
+  color: var(--vp-c-text-1, #e0e0e0);
+  font-size: 0.86rem;
   font-weight: 600;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 .viz-modal-meta {
-  color: rgba(255, 255, 255, 0.4);
-  font-size: 11px;
+  color: var(--vp-c-text-3, #555);
+  font-size: 0.72rem;
   margin-top: 3px;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 .viz-modal-close {
   position: absolute;
-  top: 10px;
+  top: 12px;
   right: 12px;
-  background: none;
+  width: 32px;
+  height: 32px;
+  background: transparent;
   border: none;
-  color: rgba(255, 255, 255, 0.4);
-  font-size: 20px;
+  color: var(--vp-c-text-3, #555);
+  font-size: 18px;
   cursor: pointer;
-  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.1s, color 0.1s;
 }
 
 .viz-modal-close:hover {
-  color: #fff;
+  background: #393939;
+  color: var(--vp-c-text-1, #e0e0e0);
 }
 
 .viz-modal-dot {
@@ -123,6 +145,7 @@
   height: 8px;
   border-radius: 50%;
   display: inline-block;
+  flex-shrink: 0;
 }
 
 .viz-dot-completed { background: #818cf8; }
@@ -133,14 +156,15 @@
   padding: 12px 16px;
   overflow-y: auto;
   flex: 1;
-  font-size: 13px;
+  font-size: 0.82rem;
   line-height: 1.6;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--vp-c-text-2, #888);
+  font-family: var(--vp-font-family-mono, "IBM Plex Mono", monospace);
 }
 
 .viz-modal-message {
   padding: 4px 0;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--vp-c-text-1, #e0e0e0);
 }
 
 .viz-modal-command {
@@ -148,51 +172,53 @@
   align-items: center;
   gap: 6px;
   padding: 3px 0;
-  font-family: var(--vp-font-family-mono, monospace);
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
+  font-family: var(--vp-font-family-mono, "IBM Plex Mono", monospace);
+  font-size: 0.78rem;
+  color: var(--vp-c-text-3, #555);
 }
 
 .viz-modal-prefix {
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--vp-c-text-3, #555);
+  opacity: 0.6;
 }
 
-.viz-modal-status.is-done { color: #34d399; margin-left: auto; }
-.viz-modal-status.is-failed { color: #ef4444; margin-left: auto; }
+.viz-modal-status.is-done { color: #24a148; margin-left: auto; } /* Carbon green50 */
+.viz-modal-status.is-failed { color: #da1e28; margin-left: auto; } /* Carbon red60 */
 
 .viz-modal-file {
   padding: 2px 0;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.76rem;
+  color: var(--vp-c-text-3, #555);
 }
 
 .viz-modal-file-label {
-  color: #818cf8;
-  font-size: 11px;
+  color: #a56eff; /* Carbon purple50 */
+  font-size: 0.72rem;
   margin-right: 4px;
 }
 
 .viz-modal-error {
-  color: #ef4444;
+  color: #da1e28; /* Carbon red60 */
   padding: 3px 0;
-  font-size: 12px;
+  font-size: 0.78rem;
 }
 
 .viz-modal-status-row {
-  color: rgba(255, 255, 255, 0.3);
-  font-size: 11px;
+  color: var(--vp-c-text-3, #555);
+  font-size: 0.72rem;
   padding: 2px 0;
 }
 
 .viz-modal-empty {
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--vp-c-text-3, #555);
   text-align: center;
   padding: 24px;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 .viz-modal-summary {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.7);
+  border-top: 1px solid var(--vp-c-divider, #222);
+  color: var(--vp-c-text-2, #888);
 }
