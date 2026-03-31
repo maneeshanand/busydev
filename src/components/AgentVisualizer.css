@@ -331,7 +331,7 @@ body:not(.body-dark) .viz-overlay {
 
 .viz-modal {
   width: 100%;
-  max-height: 45vh;
+  max-height: 30vh;
   background: var(--viz-surface);
   border-top: 1px solid var(--viz-border);
   display: flex;

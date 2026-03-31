@@ -132,14 +132,15 @@ export function AgentVisualizer({ todos, runs, inFlightRuns, running, onClose }:
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) { setSelectedIndex(i); return; }
 
-    const nodeX = i * NODE_SPACING;
-    const nodeY = 0;
     const targetZoom = 2;
-    const centerX = rect.width / 2 - nodeX * targetZoom;
-    const centerY = rect.height / 2 - nodeY * targetZoom - 60; // offset up for detail panel
+    // Center the node horizontally in the canvas
+    // Node center in world coords = i * NODE_SPACING + NODE_SIZE / 2
+    const nodeCenterX = (i * NODE_SPACING + NODE_SIZE / 2) * targetZoom;
+    const centerX = rect.width / 2 - nodeCenterX;
+    // Y stays at 0 — the world is already vertically centered via CSS top:50%
 
     setZoom(targetZoom);
-    setPan({ x: centerX, y: centerY });
+    setPan({ x: centerX, y: 0 });
     setSelectedIndex(i);
   }, []);
 
