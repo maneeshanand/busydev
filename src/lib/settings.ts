@@ -1,4 +1,4 @@
-import type { BusyAgent, LlmProvider, PersistedRun, Project, SavedPromptEntry, Session, SubTask, TodoItem } from "../types";
+import type { BusyAgent, LlmProvider, PersistedRun, Project, SavedPromptEntry, Session, SubTask, TodoArchive, TodoItem } from "../types";
 
 export const SETTINGS_VERSION = 3;
 
@@ -173,6 +173,19 @@ function sanitizeTodoItem(value: unknown): TodoItem | null {
   };
 }
 
+function sanitizeTodoArchive(value: unknown): TodoArchive | null {
+  const obj = asObject(value);
+  if (!obj) return null;
+  const id = typeof obj.id === "string" ? obj.id : "";
+  const name = typeof obj.name === "string" ? obj.name : "";
+  const createdAt = typeof obj.createdAt === "number" ? obj.createdAt : 0;
+  if (!id || !name || !createdAt) return null;
+  const todos = Array.isArray(obj.todos)
+    ? obj.todos.map(sanitizeTodoItem).filter(Boolean) as TodoItem[]
+    : [];
+  return { id, name, createdAt, todos };
+}
+
 function sanitizeSavedPromptEntry(value: unknown): SavedPromptEntry | null {
   const obj = asObject(value);
   if (!obj) return null;
@@ -250,6 +263,9 @@ function sanitizeSession(value: unknown, projectId: string, index: number): Sess
     worktreeBranch: typeof obj?.worktreeBranch === "string" ? obj.worktreeBranch : undefined,
     todoMode: typeof obj?.todoMode === "boolean" ? obj.todoMode : undefined,
     autoPlay: typeof obj?.autoPlay === "boolean" ? obj.autoPlay : undefined,
+    todoArchives: Array.isArray(obj?.todoArchives)
+      ? obj.todoArchives.map(sanitizeTodoArchive).filter(Boolean) as TodoArchive[]
+      : undefined,
     busyAgentId: typeof obj?.busyAgentId === "string" && obj.busyAgentId.trim() ? obj.busyAgentId.trim() : undefined,
   };
 }
