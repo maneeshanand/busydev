@@ -2857,6 +2857,7 @@ ADD_TODO: step three description`);
         <AgentVisualizer
           todos={todos}
           runs={activeSession?.runs ?? []}
+          running={sessionRunning}
           onClose={() => setVisualizerOpen(false)}
         />
       )}

@@ -13,37 +13,39 @@ import "./AgentVisualizer.css";
 interface AgentVisualizerProps {
   todos: TodoItem[];
   runs: PersistedRun[];
+  running?: boolean;
   onClose: () => void;
 }
 
-/** Match a run to a todo by checking if the run prompt references the todo text. */
-function findRunForTodo(todo: TodoItem, todoIndex: number, runs: PersistedRun[]): PersistedRun | undefined {
-  // Todo auto-play prompts contain "Work on todo #N: <text>"
-  const marker = `todo #${todoIndex + 1}`;
-  return runs.find((r) =>
-    r.prompt.toLowerCase().includes(marker) ||
-    r.prompt.includes(todo.text)
-  );
-}
-
-function getNodeState(todo: TodoItem, run: PersistedRun | undefined): "completed" | "running" | "pending" {
-  if (todo.done) return "completed";
-  // A run exists and hasn't finished (exitCode null = still running)
-  if (run && run.exitCode === null) return "running";
-  return "pending";
-}
-
-export function AgentVisualizer({ todos, runs, onClose }: AgentVisualizerProps) {
+export function AgentVisualizer({ todos, runs, running, onClose }: AgentVisualizerProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   const nodes = useMemo(() => {
+    // The first non-done todo is "running" if the session has an active agent
+    const firstPendingIdx = todos.findIndex((t) => !t.done);
     return todos.map((todo, i) => {
-      const run = findRunForTodo(todo, i, runs);
+      let state: "completed" | "running" | "pending";
+      if (todo.done) {
+        state = "completed";
+      } else if (running && i === firstPendingIdx) {
+        state = "running";
+      } else {
+        state = "pending";
+      }
+
+      // Try to find a matching run for the event stream detail view
+      // Auto-play prompts use "Work on todo #N:" or "todo #N"
+      const marker = `todo #${i + 1}`;
+      const run = runs.find((r) =>
+        r.prompt.toLowerCase().includes(marker) ||
+        r.prompt.includes(todo.text)
+      );
+
       return {
         todo,
         run,
-        state: getNodeState(todo, run),
+        state,
         position: [
           i * 4,
           Math.sin(i * 0.8) * 1.2,
@@ -51,7 +53,7 @@ export function AgentVisualizer({ todos, runs, onClose }: AgentVisualizerProps) 
         ] as [number, number, number],
       };
     });
-  }, [todos, runs]);
+  }, [todos, runs, running]);
 
   const chainCenter = useMemo<[number, number, number]>(() => {
     if (nodes.length === 0) return [0, 0, 0];
