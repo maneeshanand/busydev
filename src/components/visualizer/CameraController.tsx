@@ -49,6 +49,7 @@ export function CameraController({ target, chainCenter }: CameraControllerProps)
       minDistance={5}
       maxDistance={120}
       zoomSpeed={0.8}
+      zoomToCursor
     />
   );
 }
