@@ -26,9 +26,8 @@
   overflow: hidden;
 }
 
-/* ── Light mode ─────────────────────────────────────────────── */
-:root:not(.body-dark) .viz-overlay,
-body:not(.body-dark) .viz-overlay {
+/* ── Light mode (matches .theme-light on the app container) ── */
+.theme-light .viz-overlay {
   --viz-bg: #f4f4f4;
   --viz-surface: #ffffff;
   --viz-surface-2: #e8e8e8;
