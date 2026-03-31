@@ -46,7 +46,9 @@ export function TaskNode({ position, state, onPointerOver, onPointerOut, onClick
   useFrame(({ clock }) => {
     if (!meshRef.current) return;
     if (state === "running") {
-      const scale = 1 + Math.sin(clock.getElapsedTime() * 3) * 0.15;
+      // Pronounced breathing pulse: scale oscillates 0.7 → 1.3
+      const t = clock.getElapsedTime();
+      const scale = 1 + Math.sin(t * 2) * 0.3;
       meshRef.current.scale.setScalar(scale);
     } else {
       meshRef.current.scale.setScalar(1);

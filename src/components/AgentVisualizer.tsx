@@ -7,6 +7,7 @@ import { TaskConnection } from "./visualizer/TaskConnection";
 import { TaskTooltip } from "./visualizer/TaskTooltip";
 import { TaskDetailModal } from "./visualizer/TaskDetailModal";
 import { CameraController } from "./visualizer/CameraController";
+import { Constellations } from "./visualizer/Constellations";
 import "./AgentVisualizer.css";
 
 interface AgentVisualizerProps {
@@ -15,9 +16,20 @@ interface AgentVisualizerProps {
   onClose: () => void;
 }
 
-function getNodeState(todo: TodoItem, runIndex: number, runs: PersistedRun[]): "completed" | "running" | "pending" {
+/** Match a run to a todo by checking if the run prompt references the todo text. */
+function findRunForTodo(todo: TodoItem, todoIndex: number, runs: PersistedRun[]): PersistedRun | undefined {
+  // Todo auto-play prompts contain "Work on todo #N: <text>"
+  const marker = `todo #${todoIndex + 1}`;
+  return runs.find((r) =>
+    r.prompt.toLowerCase().includes(marker) ||
+    r.prompt.includes(todo.text)
+  );
+}
+
+function getNodeState(todo: TodoItem, run: PersistedRun | undefined): "completed" | "running" | "pending" {
   if (todo.done) return "completed";
-  if (runIndex < runs.length) return "running";
+  // A run exists and hasn't finished (exitCode null = still running)
+  if (run && run.exitCode === null) return "running";
   return "pending";
 }
 
@@ -26,16 +38,19 @@ export function AgentVisualizer({ todos, runs, onClose }: AgentVisualizerProps) 
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   const nodes = useMemo(() => {
-    return todos.map((todo, i) => ({
-      todo,
-      run: i < runs.length ? runs[i] : undefined,
-      state: getNodeState(todo, i, runs),
-      position: [
-        i * 4,
-        Math.sin(i * 0.8) * 1.2,
-        Math.cos(i * 1.1) * 0.8,
-      ] as [number, number, number],
-    }));
+    return todos.map((todo, i) => {
+      const run = findRunForTodo(todo, i, runs);
+      return {
+        todo,
+        run,
+        state: getNodeState(todo, run),
+        position: [
+          i * 4,
+          Math.sin(i * 0.8) * 1.2,
+          Math.cos(i * 1.1) * 0.8,
+        ] as [number, number, number],
+      };
+    });
   }, [todos, runs]);
 
   const chainCenter = useMemo<[number, number, number]>(() => {
@@ -74,12 +89,22 @@ export function AgentVisualizer({ todos, runs, onClose }: AgentVisualizerProps) 
       </div>
 
       <Canvas
-        camera={{ position: [chainCenter[0], chainCenter[1] + 4, chainCenter[2] + 12], fov: 50 }}
+        camera={{
+          position: [
+            chainCenter[0],
+            chainCenter[1] + 3,
+            chainCenter[2] + Math.max(12, nodes.length * 2.5),
+          ],
+          fov: 50,
+          near: 0.1,
+          far: 500,
+        }}
         style={{ background: "#0a0a1a" }}
       >
         <ambientLight intensity={0.15} />
 
-        <Stars radius={100} depth={60} count={800} factor={3} saturation={0} fade speed={0.5} />
+        <Stars radius={100} depth={60} count={1200} factor={3} saturation={0} fade speed={0.5} />
+        <Constellations count={14} radius={80} />
 
         <CameraController target={selectedTarget} chainCenter={chainCenter} />
 

@@ -46,8 +46,9 @@ export function CameraController({ target, chainCenter }: CameraControllerProps)
       enableDamping
       dampingFactor={0.05}
       target={chainCenter}
-      minDistance={3}
-      maxDistance={40}
+      minDistance={5}
+      maxDistance={120}
+      zoomSpeed={0.8}
     />
   );
 }
