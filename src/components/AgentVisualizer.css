@@ -1,0 +1,176 @@
+.viz-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #0a0a1a;
+  outline: none;
+}
+
+.viz-back {
+  position: fixed;
+  top: 12px;
+  left: 16px;
+  z-index: 10001;
+  background: rgba(22, 22, 22, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.7);
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: var(--vp-font-family-mono, monospace);
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.viz-back:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.viz-info {
+  position: fixed;
+  top: 12px;
+  right: 16px;
+  z-index: 10001;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+  font-family: var(--vp-font-family-mono, monospace);
+}
+
+.viz-modal-overlay {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 10002;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: flex-end;
+}
+
+.viz-modal {
+  width: 100%;
+  max-height: 45vh;
+  background: rgba(22, 22, 22, 0.97);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.viz-modal-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+  position: relative;
+}
+
+.viz-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.viz-modal-meta {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 11px;
+  margin-top: 3px;
+}
+
+.viz-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.viz-modal-close:hover {
+  color: #fff;
+}
+
+.viz-modal-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.viz-dot-completed { background: #818cf8; }
+.viz-dot-running { background: #34d399; }
+.viz-dot-pending { background: #475569; }
+
+.viz-modal-body {
+  padding: 12px 16px;
+  overflow-y: auto;
+  flex: 1;
+  font-size: 13px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.viz-modal-message {
+  padding: 4px 0;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.viz-modal-command {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  font-family: var(--vp-font-family-mono, monospace);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.viz-modal-prefix {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.viz-modal-status.is-done { color: #34d399; margin-left: auto; }
+.viz-modal-status.is-failed { color: #ef4444; margin-left: auto; }
+
+.viz-modal-file {
+  padding: 2px 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.viz-modal-file-label {
+  color: #818cf8;
+  font-size: 11px;
+  margin-right: 4px;
+}
+
+.viz-modal-error {
+  color: #ef4444;
+  padding: 3px 0;
+  font-size: 12px;
+}
+
+.viz-modal-status-row {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 11px;
+  padding: 2px 0;
+}
+
+.viz-modal-empty {
+  color: rgba(255, 255, 255, 0.3);
+  text-align: center;
+  padding: 24px;
+}
+
+.viz-modal-summary {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+}

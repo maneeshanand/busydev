@@ -31,6 +31,7 @@ interface TodoPanelProps {
   onDeleteArchive?: (archiveId: string) => void;
   onLoadPlan?: () => void;
   todoArchives?: TodoArchive[];
+  onVisualize?: () => void;
 }
 
 type TabId = "execution" | "todo";
@@ -123,6 +124,7 @@ export function TodoPanel({
   onDeleteArchive,
   onLoadPlan,
   todoArchives,
+  onVisualize,
 }: TodoPanelProps) {
   const [activeTab, setActiveTab] = useState<TabId>("execution");
   const [newText, setNewText] = useState("");
@@ -295,6 +297,22 @@ export function TodoPanel({
           >
             <SkipIcon />
           </button>
+          {onVisualize && todos.length > 0 && (
+            <button
+              type="button"
+              className="todo-player-btn"
+              onClick={onVisualize}
+              title="Visualize execution"
+              style={{ marginLeft: "auto" }}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" width="14" height="14">
+                <circle cx="5" cy="12" r="2" fill="none" stroke="currentColor" strokeWidth="2" />
+                <circle cx="12" cy="6" r="2" fill="none" stroke="currentColor" strokeWidth="2" />
+                <circle cx="19" cy="12" r="2" fill="none" stroke="currentColor" strokeWidth="2" />
+                <path d="M7 11l3-4M14 7l3 4" fill="none" stroke="currentColor" strokeWidth="1.5" />
+              </svg>
+            </button>
+          )}
           <span className="todo-player-status">
             {!todoMode ? "Mode off" : running ? "Running..." : `${pending.length} left`}
           </span>
@@ -324,6 +342,17 @@ export function TodoPanel({
         </div>
       </div>
 
+      {onVisualize && todos.length > 0 && pending.length === 0 && (
+        <button
+          type="button"
+          className="todo-action-btn"
+          onClick={onVisualize}
+          title="Visualize execution"
+          style={{ margin: "6px 10px" }}
+        >
+          Visualize
+        </button>
+      )}
       <div className="section-label">QUEUE</div>
       <div className="queue-list">
         {todos.map((todo) => {
