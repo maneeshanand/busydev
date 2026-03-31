@@ -26,11 +26,33 @@
   border-color: rgba(255, 255, 255, 0.3);
 }
 
-.viz-info {
+.viz-controls {
   position: fixed;
   top: 12px;
   right: 16px;
   z-index: 10001;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.viz-mode-select {
+  background: rgba(22, 22, 22, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.7);
+  padding: 5px 10px;
+  font-size: 12px;
+  font-family: var(--vp-font-family-mono, monospace);
+  cursor: pointer;
+  outline: none;
+}
+
+.viz-mode-select:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+
+.viz-info-text {
   color: rgba(255, 255, 255, 0.4);
   font-size: 12px;
   font-family: var(--vp-font-family-mono, monospace);

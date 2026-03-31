@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Stars } from "@react-three/drei";
 import type { TodoItem, PersistedRun } from "../types";
-import { TaskNode } from "./visualizer/TaskNode";
+import { TaskNode, type VisualMode } from "./visualizer/TaskNode";
 import { TaskConnection } from "./visualizer/TaskConnection";
 import { TaskTooltip } from "./visualizer/TaskTooltip";
 import { TaskDetailModal } from "./visualizer/TaskDetailModal";
@@ -20,6 +20,7 @@ interface AgentVisualizerProps {
 export function AgentVisualizer({ todos, runs, running, onClose }: AgentVisualizerProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [visualMode, setVisualMode] = useState<VisualMode>("orbital");
 
   const nodes = useMemo(() => {
     // The first non-done todo is "running" if the session has an active agent
@@ -86,8 +87,19 @@ export function AgentVisualizer({ todos, runs, running, onClose }: AgentVisualiz
       <button type="button" className="viz-back" onClick={handleClose}>
         ← Back
       </button>
-      <div className="viz-info">
-        {nodes.filter((n) => n.state === "completed").length}/{nodes.length} completed
+      <div className="viz-controls">
+        <select
+          className="viz-mode-select"
+          value={visualMode}
+          onChange={(e) => setVisualMode(e.target.value as VisualMode)}
+        >
+          <option value="orbital">Orbital Rings</option>
+          <option value="tactical">Tactical HUD</option>
+          <option value="circuit">Circuit Board</option>
+        </select>
+        <span className="viz-info-text">
+          {nodes.filter((n) => n.state === "completed").length}/{nodes.length} completed
+        </span>
       </div>
 
       <Canvas
@@ -116,6 +128,10 @@ export function AgentVisualizer({ todos, runs, running, onClose }: AgentVisualiz
             position={node.position}
             state={node.state}
             index={i}
+            mode={visualMode}
+            label={node.todo.text}
+            toolCalls={node.run?.streamRows.filter((r) => r.category === "command").length}
+            durationMs={node.run?.durationMs}
             onPointerOver={() => setHoveredIndex(i)}
             onPointerOut={() => setHoveredIndex(null)}
             onClick={() => setSelectedIndex(i)}
