@@ -35,13 +35,18 @@ export function AgentVisualizer({ todos, runs, running, onClose }: AgentVisualiz
         state = "pending";
       }
 
-      // Try to find a matching run for the event stream detail view
-      // Auto-play prompts use "Work on todo #N:" or "todo #N"
-      const marker = `todo #${i + 1}`;
-      const run = runs.find((r) =>
-        r.prompt.toLowerCase().includes(marker) ||
-        r.prompt.includes(todo.text)
-      );
+      // Match a run to this todo for the event stream detail view.
+      // Display prompt format: "Todo #N: <text>" or raw user prompt.
+      const todoTextLower = todo.text.toLowerCase();
+      const run = runs.find((r) => {
+        const p = r.prompt.toLowerCase();
+        // Direct text match
+        if (p.includes(todoTextLower)) return true;
+        // Strip "Todo #N: " prefix and match remainder against todo text
+        const stripped = p.replace(/^todo #\d+:\s*/, "");
+        if (stripped && todoTextLower.includes(stripped)) return true;
+        return false;
+      });
 
       return {
         todo,
