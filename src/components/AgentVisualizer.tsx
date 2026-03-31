@@ -31,14 +31,7 @@ function getSelectedRun(
   if (inFlightRuns) {
     const live = Object.values(inFlightRuns).find((r) => matchPrompt(r.prompt, todo.text));
     if (live) {
-      return {
-        id: live.id,
-        prompt: live.prompt,
-        streamRows: live.streamRows,
-        exitCode: null,
-        durationMs: 0,
-        finalSummary: "",
-      };
+      return { id: live.id, prompt: live.prompt, streamRows: live.streamRows, exitCode: null, durationMs: 0, finalSummary: "" };
     }
   }
   return undefined;
@@ -52,24 +45,19 @@ interface NodeData {
   durationMs: number;
 }
 
+const NODE_SPACING = 280; // px between node centers
+const NODE_SIZE = 64;
+
 export function AgentVisualizer({ todos, runs, inFlightRuns, running, onClose }: AgentVisualizerProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [visualMode, setVisualMode] = useState<VisualMode>("orbital");
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [pulsePhase, setPulsePhase] = useState(0);
+  const canvasRef = useRef<HTMLDivElement>(null);
 
-  // Animate pulse for running nodes
-  useEffect(() => {
-    if (!running) return;
-    let raf: number;
-    const tick = () => {
-      setPulsePhase(Date.now() / 500);
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [running]);
+  // Pan/zoom state
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const dragRef = useRef<{ startX: number; startY: number; startPanX: number; startPanY: number } | null>(null);
 
   const nodes: NodeData[] = useMemo(() => {
     const firstPendingIdx = todos.findIndex((t) => !t.done);
@@ -88,6 +76,73 @@ export function AgentVisualizer({ todos, runs, inFlightRuns, running, onClose }:
     });
   }, [todos, runs, running]);
 
+  // Center view on initial load
+  useEffect(() => {
+    if (canvasRef.current && nodes.length > 0) {
+      const canvasW = canvasRef.current.offsetWidth;
+      const chainW = (nodes.length - 1) * NODE_SPACING;
+      const centerX = chainW / 2;
+      setPan({ x: canvasW / 2 - centerX, y: 0 });
+    }
+  }, [nodes.length]);
+
+  // Zoom via scroll wheel
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    const newZoom = Math.max(0.3, Math.min(4, zoom * delta));
+    const ratio = newZoom / zoom;
+
+    setPan((p) => ({
+      x: mouseX - ratio * (mouseX - p.x),
+      y: mouseY - ratio * (mouseY - p.y),
+    }));
+    setZoom(newZoom);
+  }, [zoom]);
+
+  // Pan via drag
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest(".viz-node")) return; // don't drag when clicking nodes
+    dragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: pan.x, startPanY: pan.y };
+    const handleMove = (ev: MouseEvent) => {
+      if (!dragRef.current) return;
+      setPan({
+        x: dragRef.current.startPanX + (ev.clientX - dragRef.current.startX),
+        y: dragRef.current.startPanY + (ev.clientY - dragRef.current.startY),
+      });
+    };
+    const handleUp = () => {
+      dragRef.current = null;
+      document.removeEventListener("mousemove", handleMove);
+      document.removeEventListener("mouseup", handleUp);
+      document.body.style.cursor = "";
+    };
+    document.addEventListener("mousemove", handleMove);
+    document.addEventListener("mouseup", handleUp);
+    document.body.style.cursor = "grabbing";
+  }, [pan]);
+
+  // Click node → center + zoom in + show details
+  const handleNodeClick = useCallback((i: number) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) { setSelectedIndex(i); return; }
+
+    const nodeX = i * NODE_SPACING;
+    const nodeY = 0;
+    const targetZoom = 2;
+    const centerX = rect.width / 2 - nodeX * targetZoom;
+    const centerY = rect.height / 2 - nodeY * targetZoom - 60; // offset up for detail panel
+
+    setZoom(targetZoom);
+    setPan({ x: centerX, y: centerY });
+    setSelectedIndex(i);
+  }, []);
+
   const handleClose = useCallback(() => {
     setSelectedIndex(null);
     setHoveredIndex(null);
@@ -97,12 +152,19 @@ export function AgentVisualizer({ todos, runs, inFlightRuns, running, onClose }:
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
       if (selectedIndex !== null) {
+        // Deselect and zoom back out
         setSelectedIndex(null);
+        if (canvasRef.current && nodes.length > 0) {
+          const canvasW = canvasRef.current.offsetWidth;
+          const chainW = (nodes.length - 1) * NODE_SPACING;
+          setZoom(1);
+          setPan({ x: canvasW / 2 - chainW / 2, y: 0 });
+        }
       } else {
         handleClose();
       }
     }
-  }, [selectedIndex, handleClose]);
+  }, [selectedIndex, handleClose, nodes.length]);
 
   const completedCount = nodes.filter((n) => n.state === "completed").length;
 
@@ -128,67 +190,75 @@ export function AgentVisualizer({ todos, runs, inFlightRuns, running, onClose }:
         </div>
       </div>
 
-      <div className="viz-canvas" ref={scrollRef}>
-        <div className="viz-chain" style={{ minWidth: Math.max(600, nodes.length * 160) }}>
+      <div
+        className="viz-canvas"
+        ref={canvasRef}
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+      >
+        <div
+          className="viz-world"
+          style={{
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            transformOrigin: "0 0",
+          }}
+        >
+          {/* Connection lines */}
+          <svg className="viz-connections" style={{ width: (nodes.length - 1) * NODE_SPACING + NODE_SIZE, height: NODE_SIZE }}>
+            {nodes.map((node, i) => {
+              if (i === 0) return null;
+              const x1 = (i - 1) * NODE_SPACING + NODE_SIZE / 2;
+              const x2 = i * NODE_SPACING + NODE_SIZE / 2;
+              const y = NODE_SIZE / 2;
+              return (
+                <line
+                  key={`conn-${i}`}
+                  x1={x1} y1={y} x2={x2} y2={y}
+                  className={`viz-svg-conn viz-svg-conn-${nodes[i - 1].state}-${node.state}`}
+                />
+              );
+            })}
+          </svg>
+
+          {/* Nodes */}
           {nodes.map((node, i) => {
             const isHovered = hoveredIndex === i;
             const isSelected = selectedIndex === i;
-            const pulseScale = node.state === "running" ? 1 + Math.sin(pulsePhase) * 0.12 : 1;
 
             return (
-              <div key={node.todo.id} className="viz-node-group">
-                {/* Connection line (not for first) */}
-                {i > 0 && (
-                  <div className={`viz-connection viz-conn-${nodes[i - 1].state}-${node.state}`} />
+              <div
+                key={node.todo.id}
+                className={`viz-node viz-node-${node.state} viz-node-${visualMode} ${isHovered ? "viz-node-hovered" : ""} ${isSelected ? "viz-node-selected" : ""}`}
+                style={{ left: i * NODE_SPACING }}
+                onMouseEnter={() => setHoveredIndex(i)}
+                onMouseLeave={() => setHoveredIndex(null)}
+                onClick={() => handleNodeClick(i)}
+              >
+                {visualMode === "orbital" && (
+                  <>
+                    <div className="viz-orbital-ring" />
+                    <div className="viz-orbital-ring viz-orbital-ring-outer" />
+                    <div className="viz-orbital-core" />
+                  </>
+                )}
+                {visualMode === "tactical" && (
+                  <span className="viz-tactical-num">{String(i + 1).padStart(2, "0")}</span>
+                )}
+                {visualMode === "circuit" && (
+                  <>
+                    <div className="viz-circuit-pin viz-circuit-pin-left" />
+                    <div className="viz-circuit-pin viz-circuit-pin-right" />
+                    {node.state === "running" && <div className="viz-circuit-led" />}
+                  </>
                 )}
 
-                {/* Node */}
-                <div
-                  className={`viz-node viz-node-${node.state} viz-node-${visualMode} ${isHovered ? "viz-node-hovered" : ""} ${isSelected ? "viz-node-selected" : ""}`}
-                  style={node.state === "running" ? { transform: `scale(${pulseScale})` } : undefined}
-                  onMouseEnter={() => setHoveredIndex(i)}
-                  onMouseLeave={() => setHoveredIndex(null)}
-                  onClick={() => setSelectedIndex(i)}
-                >
-                  {/* Mode-specific inner content */}
-                  {visualMode === "orbital" && (
-                    <>
-                      <div className="viz-orbital-ring" />
-                      <div className="viz-orbital-ring viz-orbital-ring-outer" />
-                      <div className="viz-orbital-core" />
-                    </>
-                  )}
-                  {visualMode === "tactical" && (
-                    <span className="viz-tactical-num">{String(i + 1).padStart(2, "0")}</span>
-                  )}
-                  {visualMode === "circuit" && (
-                    <>
-                      <div className="viz-circuit-pin viz-circuit-pin-left" />
-                      <div className="viz-circuit-pin viz-circuit-pin-right" />
-                      {node.state === "running" && <div className="viz-circuit-led" />}
-                    </>
-                  )}
-                </div>
-
-                {/* Label */}
-                <div className="viz-node-label">
-                  <div className="viz-node-title">
-                    {node.todo.text.length > 28 ? node.todo.text.slice(0, 28) + "..." : node.todo.text}
-                  </div>
-                  <div className="viz-node-meta">
-                    {node.state === "completed" ? "Done" : node.state === "running" ? "Running" : "Pending"}
-                    {node.toolCalls > 0 && ` · ${node.toolCalls} tools`}
-                    {node.durationMs > 0 && ` · ${(node.durationMs / 1000).toFixed(1)}s`}
-                  </div>
-                </div>
-
-                {/* Tooltip on hover */}
-                {isHovered && (
-                  <div className="viz-tooltip">
-                    <div className="viz-tooltip-title">Task {i + 1}: {node.todo.text}</div>
-                    <div className="viz-tooltip-meta">
-                      {node.state === "completed" ? "Completed" : node.state === "running" ? "In Progress" : "Pending"}
-                      {node.toolCalls > 0 && ` · ${node.toolCalls} tool calls`}
+                {/* Label only on hover or select */}
+                {(isHovered || isSelected) && (
+                  <div className="viz-node-label">
+                    <div className="viz-node-title">{node.todo.text}</div>
+                    <div className="viz-node-meta">
+                      {node.state === "completed" ? "Done" : node.state === "running" ? "Running" : "Pending"}
+                      {node.toolCalls > 0 && ` · ${node.toolCalls} tools`}
                       {node.durationMs > 0 && ` · ${(node.durationMs / 1000).toFixed(1)}s`}
                     </div>
                   </div>
@@ -204,7 +274,16 @@ export function AgentVisualizer({ todos, runs, inFlightRuns, running, onClose }:
           todo={nodes[selectedIndex].todo}
           run={getSelectedRun(nodes[selectedIndex].todo, runs, inFlightRuns)}
           index={selectedIndex}
-          onClose={() => setSelectedIndex(null)}
+          onClose={() => {
+            setSelectedIndex(null);
+            // Zoom back out
+            if (canvasRef.current && nodes.length > 0) {
+              const canvasW = canvasRef.current.offsetWidth;
+              const chainW = (nodes.length - 1) * NODE_SPACING;
+              setZoom(1);
+              setPan({ x: canvasW / 2 - chainW / 2, y: 0 });
+            }
+          }}
         />
       )}
     </div>

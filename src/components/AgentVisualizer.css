@@ -1,4 +1,4 @@
-/* ── Visualizer tokens (dark defaults, light overrides below) ── */
+/* ── Visualizer tokens ──────────────────────────────────────── */
 .viz-overlay {
   --viz-bg: #0d0e14;
   --viz-surface: #161616;
@@ -13,11 +13,8 @@
   --viz-running-bg: rgba(52, 211, 153, 0.12);
   --viz-pending: #475569;
   --viz-pending-bg: rgba(71, 85, 105, 0.06);
-  --viz-conn-active: rgba(129, 140, 248, 0.4);
-  --viz-conn-dim: rgba(71, 85, 105, 0.2);
   --viz-glow: 0 0 16px rgba(129, 140, 248, 0.3);
   --viz-glow-running: 0 0 20px rgba(52, 211, 153, 0.4);
-  --viz-star-color: rgba(255, 255, 255, 0.04);
 
   position: fixed;
   inset: 0;
@@ -26,9 +23,10 @@
   outline: none;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
-/* ── Light mode overrides ───────────────────────────────────── */
+/* ── Light mode ─────────────────────────────────────────────── */
 :root:not(.body-dark) .viz-overlay,
 body:not(.body-dark) .viz-overlay {
   --viz-bg: #f4f4f4;
@@ -44,11 +42,8 @@ body:not(.body-dark) .viz-overlay {
   --viz-running-bg: rgba(5, 150, 105, 0.1);
   --viz-pending: #94a3b8;
   --viz-pending-bg: rgba(148, 163, 184, 0.08);
-  --viz-conn-active: rgba(99, 102, 241, 0.3);
-  --viz-conn-dim: rgba(148, 163, 184, 0.2);
-  --viz-glow: 0 0 12px rgba(99, 102, 241, 0.2);
-  --viz-glow-running: 0 0 16px rgba(5, 150, 105, 0.25);
-  --viz-star-color: rgba(0, 0, 0, 0.03);
+  --viz-glow: 0 0 12px rgba(99, 102, 241, 0.15);
+  --viz-glow-running: 0 0 16px rgba(5, 150, 105, 0.2);
 }
 
 /* ── Toolbar ────────────────────────────────────────────────── */
@@ -60,7 +55,7 @@ body:not(.body-dark) .viz-overlay {
   background: var(--viz-surface);
   border-bottom: 1px solid var(--viz-border);
   flex-shrink: 0;
-  z-index: 1;
+  z-index: 2;
 }
 
 .viz-back {
@@ -73,10 +68,7 @@ body:not(.body-dark) .viz-overlay {
   font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
   transition: color 0.1s;
 }
-
-.viz-back:hover {
-  color: var(--viz-text-1);
-}
+.viz-back:hover { color: var(--viz-text-1); }
 
 .viz-controls {
   display: flex;
@@ -100,7 +92,6 @@ body:not(.body-dark) .viz-overlay {
   background-repeat: no-repeat;
   background-position: right 8px center;
 }
-
 .viz-mode-select:hover { color: var(--viz-text-1); }
 .viz-mode-select:focus { border-bottom-color: #0f62fe; }
 
@@ -110,52 +101,46 @@ body:not(.body-dark) .viz-overlay {
   font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-/* ── Canvas (scrollable node chain) ─────────────────────────── */
+/* ── Canvas (infinite pan/zoom area) ────────────────────────── */
 .viz-canvas {
   flex: 1;
-  overflow-x: auto;
-  overflow-y: hidden;
-  display: flex;
-  align-items: center;
-  background:
-    radial-gradient(circle at 20% 40%, var(--viz-star-color) 0%, transparent 50%),
-    radial-gradient(circle at 80% 60%, var(--viz-star-color) 0%, transparent 50%),
-    var(--viz-bg);
-}
-
-.viz-chain {
-  display: flex;
-  align-items: center;
-  padding: 40px 80px;
-  gap: 0;
-  margin: 0 auto;
-}
-
-/* ── Node group (connection + node + label) ─────────────────── */
-.viz-node-group {
-  display: flex;
-  align-items: center;
+  overflow: hidden;
+  cursor: grab;
   position: relative;
-  flex-shrink: 0;
+}
+.viz-canvas:active { cursor: grabbing; }
+
+.viz-world {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transition: transform 0.4s ease-out;
+  will-change: transform;
 }
 
-/* ── Connection lines ───────────────────────────────────────── */
-.viz-connection {
-  width: 60px;
-  height: 2px;
-  flex-shrink: 0;
-  transition: background 0.3s;
+/* ── SVG connection lines ───────────────────────────────────── */
+.viz-connections {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
 }
 
-.viz-conn-completed-completed { background: var(--viz-conn-active); }
-.viz-conn-completed-running { background: linear-gradient(to right, var(--viz-completed), var(--viz-running)); }
-.viz-conn-completed-pending { background: linear-gradient(to right, var(--viz-conn-active), var(--viz-conn-dim)); }
-.viz-conn-running-pending { background: linear-gradient(to right, var(--viz-running), var(--viz-conn-dim)); }
-.viz-conn-running-running { background: var(--viz-running); }
-.viz-conn-pending-pending { background: var(--viz-conn-dim); }
+.viz-svg-conn {
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.viz-svg-conn-completed-completed { stroke: var(--viz-completed); opacity: 0.4; }
+.viz-svg-conn-completed-running { stroke: url(#conn-grad-cr); opacity: 0.5; }
+.viz-svg-conn-completed-pending { stroke: var(--viz-completed); opacity: 0.15; }
+.viz-svg-conn-running-pending { stroke: var(--viz-running); opacity: 0.15; }
+.viz-svg-conn-running-running { stroke: var(--viz-running); opacity: 0.4; }
+.viz-svg-conn-pending-pending { stroke: var(--viz-pending); opacity: 0.1; }
 
-/* ── Base node ──────────────────────────────────────────────── */
+/* ── Node (absolutely positioned in world) ──────────────────── */
 .viz-node {
+  position: absolute;
+  top: 0;
   width: 64px;
   height: 64px;
   border-radius: 50%;
@@ -163,15 +148,14 @@ body:not(.body-dark) .viz-overlay {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  position: relative;
-  flex-shrink: 0;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.2s, box-shadow 0.3s;
+  user-select: none;
 }
 
-.viz-node:hover { transform: scale(1.1); }
-.viz-node-selected { outline: 2px solid var(--viz-text-1); outline-offset: 3px; }
+.viz-node:hover { transform: scale(1.15); z-index: 1; }
+.viz-node-selected { outline: 2px solid var(--viz-text-1); outline-offset: 4px; z-index: 2; }
 
-/* ── Node states ────────────────────────────────────────────── */
+/* ── Node state styles ──────────────────────────────────────── */
 .viz-node-completed {
   background: var(--viz-completed-bg);
   border: 2px solid var(--viz-completed);
@@ -182,12 +166,23 @@ body:not(.body-dark) .viz-overlay {
   background: var(--viz-running-bg);
   border: 2px solid var(--viz-running);
   box-shadow: var(--viz-glow-running);
+  animation: viz-pulse 2s ease-in-out infinite, viz-glow-pulse 2s ease-in-out infinite;
 }
 
 .viz-node-pending {
   background: var(--viz-pending-bg);
   border: 1.5px dashed var(--viz-pending);
-  opacity: 0.6;
+  opacity: 0.5;
+}
+
+@keyframes viz-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+
+@keyframes viz-glow-pulse {
+  0%, 100% { box-shadow: var(--viz-glow-running); }
+  50% { box-shadow: 0 0 30px rgba(52, 211, 153, 0.6), 0 0 60px rgba(52, 211, 153, 0.2); }
 }
 
 /* ── Orbital mode ───────────────────────────────────────────── */
@@ -195,39 +190,42 @@ body:not(.body-dark) .viz-overlay {
 
 .viz-orbital-ring {
   position: absolute;
-  inset: -6px;
+  inset: -8px;
   border-radius: 50%;
   border: 1px solid currentColor;
-  opacity: 0.2;
+  opacity: 0.15;
   pointer-events: none;
+  animation: viz-ring-spin 12s linear infinite;
 }
-
 .viz-orbital-ring-outer {
-  inset: -12px;
-  opacity: 0.1;
+  inset: -16px;
+  opacity: 0.08;
+  animation-duration: 20s;
+  animation-direction: reverse;
 }
 
-.viz-node-completed .viz-orbital-ring { color: var(--viz-completed); opacity: 0.3; }
-.viz-node-running .viz-orbital-ring { color: var(--viz-running); opacity: 0.35; }
-.viz-node-pending .viz-orbital-ring { opacity: 0.1; }
+@keyframes viz-ring-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.viz-node-completed .viz-orbital-ring { color: var(--viz-completed); opacity: 0.25; }
+.viz-node-running .viz-orbital-ring { color: var(--viz-running); opacity: 0.3; }
 
 .viz-orbital-core {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  background: currentColor;
 }
-
-.viz-node-completed .viz-orbital-core { background: var(--viz-completed); box-shadow: 0 0 8px var(--viz-completed); }
-.viz-node-running .viz-orbital-core { background: var(--viz-running); box-shadow: 0 0 10px var(--viz-running); }
-.viz-node-pending .viz-orbital-core { background: var(--viz-pending); opacity: 0.5; }
+.viz-node-completed .viz-orbital-core { background: var(--viz-completed); box-shadow: 0 0 10px var(--viz-completed); }
+.viz-node-running .viz-orbital-core { background: var(--viz-running); box-shadow: 0 0 12px var(--viz-running); }
+.viz-node-pending .viz-orbital-core { background: var(--viz-pending); opacity: 0.4; }
 
 /* ── Tactical mode ──────────────────────────────────────────── */
 .viz-node-tactical {
   border-radius: 0;
   clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
 }
-
 .viz-node-tactical .viz-orbital-ring,
 .viz-node-tactical .viz-orbital-ring-outer,
 .viz-node-tactical .viz-orbital-core { display: none; }
@@ -237,7 +235,6 @@ body:not(.body-dark) .viz-overlay {
   font-size: 16px;
   font-weight: 700;
 }
-
 .viz-node-completed .viz-tactical-num { color: var(--viz-completed); }
 .viz-node-running .viz-tactical-num { color: var(--viz-running); }
 .viz-node-pending .viz-tactical-num { color: var(--viz-pending); }
@@ -248,7 +245,6 @@ body:not(.body-dark) .viz-overlay {
   width: 80px;
   height: 56px;
 }
-
 .viz-node-circuit .viz-orbital-ring,
 .viz-node-circuit .viz-orbital-ring-outer,
 .viz-node-circuit .viz-orbital-core { display: none; }
@@ -260,10 +256,8 @@ body:not(.body-dark) .viz-overlay {
   top: 50%;
   transform: translateY(-50%);
 }
-
 .viz-circuit-pin-left { left: -4px; }
 .viz-circuit-pin-right { right: -4px; }
-
 .viz-node-completed .viz-circuit-pin { background: var(--viz-completed); }
 .viz-node-running .viz-circuit-pin { background: var(--viz-running); }
 .viz-node-pending .viz-circuit-pin { background: var(--viz-pending); opacity: 0.3; }
@@ -277,67 +271,53 @@ body:not(.body-dark) .viz-overlay {
   border-radius: 50%;
   background: var(--viz-running);
   box-shadow: 0 0 6px var(--viz-running);
+  animation: viz-led-blink 1s ease-in-out infinite;
+}
+@keyframes viz-led-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
-/* ── Labels ─────────────────────────────────────────────────── */
+/* ── Node label (only on hover/select) ──────────────────────── */
 .viz-node-label {
   position: absolute;
-  top: calc(100% + 10px);
+  top: calc(100% + 12px);
   left: 50%;
   transform: translateX(-50%);
   text-align: center;
   white-space: nowrap;
   pointer-events: none;
+  animation: viz-fade-in 0.15s ease-out;
+}
+
+@keyframes viz-fade-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.viz-node-label {
+  background: var(--viz-surface);
+  border: 1px solid var(--viz-border);
+  padding: 6px 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 
 .viz-node-title {
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   font-weight: 500;
   color: var(--viz-text-1);
-  max-width: 120px;
+  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
   font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 .viz-node-meta {
-  font-size: 0.64rem;
+  font-size: 0.66rem;
   color: var(--viz-text-3);
   margin-top: 2px;
   font-family: var(--vp-font-family-mono, monospace);
 }
-
-/* ── Tooltip ────────────────────────────────────────────────── */
-.viz-tooltip {
-  position: absolute;
-  bottom: calc(100% + 14px);
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--viz-surface);
-  border: 1px solid var(--viz-border);
-  padding: 8px 12px;
-  white-space: nowrap;
-  z-index: 10;
-  pointer-events: none;
-  box-shadow: var(--vp-shadow, 0 2px 8px rgba(0,0,0,0.15));
-}
-
-.viz-tooltip-title {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--viz-text-1);
-  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
-}
-
-.viz-tooltip-meta {
-  font-size: 0.68rem;
-  color: var(--viz-text-3);
-  margin-top: 2px;
-  font-family: var(--vp-font-family-mono, monospace);
-}
-
-.viz-node-completed + .viz-node-label .viz-tooltip { border-left: 3px solid var(--viz-completed); }
-.viz-node-running + .viz-node-label .viz-tooltip { border-left: 3px solid var(--viz-running); }
 
 /* ── Detail modal ───────────────────────────────────────────── */
 .viz-modal-overlay {
@@ -357,6 +337,12 @@ body:not(.body-dark) .viz-overlay {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  animation: viz-modal-slide 0.25s ease-out;
+}
+
+@keyframes viz-modal-slide {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }
 
 .viz-modal-header {
@@ -381,7 +367,6 @@ body:not(.body-dark) .viz-overlay {
   color: var(--viz-text-3);
   font-size: 0.72rem;
   margin-top: 3px;
-  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 .viz-modal-close {
@@ -400,20 +385,12 @@ body:not(.body-dark) .viz-overlay {
   justify-content: center;
   transition: background-color 0.1s, color 0.1s;
 }
-
 .viz-modal-close:hover {
   background: var(--viz-surface-2);
   color: var(--viz-text-1);
 }
 
-.viz-modal-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-  flex-shrink: 0;
-}
-
+.viz-modal-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
 .viz-dot-completed { background: var(--viz-completed); }
 .viz-dot-running { background: var(--viz-running); }
 .viz-dot-pending { background: var(--viz-pending); }
@@ -429,30 +406,16 @@ body:not(.body-dark) .viz-overlay {
 }
 
 .viz-modal-message { padding: 4px 0; color: var(--viz-text-1); }
-
 .viz-modal-command {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 0;
-  font-family: var(--vp-font-family-mono, monospace);
-  font-size: 0.78rem;
-  color: var(--viz-text-3);
+  display: flex; align-items: center; gap: 6px; padding: 3px 0;
+  font-family: var(--vp-font-family-mono, monospace); font-size: 0.78rem; color: var(--viz-text-3);
 }
-
 .viz-modal-prefix { color: var(--viz-text-3); opacity: 0.6; }
 .viz-modal-status.is-done { color: #24a148; margin-left: auto; }
 .viz-modal-status.is-failed { color: #da1e28; margin-left: auto; }
-
 .viz-modal-file { padding: 2px 0; font-size: 0.76rem; color: var(--viz-text-3); }
 .viz-modal-file-label { color: #a56eff; font-size: 0.72rem; margin-right: 4px; }
 .viz-modal-error { color: #da1e28; padding: 3px 0; font-size: 0.78rem; }
 .viz-modal-status-row { color: var(--viz-text-3); font-size: 0.72rem; padding: 2px 0; }
 .viz-modal-empty { color: var(--viz-text-3); text-align: center; padding: 24px; }
-
-.viz-modal-summary {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--viz-border);
-  color: var(--viz-text-2);
-}
+.viz-modal-summary { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--viz-border); color: var(--viz-text-2); }
