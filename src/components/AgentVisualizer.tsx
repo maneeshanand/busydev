@@ -18,6 +18,44 @@ interface AgentVisualizerProps {
   onClose: () => void;
 }
 
+function matchPrompt(prompt: string, todoText: string): boolean {
+  const pl = prompt.toLowerCase();
+  const tl = todoText.toLowerCase();
+  if (pl.includes(tl)) return true;
+  const stripped = pl.replace(/^todo #\d+:\s*/, "");
+  return stripped.length > 0 && tl.includes(stripped);
+}
+
+/** Get the freshest run data for the selected node (avoids stale memo snapshots for live streams). */
+function getSelectedRun(
+  node: { todo: TodoItem; run?: PersistedRun },
+  _index: number,
+  runs: PersistedRun[],
+  inFlightRuns?: Record<string, InFlightRun>,
+): PersistedRun | undefined {
+  // First check persisted runs
+  const persisted = runs.find((r) => matchPrompt(r.prompt, node.todo.text));
+  if (persisted) return persisted;
+
+  // Then check live in-flight runs (always fresh, not from memo)
+  if (inFlightRuns) {
+    const live = Object.values(inFlightRuns).find((r) => matchPrompt(r.prompt, node.todo.text));
+    if (live) {
+      return {
+        id: live.id,
+        prompt: live.prompt,
+        streamRows: live.streamRows,
+        exitCode: null,
+        durationMs: 0,
+        finalSummary: "",
+      };
+    }
+  }
+
+  // Fall back to whatever the memo captured
+  return node.run;
+}
+
 export function AgentVisualizer({ todos, runs, inFlightRuns, running, onClose }: AgentVisualizerProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -36,35 +74,9 @@ export function AgentVisualizer({ todos, runs, inFlightRuns, running, onClose }:
         state = "pending";
       }
 
-      // Match a run to this todo for the event stream detail view.
-      // Check both persisted runs and in-flight runs.
-      const todoTextLower = todo.text.toLowerCase();
-      const matchPrompt = (p: string) => {
-        const pl = p.toLowerCase();
-        if (pl.includes(todoTextLower)) return true;
-        const stripped = pl.replace(/^todo #\d+:\s*/, "");
-        if (stripped && todoTextLower.includes(stripped)) return true;
-        return false;
-      };
-
-      // Check persisted runs first (completed)
-      let run: PersistedRun | undefined = runs.find((r) => matchPrompt(r.prompt));
-
-      // If no persisted run, check in-flight runs (live streaming)
-      if (!run && inFlightRuns) {
-        const liveRun = Object.values(inFlightRuns).find((r) => matchPrompt(r.prompt));
-        if (liveRun) {
-          // Create a synthetic PersistedRun from the in-flight data
-          run = {
-            id: liveRun.id,
-            prompt: liveRun.prompt,
-            streamRows: liveRun.streamRows,
-            exitCode: null,
-            durationMs: 0,
-            finalSummary: "",
-          };
-        }
-      }
+      // Match a run to this todo for the tooltip (tool count, duration).
+      // The detail modal uses getSelectedRun() for fresh data instead.
+      const run = runs.find((r) => matchPrompt(r.prompt, todo.text));
 
       return {
         todo,
@@ -77,7 +89,7 @@ export function AgentVisualizer({ todos, runs, inFlightRuns, running, onClose }:
         ] as [number, number, number],
       };
     });
-  }, [todos, runs, inFlightRuns, running]);
+  }, [todos, runs, running]);
 
   const chainCenter = useMemo<[number, number, number]>(() => {
     if (nodes.length === 0) return [0, 0, 0];
@@ -187,7 +199,7 @@ export function AgentVisualizer({ todos, runs, inFlightRuns, running, onClose }:
       {selectedIndex !== null && nodes[selectedIndex] && (
         <TaskDetailModal
           todo={nodes[selectedIndex].todo}
-          run={nodes[selectedIndex].run}
+          run={getSelectedRun(nodes[selectedIndex], selectedIndex, runs, inFlightRuns)}
           index={selectedIndex}
           onClose={() => setSelectedIndex(null)}
         />
