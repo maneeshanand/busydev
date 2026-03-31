@@ -23,6 +23,7 @@ import { mergeWithPresets, findAgentBySlug, buildAgentRoster, agentSlug } from "
 import { agentIconLabel } from "./components/AgentIcon";
 import { ProjectNavigator } from "./components/ProjectNavigator";
 import { TodoPanel } from "./components/TodoPanel";
+import { AgentVisualizer } from "./components/AgentVisualizer";
 import { ResizeHandle } from "./components/ResizeHandle";
 import { SettingsView, type SectionId } from "./components/SettingsView";
 import { SETTINGS_VERSION, migrateStoredSettings, type StoredSettings } from "./lib/settings";
@@ -897,6 +898,7 @@ function App() {
   const [todoPanelOpen] = useState(true);
   const [confirmTodoMode, setConfirmTodoMode] = useState(false);
   const [confirmClearTodos, setConfirmClearTodos] = useState(false);
+  const [visualizerOpen, setVisualizerOpen] = useState(false);
   const rightCollapsed = !todoPanelOpen;
 
   // Keep refs current so async run completions don't rely on stale render state.
@@ -2742,6 +2744,7 @@ ${contents}`);
               }
             }}
             onClearTodos={() => todos.length > 0 ? setConfirmClearTodos(true) : handleClearTodos()}
+            onVisualize={() => setVisualizerOpen(true)}
             onSaveTodos={handleSaveTodos}
             onArchiveTodos={handleArchiveTodos}
             onDeleteArchive={handleDeleteArchive}
@@ -2850,6 +2853,15 @@ ADD_TODO: step three description`);
         />
       )}
       <NotificationToasts onNavigate={navigateToSession} />
+      {visualizerOpen && (
+        <AgentVisualizer
+          todos={todos}
+          runs={activeSession?.runs ?? []}
+          inFlightRuns={inFlightRuns}
+          running={sessionRunning}
+          onClose={() => setVisualizerOpen(false)}
+        />
+      )}
     </div>
   );
 }
