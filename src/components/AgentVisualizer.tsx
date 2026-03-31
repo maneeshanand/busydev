@@ -1,14 +1,9 @@
-import { useState, useMemo, useCallback } from "react";
-import { Canvas } from "@react-three/fiber";
-import { Stars } from "@react-three/drei";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import type { TodoItem, PersistedRun, InFlightRun } from "../types";
-import { TaskNode, type VisualMode } from "./visualizer/TaskNode";
-import { TaskConnection } from "./visualizer/TaskConnection";
-import { TaskTooltip } from "./visualizer/TaskTooltip";
 import { TaskDetailModal } from "./visualizer/TaskDetailModal";
-import { CameraController } from "./visualizer/CameraController";
-import { Constellations } from "./visualizer/Constellations";
 import "./AgentVisualizer.css";
+
+export type VisualMode = "orbital" | "tactical" | "circuit";
 
 interface AgentVisualizerProps {
   todos: TodoItem[];
@@ -26,20 +21,15 @@ function matchPrompt(prompt: string, todoText: string): boolean {
   return stripped.length > 0 && tl.includes(stripped);
 }
 
-/** Get the freshest run data for the selected node (avoids stale memo snapshots for live streams). */
 function getSelectedRun(
-  node: { todo: TodoItem; run?: PersistedRun },
-  _index: number,
+  todo: TodoItem,
   runs: PersistedRun[],
   inFlightRuns?: Record<string, InFlightRun>,
 ): PersistedRun | undefined {
-  // First check persisted runs
-  const persisted = runs.find((r) => matchPrompt(r.prompt, node.todo.text));
+  const persisted = runs.find((r) => matchPrompt(r.prompt, todo.text));
   if (persisted) return persisted;
-
-  // Then check live in-flight runs (always fresh, not from memo)
   if (inFlightRuns) {
-    const live = Object.values(inFlightRuns).find((r) => matchPrompt(r.prompt, node.todo.text));
+    const live = Object.values(inFlightRuns).find((r) => matchPrompt(r.prompt, todo.text));
     if (live) {
       return {
         id: live.id,
@@ -51,18 +41,37 @@ function getSelectedRun(
       };
     }
   }
+  return undefined;
+}
 
-  // Fall back to whatever the memo captured
-  return node.run;
+interface NodeData {
+  todo: TodoItem;
+  run?: PersistedRun;
+  state: "completed" | "running" | "pending";
+  toolCalls: number;
+  durationMs: number;
 }
 
 export function AgentVisualizer({ todos, runs, inFlightRuns, running, onClose }: AgentVisualizerProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [visualMode, setVisualMode] = useState<VisualMode>("orbital");
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [pulsePhase, setPulsePhase] = useState(0);
 
-  const nodes = useMemo(() => {
-    // The first non-done todo is "running" if the session has an active agent
+  // Animate pulse for running nodes
+  useEffect(() => {
+    if (!running) return;
+    let raf: number;
+    const tick = () => {
+      setPulsePhase(Date.now() / 500);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [running]);
+
+  const nodes: NodeData[] = useMemo(() => {
     const firstPendingIdx = todos.findIndex((t) => !t.done);
     return todos.map((todo, i) => {
       let state: "completed" | "running" | "pending";
@@ -73,33 +82,11 @@ export function AgentVisualizer({ todos, runs, inFlightRuns, running, onClose }:
       } else {
         state = "pending";
       }
-
-      // Match a run to this todo for the tooltip (tool count, duration).
-      // The detail modal uses getSelectedRun() for fresh data instead.
       const run = runs.find((r) => matchPrompt(r.prompt, todo.text));
-
-      return {
-        todo,
-        run,
-        state,
-        position: [
-          i * 4,
-          Math.sin(i * 0.8) * 1.2,
-          Math.cos(i * 1.1) * 0.8,
-        ] as [number, number, number],
-      };
+      const toolCalls = run?.streamRows.filter((r) => r.category === "command").length ?? 0;
+      return { todo, run, state, toolCalls, durationMs: run?.durationMs ?? 0 };
     });
   }, [todos, runs, running]);
-
-  const chainCenter = useMemo<[number, number, number]>(() => {
-    if (nodes.length === 0) return [0, 0, 0];
-    const midIdx = Math.floor(nodes.length / 2);
-    return nodes[midIdx].position;
-  }, [nodes]);
-
-  const selectedTarget = selectedIndex !== null && nodes[selectedIndex]
-    ? nodes[selectedIndex].position
-    : null;
 
   const handleClose = useCallback(() => {
     setSelectedIndex(null);
@@ -117,89 +104,105 @@ export function AgentVisualizer({ todos, runs, inFlightRuns, running, onClose }:
     }
   }, [selectedIndex, handleClose]);
 
+  const completedCount = nodes.filter((n) => n.state === "completed").length;
+
   return (
     <div className="viz-overlay" onKeyDown={handleKeyDown} tabIndex={0}>
-      <button type="button" className="viz-back" onClick={handleClose}>
-        ← Back
-      </button>
-      <div className="viz-controls">
-        <select
-          className="viz-mode-select"
-          value={visualMode}
-          onChange={(e) => setVisualMode(e.target.value as VisualMode)}
-        >
-          <option value="orbital">Orbital Rings</option>
-          <option value="tactical">Tactical HUD</option>
-          <option value="circuit">Circuit Board</option>
-        </select>
-        <span className="viz-info-text">
-          {nodes.filter((n) => n.state === "completed").length}/{nodes.length} completed
-        </span>
+      <div className="viz-toolbar">
+        <button type="button" className="viz-back" onClick={handleClose}>
+          ← Back
+        </button>
+        <div className="viz-controls">
+          <select
+            className="viz-mode-select"
+            value={visualMode}
+            onChange={(e) => setVisualMode(e.target.value as VisualMode)}
+          >
+            <option value="orbital">Orbital</option>
+            <option value="tactical">Tactical</option>
+            <option value="circuit">Circuit</option>
+          </select>
+          <span className="viz-info-text">
+            {completedCount}/{nodes.length} completed
+          </span>
+        </div>
       </div>
 
-      <Canvas
-        camera={{
-          position: [
-            chainCenter[0],
-            chainCenter[1] + 3,
-            chainCenter[2] + Math.max(12, nodes.length * 2.5),
-          ],
-          fov: 50,
-          near: 0.1,
-          far: 500,
-        }}
-        style={{ background: "#0a0a1a" }}
-      >
-        <ambientLight intensity={0.15} />
+      <div className="viz-canvas" ref={scrollRef}>
+        <div className="viz-chain" style={{ minWidth: Math.max(600, nodes.length * 160) }}>
+          {nodes.map((node, i) => {
+            const isHovered = hoveredIndex === i;
+            const isSelected = selectedIndex === i;
+            const pulseScale = node.state === "running" ? 1 + Math.sin(pulsePhase) * 0.12 : 1;
 
-        <Stars radius={100} depth={60} count={1200} factor={3} saturation={0} fade speed={0.5} />
-        <Constellations count={14} radius={80} />
+            return (
+              <div key={node.todo.id} className="viz-node-group">
+                {/* Connection line (not for first) */}
+                {i > 0 && (
+                  <div className={`viz-connection viz-conn-${nodes[i - 1].state}-${node.state}`} />
+                )}
 
-        <CameraController target={selectedTarget} chainCenter={chainCenter} />
+                {/* Node */}
+                <div
+                  className={`viz-node viz-node-${node.state} viz-node-${visualMode} ${isHovered ? "viz-node-hovered" : ""} ${isSelected ? "viz-node-selected" : ""}`}
+                  style={node.state === "running" ? { transform: `scale(${pulseScale})` } : undefined}
+                  onMouseEnter={() => setHoveredIndex(i)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                  onClick={() => setSelectedIndex(i)}
+                >
+                  {/* Mode-specific inner content */}
+                  {visualMode === "orbital" && (
+                    <>
+                      <div className="viz-orbital-ring" />
+                      <div className="viz-orbital-ring viz-orbital-ring-outer" />
+                      <div className="viz-orbital-core" />
+                    </>
+                  )}
+                  {visualMode === "tactical" && (
+                    <span className="viz-tactical-num">{String(i + 1).padStart(2, "0")}</span>
+                  )}
+                  {visualMode === "circuit" && (
+                    <>
+                      <div className="viz-circuit-pin viz-circuit-pin-left" />
+                      <div className="viz-circuit-pin viz-circuit-pin-right" />
+                      {node.state === "running" && <div className="viz-circuit-led" />}
+                    </>
+                  )}
+                </div>
 
-        {nodes.map((node, i) => (
-          <TaskNode
-            key={node.todo.id}
-            position={node.position}
-            state={node.state}
-            index={i}
-            mode={visualMode}
-            label={node.todo.text}
-            toolCalls={node.run?.streamRows.filter((r) => r.category === "command").length}
-            durationMs={node.run?.durationMs}
-            onPointerOver={() => setHoveredIndex(i)}
-            onPointerOut={() => setHoveredIndex(null)}
-            onClick={() => setSelectedIndex(i)}
-          />
-        ))}
+                {/* Label */}
+                <div className="viz-node-label">
+                  <div className="viz-node-title">
+                    {node.todo.text.length > 28 ? node.todo.text.slice(0, 28) + "..." : node.todo.text}
+                  </div>
+                  <div className="viz-node-meta">
+                    {node.state === "completed" ? "Done" : node.state === "running" ? "Running" : "Pending"}
+                    {node.toolCalls > 0 && ` · ${node.toolCalls} tools`}
+                    {node.durationMs > 0 && ` · ${(node.durationMs / 1000).toFixed(1)}s`}
+                  </div>
+                </div>
 
-        {nodes.map((node, i) => {
-          if (i === 0) return null;
-          return (
-            <TaskConnection
-              key={`conn-${i}`}
-              from={nodes[i - 1].position}
-              to={node.position}
-              fromState={nodes[i - 1].state}
-              toState={node.state}
-            />
-          );
-        })}
-
-        {hoveredIndex !== null && nodes[hoveredIndex] && (
-          <TaskTooltip
-            position={nodes[hoveredIndex].position}
-            todo={nodes[hoveredIndex].todo}
-            run={nodes[hoveredIndex].run}
-            index={hoveredIndex}
-          />
-        )}
-      </Canvas>
+                {/* Tooltip on hover */}
+                {isHovered && (
+                  <div className="viz-tooltip">
+                    <div className="viz-tooltip-title">Task {i + 1}: {node.todo.text}</div>
+                    <div className="viz-tooltip-meta">
+                      {node.state === "completed" ? "Completed" : node.state === "running" ? "In Progress" : "Pending"}
+                      {node.toolCalls > 0 && ` · ${node.toolCalls} tool calls`}
+                      {node.durationMs > 0 && ` · ${(node.durationMs / 1000).toFixed(1)}s`}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {selectedIndex !== null && nodes[selectedIndex] && (
         <TaskDetailModal
           todo={nodes[selectedIndex].todo}
-          run={getSelectedRun(nodes[selectedIndex], selectedIndex, runs, inFlightRuns)}
+          run={getSelectedRun(nodes[selectedIndex].todo, runs, inFlightRuns)}
           index={selectedIndex}
           onClose={() => setSelectedIndex(null)}
         />
