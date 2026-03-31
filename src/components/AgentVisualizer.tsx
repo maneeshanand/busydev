@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Stars } from "@react-three/drei";
-import type { TodoItem, PersistedRun } from "../types";
+import type { TodoItem, PersistedRun, InFlightRun } from "../types";
 import { TaskNode, type VisualMode } from "./visualizer/TaskNode";
 import { TaskConnection } from "./visualizer/TaskConnection";
 import { TaskTooltip } from "./visualizer/TaskTooltip";
@@ -13,11 +13,12 @@ import "./AgentVisualizer.css";
 interface AgentVisualizerProps {
   todos: TodoItem[];
   runs: PersistedRun[];
+  inFlightRuns?: Record<string, InFlightRun>;
   running?: boolean;
   onClose: () => void;
 }
 
-export function AgentVisualizer({ todos, runs, running, onClose }: AgentVisualizerProps) {
+export function AgentVisualizer({ todos, runs, inFlightRuns, running, onClose }: AgentVisualizerProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [visualMode, setVisualMode] = useState<VisualMode>("orbital");
@@ -36,17 +37,34 @@ export function AgentVisualizer({ todos, runs, running, onClose }: AgentVisualiz
       }
 
       // Match a run to this todo for the event stream detail view.
-      // Display prompt format: "Todo #N: <text>" or raw user prompt.
+      // Check both persisted runs and in-flight runs.
       const todoTextLower = todo.text.toLowerCase();
-      const run = runs.find((r) => {
-        const p = r.prompt.toLowerCase();
-        // Direct text match
-        if (p.includes(todoTextLower)) return true;
-        // Strip "Todo #N: " prefix and match remainder against todo text
-        const stripped = p.replace(/^todo #\d+:\s*/, "");
+      const matchPrompt = (p: string) => {
+        const pl = p.toLowerCase();
+        if (pl.includes(todoTextLower)) return true;
+        const stripped = pl.replace(/^todo #\d+:\s*/, "");
         if (stripped && todoTextLower.includes(stripped)) return true;
         return false;
-      });
+      };
+
+      // Check persisted runs first (completed)
+      let run: PersistedRun | undefined = runs.find((r) => matchPrompt(r.prompt));
+
+      // If no persisted run, check in-flight runs (live streaming)
+      if (!run && inFlightRuns) {
+        const liveRun = Object.values(inFlightRuns).find((r) => matchPrompt(r.prompt));
+        if (liveRun) {
+          // Create a synthetic PersistedRun from the in-flight data
+          run = {
+            id: liveRun.id,
+            prompt: liveRun.prompt,
+            streamRows: liveRun.streamRows,
+            exitCode: null,
+            durationMs: 0,
+            finalSummary: "",
+          };
+        }
+      }
 
       return {
         todo,
@@ -59,7 +77,7 @@ export function AgentVisualizer({ todos, runs, running, onClose }: AgentVisualiz
         ] as [number, number, number],
       };
     });
-  }, [todos, runs, running]);
+  }, [todos, runs, inFlightRuns, running]);
 
   const chainCenter = useMemo<[number, number, number]>(() => {
     if (nodes.length === 0) return [0, 0, 0];
