@@ -1570,10 +1570,11 @@ ${contents}`);
   // Switching just resets ephemeral UI state; derived values auto-update from projects.
 
   function resetEphemeralState() {
+    // Clear stream-related state immediately to prevent stale data flash
+    setActiveTabId(null);
+    setError(null);
     setTransitioning(true);
     setTimeout(() => {
-      setActiveTabId(null);
-      setError(null);
       setPrompt("");
       setPromptHistory([]);
       setHistoryIndex(-1);
