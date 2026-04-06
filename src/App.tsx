@@ -2867,12 +2867,12 @@ ${contents}`);
           </div>
         )}
 
-        {!rightCollapsed && (
+        {!rightCollapsed && !wizardOpen && (
           <ResizeHandle side="right" onResize={handleRightResize} onResizeEnd={handleResizeEnd} />
         )}
         <div
-          className={`session-todo ${rightCollapsed ? "session-todo-collapsed" : ""}`}
-          style={rightCollapsed ? undefined : { width: rightPanelWidth }}
+          className={`session-todo ${rightCollapsed || wizardOpen ? "session-todo-collapsed" : ""}`}
+          style={rightCollapsed || wizardOpen ? undefined : { width: rightPanelWidth }}
         >
             <TodoPanel
             todos={todos}
