@@ -543,13 +543,6 @@ button:disabled {
   cursor: help;
 }
 
-.session-tab-group {
-  margin-left: 4px;
-  font-size: 0.7rem;
-  color: var(--vp-c-brand-1);
-  opacity: 0.7;
-}
-
 .bell-wrapper {
   position: relative;
 }
