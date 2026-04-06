@@ -903,6 +903,7 @@ function App() {
   const [visualizerOpen, setVisualizerOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardGenerating, setWizardGenerating] = useState(false);
+  const wizardGeneratingRef = useRef(false);
   const [wizardSteps, setWizardSteps] = useState<{ text: string; agentSlug: string }[] | null>(null);
   const [wizardBranch, setWizardBranch] = useState<string | null>(null);
   const rightCollapsed = !todoPanelOpen;
@@ -1306,7 +1307,7 @@ function App() {
 
   async function handleWizardGenerate(description: string) {
     if (!activeProjectId || !activeProject) return;
-    setWizardGenerating(true);
+    setWizardGenerating(true); wizardGeneratingRef.current = true;
     setWizardSteps(null);
     setWizardBranch(null);
 
@@ -1645,7 +1646,7 @@ ${contents}`);
     setWizardOpen(true);
     setWizardSteps(null);
     setWizardBranch(null);
-    setWizardGenerating(false);
+    setWizardGenerating(false); wizardGeneratingRef.current = false;
   }
 
   async function handleQuickSession() {
@@ -1740,7 +1741,7 @@ ${contents}`);
     setWizardOpen(false);
     setWizardSteps(null);
     setWizardBranch(null);
-    setWizardGenerating(false);
+    setWizardGenerating(false); wizardGeneratingRef.current = false;
     resetEphemeralState();
   }
 
@@ -2079,13 +2080,13 @@ ${contents}`);
         }
 
         // If wizard is generating, capture the results instead of just adding todos
-        if (wizardGenerating && newTodoAdditions.length > 0) {
+        if (wizardGeneratingRef.current && newTodoAdditions.length > 0) {
           setWizardSteps(newTodoAdditions.map((a) => ({ text: a.text, agentSlug: a.agentSlug ?? "" })));
           // Extract BRANCH: from the agent's last message
           const lastMsg = getAdapter(runAgentMapRef.current[runId]).extractLastMessage(out.parsedJson);
           const branchMatch = lastMsg?.match(/^BRANCH:\s*(.+)$/m);
           setWizardBranch(branchMatch ? branchMatch[1].trim() : null);
-          setWizardGenerating(false);
+          setWizardGenerating(false); wizardGeneratingRef.current = false;
         }
 
         // Track retries per todo for auto-play loop guard (only relevant in todoMode)
