@@ -574,4 +574,95 @@ describe("migrateStoredSettings", () => {
     expect(migrated?.busyAgents).toHaveLength(1);
     expect(migrated?.busyAgents[0].name).toBe("Good");
   });
+
+  describe("WizardPlan sanitization", () => {
+    const baseProject = (sessions: unknown[]) => ({
+      projects: [{
+        id: "p1", name: "P", path: "/tmp/p", createdAt: Date.now(),
+        activeSessionId: "s1",
+        sessions,
+      }],
+    });
+
+    const baseSession = (extras: Record<string, unknown> = {}) => ({
+      id: "s1", projectId: "p1", name: "S1", createdAt: Date.now(),
+      runs: [], todos: [],
+      ...extras,
+    });
+
+    it("preserves valid wizardPlan through sanitization", () => {
+      const migrated = migrateStoredSettings(baseProject([
+        baseSession({
+          wizardPlan: {
+            description: "Build auth flow",
+            branch: "feat/auth",
+            createdAt: 1000,
+            steps: [
+              { text: "Scaffold routes", notes: "Use React Router", agentSlug: "codex" },
+              { text: "Add login form", notes: "", agentSlug: "claude" },
+            ],
+          },
+        }),
+      ]));
+
+      const session = migrated!.projects[0].sessions[0];
+      expect(session.wizardPlan).toBeDefined();
+      expect(session.wizardPlan!.description).toBe("Build auth flow");
+      expect(session.wizardPlan!.branch).toBe("feat/auth");
+      expect(session.wizardPlan!.createdAt).toBe(1000);
+      expect(session.wizardPlan!.steps).toHaveLength(2);
+      expect(session.wizardPlan!.steps[0].text).toBe("Scaffold routes");
+      expect(session.wizardPlan!.steps[0].notes).toBe("Use React Router");
+      expect(session.wizardPlan!.steps[0].agentSlug).toBe("codex");
+      expect(session.wizardPlan!.steps[1].text).toBe("Add login form");
+    });
+
+    it("returns undefined for wizardPlan missing description or createdAt", () => {
+      const missingDescription = migrateStoredSettings(baseProject([
+        baseSession({
+          wizardPlan: { branch: "feat/auth", createdAt: 1000, steps: [] },
+        }),
+      ]));
+      expect(missingDescription!.projects[0].sessions[0].wizardPlan).toBeUndefined();
+
+      const missingCreatedAt = migrateStoredSettings(baseProject([
+        baseSession({
+          wizardPlan: { description: "Do something", branch: "feat/x", steps: [] },
+        }),
+      ]));
+      expect(missingCreatedAt!.projects[0].sessions[0].wizardPlan).toBeUndefined();
+    });
+
+    it("filters out steps with empty text", () => {
+      const migrated = migrateStoredSettings(baseProject([
+        baseSession({
+          wizardPlan: {
+            description: "Feature work",
+            branch: "feat/x",
+            createdAt: 2000,
+            steps: [
+              { text: "Valid step", notes: "note", agentSlug: "codex" },
+              { text: "", notes: "no text", agentSlug: "claude" },
+              { text: "Another valid step", notes: "", agentSlug: "" },
+              "not-an-object",
+            ],
+          },
+        }),
+      ]));
+
+      const plan = migrated!.projects[0].sessions[0].wizardPlan!;
+      expect(plan.steps).toHaveLength(2);
+      expect(plan.steps[0].text).toBe("Valid step");
+      expect(plan.steps[1].text).toBe("Another valid step");
+    });
+
+    it("defaults wizardPlan to undefined when not present on session", () => {
+      const migrated = migrateStoredSettings(baseProject([
+        baseSession(),
+      ]));
+
+      const session = migrated!.projects[0].sessions[0];
+      expect(session.wizardPlan).toBeUndefined();
+    });
+  });
 });

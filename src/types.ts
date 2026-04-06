@@ -108,6 +108,19 @@ export interface AgentGroup {
   createdAt: number;
 }
 
+export interface WizardPlanStep {
+  text: string;
+  notes: string;
+  agentSlug: string;
+}
+
+export interface WizardPlan {
+  description: string;
+  branch: string;
+  steps: WizardPlanStep[];
+  createdAt: number;
+}
+
 export interface LlmProvider {
   id: string;
   name: string;
@@ -135,6 +148,7 @@ export interface Session {
   todoArchives?: TodoArchive[];
   busyAgentId?: string;
   agentGroupId?: string;
+  wizardPlan?: WizardPlan;
 }
 
 export interface Project {

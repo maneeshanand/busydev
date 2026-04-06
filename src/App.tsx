@@ -53,6 +53,7 @@ import {
   normalizeAlias,
 } from "./lib/promptAliases";
 import { getRandomPhrase } from "./lib/wittyPhrases";
+import { SessionWizard, type WizardResult } from "./components/SessionWizard";
 
 function WrenchIcon() {
   return (
@@ -900,6 +901,10 @@ function App() {
   const [confirmTodoMode, setConfirmTodoMode] = useState(false);
   const [confirmClearTodos, setConfirmClearTodos] = useState(false);
   const [visualizerOpen, setVisualizerOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardGenerating, setWizardGenerating] = useState(false);
+  const [wizardSteps, setWizardSteps] = useState<{ text: string; agentSlug: string }[] | null>(null);
+  const [wizardBranch, setWizardBranch] = useState<string | null>(null);
   const rightCollapsed = !todoPanelOpen;
 
   // Keep refs current so async run completions don't rely on stale render state.
@@ -1298,6 +1303,32 @@ function App() {
     setAutoPlayTodos(false);
     setConfirmClearTodos(false);
   }
+
+  async function handleWizardGenerate(description: string) {
+    if (!activeProjectId || !activeProject) return;
+    setWizardGenerating(true);
+    setWizardSteps(null);
+    setWizardBranch(null);
+
+    const agentRoster = allAgents
+      .map((a) => `- ${agentSlug(a.name)}: ${a.role}`)
+      .join("\n");
+
+    void handleRun(`IMPORTANT: Do NOT ask questions, do NOT use skills, do NOT brainstorm. Just output a plan immediately.
+
+You are a technical project planner. Given a feature description and available agents, create a step-by-step execution plan.
+
+Available agents:
+${agentRoster}
+
+Output format — ONLY these lines, nothing else. No explanation, no questions, no preamble:
+BRANCH: suggested-branch-name
+ADD_TODO: [agent:slug] step description
+ADD_TODO: [agent:slug] step description
+
+Feature:
+${description}`);
+  }
   async function handleSaveTodos() {
     const filePath = await save({
       defaultPath: "todos.json",
@@ -1611,9 +1642,16 @@ ${contents}`);
 
   async function handleNewSession() {
     if (!activeProjectId || !activeProject) return;
+    setWizardOpen(true);
+    setWizardSteps(null);
+    setWizardBranch(null);
+    setWizardGenerating(false);
+  }
+
+  async function handleQuickSession() {
+    if (!activeProjectId || !activeProject) return;
     const session = makeSession(activeProjectId, activeProject.sessions.length);
 
-    // Create a git worktree for non-first sessions
     if (activeProject.sessions.length > 0) {
       try {
         const isGit = await isGitRepo(activeProject.path);
@@ -1637,6 +1675,72 @@ ${contents}`);
         ? { ...p, sessions: [...p.sessions, session], activeSessionId: session.id }
         : p
     ));
+    setWizardOpen(false);
+    resetEphemeralState();
+  }
+
+  async function handleWizardExecute(result: WizardResult) {
+    if (!activeProjectId || !activeProject) return;
+
+    const session = makeSession(activeProjectId, activeProject.sessions.length);
+    // Name the session from the branch
+    const branchName = result.branch.replace(/^feat\//, "").replace(/^fix\//, "").replace(/-/g, " ");
+    session.name = branchName.replace(/\b\w/g, (c) => c.toUpperCase()) || session.name;
+    session.agent = result.provider;
+    session.todoMode = true;
+    session.autoPlay = result.autoExecute;
+    session.wizardPlan = {
+      description: result.description,
+      branch: result.branch,
+      steps: result.steps.map((s) => ({
+        text: s.text,
+        notes: s.notes,
+        agentSlug: allAgents.find((a) => a.id === s.agentId) ? agentSlug(allAgents.find((a) => a.id === s.agentId)!.name) : "",
+      })),
+      createdAt: Date.now(),
+    };
+
+    // Populate todos from wizard steps
+    session.todos = result.steps.filter((s) => s.text.trim()).map((s) => ({
+      id: crypto.randomUUID(),
+      text: s.text,
+      done: false,
+      source: "agent" as const,
+      createdAt: Date.now(),
+      notes: s.notes || undefined,
+      busyAgentId: s.agentId || undefined,
+    }));
+
+    // Create worktree with wizard branch
+    if (activeProject.sessions.length > 0) {
+      try {
+        const isGit = await isGitRepo(activeProject.path);
+        if (isGit) {
+          const shortId = session.id.split("-")[0];
+          const branch = result.branch || `busydev/wizard-${shortId}`;
+          const projectSlug = activeProject.path.replace(/\//g, "-").replace(/^-/, "");
+          const wtPath = `/tmp/busydev-worktrees/${projectSlug}/${session.id}`;
+          await createWorktree(activeProject.path, wtPath, branch);
+          session.worktreePath = wtPath;
+          session.worktreeBranch = branch;
+        }
+      } catch (err) {
+        console.warn("Wizard worktree creation failed:", err);
+      }
+    }
+
+    // Clear wizard-generated todos from the current session
+    updateActiveSession((s) => ({ ...s, todos: [] }));
+
+    setProjects((prev) => prev.map((p) =>
+      p.id === activeProjectId
+        ? { ...p, sessions: [...p.sessions, session], activeSessionId: session.id }
+        : p
+    ));
+    setWizardOpen(false);
+    setWizardSteps(null);
+    setWizardBranch(null);
+    setWizardGenerating(false);
     resetEphemeralState();
   }
 
@@ -1972,6 +2076,16 @@ ${contents}`);
             ...s,
             todos: updatedOwnerTodos,
           }));
+        }
+
+        // If wizard is generating, capture the results instead of just adding todos
+        if (wizardGenerating && newTodoAdditions.length > 0) {
+          setWizardSteps(newTodoAdditions.map((a) => ({ text: a.text, agentSlug: a.agentSlug ?? "" })));
+          // Extract BRANCH: from the agent's last message
+          const lastMsg = getAdapter(runAgentMapRef.current[runId]).extractLastMessage(out.parsedJson);
+          const branchMatch = lastMsg?.match(/^BRANCH:\s*(.+)$/m);
+          setWizardBranch(branchMatch ? branchMatch[1].trim() : null);
+          setWizardGenerating(false);
         }
 
         // Track retries per todo for auto-play loop guard (only relevant in todoMode)
@@ -2418,6 +2532,21 @@ ${contents}`);
 
           <div className="session-workspace">
         <div className="session-main">
+        {wizardOpen ? (
+          <SessionWizard
+            busyAgents={allAgents}
+            providers={providers}
+            currentAgent={agent}
+            onQuickSession={handleQuickSession}
+            onGeneratePlan={handleWizardGenerate}
+            generatedSteps={wizardSteps}
+            generatedBranch={wizardBranch}
+            generating={wizardGenerating}
+            onExecute={handleWizardExecute}
+            onCancel={() => { setWizardOpen(false); setWizardSteps(null); setWizardBranch(null); }}
+          />
+        ) : (
+          <>
         {searchOpen && (
           <div className="search-bar">
             <svg viewBox="0 0 24 24" aria-hidden="true" className="search-icon">
@@ -2685,6 +2814,8 @@ ${contents}`);
             </div>
           </div>
         </div>
+          </>
+        )}
         </div>
         {/* end session-main */}
 

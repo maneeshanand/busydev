@@ -1,4 +1,4 @@
-import type { AgentGroup, BusyAgent, LlmProvider, PersistedRun, Project, SavedPromptEntry, Session, SubTask, TodoArchive, TodoItem } from "../types";
+import type { AgentGroup, BusyAgent, LlmProvider, PersistedRun, Project, SavedPromptEntry, Session, SubTask, TodoArchive, TodoItem, WizardPlan, WizardPlanStep } from "../types";
 
 export const SETTINGS_VERSION = 3;
 
@@ -246,6 +246,29 @@ function sanitizeBusyAgent(value: unknown): BusyAgent | null {
   };
 }
 
+function sanitizeWizardPlan(value: unknown): WizardPlan | undefined {
+  const obj = asObject(value);
+  if (!obj) return undefined;
+  const description = typeof obj.description === "string" ? obj.description : "";
+  const branch = typeof obj.branch === "string" ? obj.branch : "";
+  const createdAt = typeof obj.createdAt === "number" ? obj.createdAt : 0;
+  if (!description || !createdAt) return undefined;
+  const steps = Array.isArray(obj.steps)
+    ? obj.steps
+        .map((s) => {
+          const so = asObject(s);
+          if (!so) return null;
+          return {
+            text: typeof so.text === "string" ? so.text : "",
+            notes: typeof so.notes === "string" ? so.notes : "",
+            agentSlug: typeof so.agentSlug === "string" ? so.agentSlug : "",
+          };
+        })
+        .filter((s): s is WizardPlanStep => s !== null && s.text.length > 0)
+    : [];
+  return { description, branch, steps, createdAt };
+}
+
 function sanitizeAgentGroup(value: unknown): AgentGroup | null {
   const obj = asObject(value);
   if (!obj) return null;
@@ -284,6 +307,7 @@ function sanitizeSession(value: unknown, projectId: string, index: number): Sess
       : undefined,
     busyAgentId: typeof obj?.busyAgentId === "string" && obj.busyAgentId.trim() ? obj.busyAgentId.trim() : undefined,
     agentGroupId: typeof obj?.agentGroupId === "string" && obj.agentGroupId.trim() ? obj.agentGroupId.trim() : undefined,
+    wizardPlan: sanitizeWizardPlan(obj?.wizardPlan),
   };
 }
 
