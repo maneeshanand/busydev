@@ -100,6 +100,14 @@ export interface BusyAgent {
   updatedAt: number;
 }
 
+export interface AgentGroup {
+  id: string;
+  name: string;
+  agentIds: string[];
+  sharedContext: string;
+  createdAt: number;
+}
+
 export interface LlmProvider {
   id: string;
   name: string;
@@ -126,6 +134,8 @@ export interface Session {
   autoPlay?: boolean;
   todoArchives?: TodoArchive[];
   busyAgentId?: string;
+  groupId?: string;
+  groupContext?: string;
 }
 
 export interface Project {
@@ -135,4 +145,5 @@ export interface Project {
   createdAt: number;
   sessions: Session[];
   activeSessionId: string | null;
+  agentGroups?: AgentGroup[];
 }

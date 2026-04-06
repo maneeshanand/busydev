@@ -18,7 +18,7 @@ import {
   updateTrayBadge,
   type CodexStreamEvent,
 } from "./invoke";
-import type { BusyAgent, StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session, SavedPromptEntry, LlmProvider, TodoArchive } from "./types";
+import type { AgentGroup, BusyAgent, StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session, SavedPromptEntry, LlmProvider, TodoArchive } from "./types";
 import { mergeWithPresets, findAgentBySlug, buildAgentRoster, agentSlug } from "./lib/busyAgents";
 import { agentIconLabel } from "./components/AgentIcon";
 import { ProjectNavigator } from "./components/ProjectNavigator";
@@ -638,12 +638,13 @@ function NotificationPanel({ onClose, onNavigate }: { onClose: () => void; onNav
   );
 }
 
-function SessionTabs({ sessions, activeSessionId, sessionRunCounts, sessionAlerts, projectId, onSelect, onNew, onRename, onDelete }: {
+function SessionTabs({ sessions, activeSessionId, sessionRunCounts, sessionAlerts, projectId, agentGroups, onSelect, onNew, onRename, onDelete }: {
   sessions: Session[];
   activeSessionId: string | null;
   sessionRunCounts: Record<string, number>;
   sessionAlerts: Record<string, "done" | "approval">;
   projectId: string;
+  agentGroups: AgentGroup[];
   onSelect: (id: string) => void;
   onNew: () => void;
   onRename: (id: string, name: string) => void;
@@ -683,6 +684,10 @@ function SessionTabs({ sessions, activeSessionId, sessionRunCounts, sessionAlert
               {s.worktreeBranch && (
                 <span className="session-tab-branch" title={s.worktreeBranch}>⑂</span>
               )}
+              {s.groupId && (() => {
+                const groupName = agentGroups.find((g) => g.id === s.groupId)?.name;
+                return groupName ? <span className="session-tab-group" title={groupName}>⊕</span> : null;
+              })()}
               {(sessionRunCounts[`${projectId}:${s.id}`] ?? 0) > 0 && (
                 <span className="session-tab-spinner" />
               )}
@@ -1294,6 +1299,91 @@ function App() {
     setAutoPlayTodos(false);
     setConfirmClearTodos(false);
   }
+
+  function handleCreateGroup(name: string, agentIds: string[], sharedContext: string) {
+    if (!activeProjectId) return;
+    const group: AgentGroup = {
+      id: crypto.randomUUID(),
+      name,
+      agentIds,
+      sharedContext,
+      createdAt: Date.now(),
+    };
+    setProjects((prev) => prev.map((p) =>
+      p.id === activeProjectId
+        ? { ...p, agentGroups: [...(p.agentGroups ?? []), group] }
+        : p
+    ));
+  }
+
+  function handleUpdateGroup(groupId: string, updates: Partial<AgentGroup>) {
+    if (!activeProjectId) return;
+    setProjects((prev) => prev.map((p) =>
+      p.id === activeProjectId
+        ? { ...p, agentGroups: (p.agentGroups ?? []).map((g) => g.id === groupId ? { ...g, ...updates } : g) }
+        : p
+    ));
+  }
+
+  function handleDeleteGroup(groupId: string) {
+    if (!activeProjectId) return;
+    setProjects((prev) => prev.map((p) =>
+      p.id === activeProjectId
+        ? { ...p, agentGroups: (p.agentGroups ?? []).filter((g) => g.id !== groupId) }
+        : p
+    ));
+  }
+
+  async function handleActivateGroup(groupId: string) {
+    if (!activeProjectId || !activeProject) return;
+    const group = (activeProject.agentGroups ?? []).find((g) => g.id === groupId);
+    if (!group || group.agentIds.length === 0) return;
+
+    const newSessions: Session[] = [];
+    for (const agentId of group.agentIds) {
+      const ba = allAgents.find((a) => a.id === agentId);
+      if (!ba) continue;
+
+      const session = makeSession(activeProjectId, activeProject.sessions.length + newSessions.length);
+      session.name = ba.name;
+      session.busyAgentId = ba.id;
+      session.agent = ba.base;
+      session.model = ba.model;
+      session.approvalPolicy = ba.approvalPolicy;
+      session.sandboxMode = ba.sandboxMode;
+      session.groupId = group.id;
+      session.groupContext = group.sharedContext;
+
+      // Create worktree for each session
+      try {
+        const isGit = await isGitRepo(activeProject.path);
+        if (isGit) {
+          const shortId = session.id.split("-")[0];
+          const slug = ba.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+          const branch = `busydev/${slug}-${shortId}`;
+          const projectSlug = activeProject.path.replace(/\//g, "-").replace(/^-/, "");
+          const wtPath = `/tmp/busydev-worktrees/${projectSlug}/${session.id}`;
+          await createWorktree(activeProject.path, wtPath, branch);
+          session.worktreePath = wtPath;
+          session.worktreeBranch = branch;
+        }
+      } catch (err) {
+        console.warn(`Worktree creation failed for ${ba.name}:`, err);
+      }
+
+      newSessions.push(session);
+    }
+
+    if (newSessions.length === 0) return;
+
+    setProjects((prev) => prev.map((p) =>
+      p.id === activeProjectId
+        ? { ...p, sessions: [...p.sessions, ...newSessions], activeSessionId: newSessions[0].id }
+        : p
+    ));
+    resetEphemeralState();
+  }
+
   async function handleSaveTodos() {
     const filePath = await save({
       defaultPath: "todos.json",
@@ -1822,6 +1912,13 @@ ${contents}`);
 
     // Prepend system prompt from BusyAgent if available
     let systemPrompt = overrides?.systemPromptOverride || taggedBusyAgent?.systemPrompt || activeBusyAgent?.systemPrompt || "";
+    // Prepend group shared context if session was spawned from a group
+    const groupCtx = activeSession?.groupContext;
+    if (groupCtx) {
+      systemPrompt = systemPrompt
+        ? `${groupCtx}\n\n---\n\n${systemPrompt}`
+        : groupCtx;
+    }
     // Append dynamic agent roster for Tech Lead orchestration
     if (systemPrompt && systemPrompt.includes("[agent:")) {
       systemPrompt += `\n\n${buildAgentRoster(allAgents)}`;
@@ -2318,6 +2415,12 @@ ${contents}`);
             onSelect={switchToProject}
             onAdd={handleAddProject}
             onRemove={handleRemoveProject}
+            agentGroups={activeProject?.agentGroups ?? []}
+            busyAgents={allAgents}
+            onCreateGroup={handleCreateGroup}
+            onUpdateGroup={handleUpdateGroup}
+            onDeleteGroup={handleDeleteGroup}
+            onActivateGroup={handleActivateGroup}
           />
           <div className="project-rail-footer">
             <button
@@ -2384,6 +2487,7 @@ ${contents}`);
               sessionRunCounts={sessionRunCounts}
               sessionAlerts={sessionAlerts}
               projectId={activeProject.id}
+              agentGroups={activeProject.agentGroups ?? []}
               onSelect={(sid) => switchSession(activeProject.id, sid)}
               onNew={handleNewSession}
               onRename={handleRenameSession}

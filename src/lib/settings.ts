@@ -1,4 +1,4 @@
-import type { BusyAgent, LlmProvider, PersistedRun, Project, SavedPromptEntry, Session, SubTask, TodoArchive, TodoItem } from "../types";
+import type { AgentGroup, BusyAgent, LlmProvider, PersistedRun, Project, SavedPromptEntry, Session, SubTask, TodoArchive, TodoItem } from "../types";
 
 export const SETTINGS_VERSION = 3;
 
@@ -186,6 +186,20 @@ function sanitizeTodoArchive(value: unknown): TodoArchive | null {
   return { id, name, createdAt, todos };
 }
 
+function sanitizeAgentGroup(value: unknown): AgentGroup | null {
+  const obj = asObject(value);
+  if (!obj) return null;
+  const id = typeof obj.id === "string" ? obj.id : "";
+  const name = typeof obj.name === "string" ? obj.name : "";
+  const createdAt = typeof obj.createdAt === "number" ? obj.createdAt : 0;
+  if (!id || !name || !createdAt) return null;
+  const agentIds = Array.isArray(obj.agentIds)
+    ? obj.agentIds.filter((a): a is string => typeof a === "string" && a.length > 0)
+    : [];
+  const sharedContext = typeof obj.sharedContext === "string" ? obj.sharedContext : "";
+  return { id, name, agentIds, sharedContext, createdAt };
+}
+
 function sanitizeSavedPromptEntry(value: unknown): SavedPromptEntry | null {
   const obj = asObject(value);
   if (!obj) return null;
@@ -267,6 +281,8 @@ function sanitizeSession(value: unknown, projectId: string, index: number): Sess
       ? obj.todoArchives.map(sanitizeTodoArchive).filter(Boolean) as TodoArchive[]
       : undefined,
     busyAgentId: typeof obj?.busyAgentId === "string" && obj.busyAgentId.trim() ? obj.busyAgentId.trim() : undefined,
+    groupId: typeof obj?.groupId === "string" && obj.groupId.trim() ? obj.groupId.trim() : undefined,
+    groupContext: typeof obj?.groupContext === "string" ? obj.groupContext : undefined,
   };
 }
 
@@ -313,7 +329,10 @@ function sanitizeProjects(legacy: LegacyStoredSettings): Project[] {
         const activeSessionId = sessions.some((s) => s.id === activeSessionIdCandidate)
           ? activeSessionIdCandidate
           : sessions[0].id;
-        return { id, name, path, createdAt, sessions, activeSessionId };
+        const agentGroups = Array.isArray(p.agentGroups)
+          ? p.agentGroups.map(sanitizeAgentGroup).filter(Boolean) as AgentGroup[]
+          : undefined;
+        return { id, name, path, createdAt, sessions, activeSessionId, agentGroups };
       })
       .filter(Boolean) as Project[];
   }

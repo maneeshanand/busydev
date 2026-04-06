@@ -513,6 +513,85 @@ describe("migrateStoredSettings", () => {
     });
   });
 
+  describe("AgentGroup sanitization", () => {
+    const baseProject = (agentGroups: unknown[], sessions: unknown[] = []) => ({
+      projects: [{
+        id: "p1", name: "P", path: "/tmp/p", createdAt: Date.now(),
+        activeSessionId: "s1",
+        agentGroups,
+        sessions: sessions.length > 0 ? sessions : [{
+          id: "s1", projectId: "p1", name: "S1", createdAt: Date.now(),
+          runs: [], todos: [],
+        }],
+      }],
+    });
+
+    it("preserves valid agentGroups through sanitization", () => {
+      const migrated = migrateStoredSettings(baseProject([
+        {
+          id: "group-1",
+          name: "Feature Team",
+          agentIds: ["agent-a", "agent-b"],
+          sharedContext: "Working on the login feature",
+          createdAt: 1000,
+        },
+      ]));
+
+      const project = migrated!.projects[0];
+      expect(project.agentGroups).toHaveLength(1);
+      expect(project.agentGroups![0].id).toBe("group-1");
+      expect(project.agentGroups![0].name).toBe("Feature Team");
+      expect(project.agentGroups![0].agentIds).toEqual(["agent-a", "agent-b"]);
+      expect(project.agentGroups![0].sharedContext).toBe("Working on the login feature");
+      expect(project.agentGroups![0].createdAt).toBe(1000);
+    });
+
+    it("filters out groups with missing id, name, or createdAt", () => {
+      const migrated = migrateStoredSettings(baseProject([
+        { id: "group-1", name: "Good", agentIds: [], sharedContext: "", createdAt: 1000 },
+        { id: "", name: "No id", agentIds: [], sharedContext: "", createdAt: 1000 },
+        { id: "group-3", name: "", agentIds: [], sharedContext: "", createdAt: 1000 },
+        { id: "group-4", name: "No createdAt", agentIds: [], sharedContext: "", createdAt: 0 },
+        "not-an-object",
+        null,
+      ]));
+
+      const project = migrated!.projects[0];
+      expect(project.agentGroups).toHaveLength(1);
+      expect(project.agentGroups![0].id).toBe("group-1");
+    });
+
+    it("preserves sessions with groupId and groupContext", () => {
+      const migrated = migrateStoredSettings(baseProject([], [
+        {
+          id: "s1", projectId: "p1", name: "S1", createdAt: Date.now(),
+          runs: [], todos: [],
+          groupId: "group-1",
+          groupContext: "Feature-level shared context",
+        },
+      ]));
+
+      const session = migrated!.projects[0].sessions[0];
+      expect(session.groupId).toBe("group-1");
+      expect(session.groupContext).toBe("Feature-level shared context");
+    });
+
+    it("projects without agentGroups have the field as undefined", () => {
+      const migrated = migrateStoredSettings({
+        projects: [{
+          id: "p1", name: "P", path: "/tmp/p", createdAt: Date.now(),
+          activeSessionId: "s1",
+          sessions: [{
+            id: "s1", projectId: "p1", name: "S1", createdAt: Date.now(),
+            runs: [], todos: [],
+          }],
+        }],
+      });
+
+      expect(migrated!.projects[0].agentGroups).toBeUndefined();
+    });
+  });
+
   it("defaults busyAgentId to undefined when not set", () => {
     const migrated = migrateStoredSettings({
       projects: [{
