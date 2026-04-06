@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { BusyAgent, LlmProvider, SavedPromptEntry } from "../types";
+import type { AgentGroup, BusyAgent, LlmProvider, SavedPromptEntry } from "../types";
 import { getModelsForProvider } from "../lib/providers";
 import { AgentIcon } from "./AgentIcon";
 import "./SettingsView.css";
@@ -60,6 +60,10 @@ interface SettingsViewProps {
   onUpdateBusyAgent: (agent: BusyAgent) => void;
   onDeleteBusyAgent: (id: string) => void;
   onResetBusyAgent: (id: string) => void;
+  agentGroups: AgentGroup[];
+  onCreateAgentGroup: (group: Omit<AgentGroup, "id" | "createdAt">) => void;
+  onUpdateAgentGroup: (id: string, updates: Partial<AgentGroup>) => void;
+  onDeleteAgentGroup: (id: string) => void;
   providers: LlmProvider[];
   onUpdateProvider: (provider: LlmProvider) => void;
   onResetEnvironment: () => void;
@@ -92,6 +96,11 @@ export function SettingsView(props: SettingsViewProps) {
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
   const [agentForm, setAgentForm] = useState<Partial<BusyAgent>>({});
   const [creatingAgent, setCreatingAgent] = useState(false);
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [groupName, setGroupName] = useState("");
+  const [groupAgentIds, setGroupAgentIds] = useState<string[]>([]);
+  const [groupContext, setGroupContext] = useState("");
 
   useEffect(() => {
     if (!props.open) return;
@@ -537,6 +546,110 @@ export function SettingsView(props: SettingsViewProps) {
                   );
                 })}
               </div>
+
+              <h3 style={{ marginTop: "24px", marginBottom: "8px", fontSize: "0.86rem", color: "var(--vp-c-text-1)" }}>Agent Groups</h3>
+              <p className="settings-helper">Groups provide shared context to multiple agents. Select a group in the prompt composer to apply its context.</p>
+
+              {(creatingGroup || editingGroupId) && (
+                <div className="settings-agent-form" style={{ marginBottom: "12px" }}>
+                  <input
+                    className="settings-input"
+                    value={groupName}
+                    onChange={(e) => setGroupName(e.target.value)}
+                    placeholder="Group name"
+                  />
+                  <div style={{ fontSize: "0.76rem", color: "var(--vp-c-text-3)", margin: "6px 0 4px" }}>Agents in group:</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "3px", marginBottom: "8px" }}>
+                    {props.busyAgents.map((ba) => (
+                      <label key={ba.id} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.78rem", color: "var(--vp-c-text-2)", cursor: "pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={groupAgentIds.includes(ba.id)}
+                          onChange={() => setGroupAgentIds((prev) => prev.includes(ba.id) ? prev.filter((id) => id !== ba.id) : [...prev, ba.id])}
+                        />
+                        {ba.name}
+                      </label>
+                    ))}
+                  </div>
+                  <textarea
+                    className="settings-input"
+                    value={groupContext}
+                    onChange={(e) => setGroupContext(e.target.value)}
+                    placeholder="Shared context (system prompt applied to all agents)..."
+                    rows={3}
+                    style={{ fontFamily: "var(--vp-font-family-mono)", fontSize: "0.78rem" }}
+                  />
+                  <div style={{ display: "flex", gap: "6px", marginTop: "6px" }}>
+                    <button
+                      type="button"
+                      className="settings-btn"
+                      onClick={() => { setCreatingGroup(false); setEditingGroupId(null); }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="settings-btn settings-btn-primary"
+                      disabled={!groupName.trim() || groupAgentIds.length === 0}
+                      onClick={() => {
+                        if (editingGroupId) {
+                          props.onUpdateAgentGroup(editingGroupId, { name: groupName.trim(), agentIds: groupAgentIds, sharedContext: groupContext });
+                        } else {
+                          props.onCreateAgentGroup({ name: groupName.trim(), agentIds: groupAgentIds, sharedContext: groupContext });
+                        }
+                        setCreatingGroup(false);
+                        setEditingGroupId(null);
+                        setGroupName("");
+                        setGroupAgentIds([]);
+                        setGroupContext("");
+                      }}
+                    >
+                      {editingGroupId ? "Save" : "Create"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {!creatingGroup && !editingGroupId && (
+                <button
+                  type="button"
+                  className="settings-btn"
+                  style={{ marginBottom: "8px" }}
+                  onClick={() => { setCreatingGroup(true); setGroupName(""); setGroupAgentIds([]); setGroupContext(""); }}
+                >
+                  + New Group
+                </button>
+              )}
+
+              {props.agentGroups.map((group) => (
+                <div key={group.id} className="settings-library-item" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ flex: 1, fontSize: "0.82rem", color: "var(--vp-c-text-1)" }}>{group.name}</span>
+                  <span style={{ fontSize: "0.72rem", color: "var(--vp-c-text-3)" }}>{group.agentIds.length} agents</span>
+                  <button
+                    type="button"
+                    className="settings-btn"
+                    onClick={() => {
+                      setEditingGroupId(group.id);
+                      setGroupName(group.name);
+                      setGroupAgentIds([...group.agentIds]);
+                      setGroupContext(group.sharedContext);
+                      setCreatingGroup(false);
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="settings-btn"
+                    onClick={() => props.onDeleteAgentGroup(group.id)}
+                  >
+                    Delete
+                  </button>
+                </div>
+              ))}
+              {props.agentGroups.length === 0 && !creatingGroup && (
+                <div style={{ fontSize: "0.78rem", color: "var(--vp-c-text-3)", padding: "8px 0" }}>No groups yet</div>
+              )}
             </section>
           )}
 

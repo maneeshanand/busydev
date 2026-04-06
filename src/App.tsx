@@ -18,7 +18,7 @@ import {
   updateTrayBadge,
   type CodexStreamEvent,
 } from "./invoke";
-import type { BusyAgent, StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session, SavedPromptEntry, LlmProvider, TodoArchive } from "./types";
+import type { AgentGroup, BusyAgent, StreamRow, RunEntry, PersistedRun, InFlightRun, TodoItem, Project, Session, SavedPromptEntry, LlmProvider, TodoArchive } from "./types";
 import { mergeWithPresets, findAgentBySlug, buildAgentRoster, agentSlug } from "./lib/busyAgents";
 import { agentIconLabel } from "./components/AgentIcon";
 import { ProjectNavigator } from "./components/ProjectNavigator";
@@ -758,6 +758,7 @@ function App() {
   const [prompt, setPrompt] = useState("");
   const [promptLibrary, setPromptLibrary] = useState<SavedPromptEntry[]>([]);
   const [busyAgents, setBusyAgents] = useState<BusyAgent[]>([]);
+  const [agentGroups, setAgentGroups] = useState<AgentGroup[]>([]);
   const [providers, setProviders] = useState<LlmProvider[]>(() => mergeWithDefaults([]));
   const allAgents = useMemo(() => mergeWithPresets(busyAgents), [busyAgents]);
   const [mentionOpen, setMentionOpen] = useState(false);
@@ -933,6 +934,7 @@ function App() {
     terminalLineHeight,
     promptLibrary,
     busyAgents,
+    agentGroups,
     providers,
     windowWidth: windowSize.windowWidth,
     windowHeight: windowSize.windowHeight,
@@ -955,6 +957,7 @@ function App() {
     terminalLineHeight,
     promptLibrary,
     busyAgents,
+    agentGroups,
     providers,
     windowSize.windowWidth,
     windowSize.windowHeight,
@@ -1049,6 +1052,7 @@ function App() {
           setTerminalLineHeight(migrated.terminalLineHeight);
           setPromptLibrary(migrated.promptLibrary);
           setBusyAgents(migrated.busyAgents);
+          setAgentGroups(migrated.agentGroups);
           if (migrated.providers) setProviders(mergeWithDefaults(migrated.providers));
           setWindowSize({
             windowWidth: migrated.windowWidth,
@@ -1489,6 +1493,18 @@ ${contents}`);
     setBusyAgents((prev) => prev.filter((a) => a.id !== id));
   }
 
+  function createAgentGroup(group: Omit<AgentGroup, "id" | "createdAt">) {
+    setAgentGroups((prev) => [...prev, { ...group, id: crypto.randomUUID(), createdAt: Date.now() }]);
+  }
+
+  function updateAgentGroup(id: string, updates: Partial<AgentGroup>) {
+    setAgentGroups((prev) => prev.map((g) => g.id === id ? { ...g, ...updates } : g));
+  }
+
+  function deleteAgentGroup(id: string) {
+    setAgentGroups((prev) => prev.filter((g) => g.id !== id));
+  }
+
   function detectMentionAtCursor(nextPrompt: string, cursor: number) {
     const beforeCursor = nextPrompt.slice(0, cursor);
     const libraryMatch = beforeCursor.match(/(^|\s)#([a-zA-Z0-9_-]*)$/);
@@ -1822,6 +1838,15 @@ ${contents}`);
 
     // Prepend system prompt from BusyAgent if available
     let systemPrompt = overrides?.systemPromptOverride || taggedBusyAgent?.systemPrompt || activeBusyAgent?.systemPrompt || "";
+    // Prepend group shared context if session has a group assigned
+    const groupCtx = tSession?.agentGroupId
+      ? agentGroups.find((g) => g.id === tSession.agentGroupId)?.sharedContext
+      : undefined;
+    if (groupCtx) {
+      systemPrompt = systemPrompt
+        ? `${groupCtx}\n\n---\n\n${systemPrompt}`
+        : groupCtx;
+    }
     // Append dynamic agent roster for Tech Lead orchestration
     if (systemPrompt && systemPrompt.includes("[agent:")) {
       systemPrompt += `\n\n${buildAgentRoster(allAgents)}`;
@@ -2574,6 +2599,21 @@ ${contents}`);
                   <option key={a.id} value={a.id}>{agentIconLabel(a.icon)} {a.name}</option>
                 ))}
               </select>
+              {agentGroups.length > 0 && (
+                <select
+                  className="meta-chip-select"
+                  value={activeSession?.agentGroupId ?? ""}
+                  onChange={(e) => {
+                    updateActiveSession((s) => ({ ...s, agentGroupId: e.target.value || undefined }));
+                  }}
+                  title="Agent Group"
+                >
+                  <option value="">No Group</option>
+                  {agentGroups.map((g) => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
+              )}
               {activeBusyAgent ? (
                 <>
                   <span className="meta-chip-select" style={{ cursor: "default" }} title="Model">{activeBusyAgent.model || activeBusyAgent.base}</span>
@@ -2830,6 +2870,10 @@ ADD_TODO: step three description`);
         onUpdateBusyAgent={updateBusyAgent}
         onDeleteBusyAgent={deleteBusyAgent}
         onResetBusyAgent={resetBusyAgentToPreset}
+        agentGroups={agentGroups}
+        onCreateAgentGroup={createAgentGroup}
+        onUpdateAgentGroup={updateAgentGroup}
+        onDeleteAgentGroup={deleteAgentGroup}
         onResetEnvironment={() => {
           setProjects([]);
           setActiveProjectId(null);

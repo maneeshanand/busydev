@@ -1,4 +1,4 @@
-import type { BusyAgent, LlmProvider, PersistedRun, Project, SavedPromptEntry, Session, SubTask, TodoArchive, TodoItem } from "../types";
+import type { AgentGroup, BusyAgent, LlmProvider, PersistedRun, Project, SavedPromptEntry, Session, SubTask, TodoArchive, TodoItem } from "../types";
 
 export const SETTINGS_VERSION = 3;
 
@@ -22,6 +22,7 @@ export interface StoredSettings {
   terminalLineHeight: number;
   promptLibrary: SavedPromptEntry[];
   busyAgents: BusyAgent[];
+  agentGroups: AgentGroup[];
   providers: LlmProvider[];
   windowWidth?: number;
   windowHeight?: number;
@@ -54,6 +55,7 @@ type LegacyStoredSettings = {
   terminalLineHeight?: number;
   promptLibrary?: SavedPromptEntry[];
   busyAgents?: BusyAgent[];
+  agentGroups?: AgentGroup[];
   providers?: LlmProvider[];
   windowWidth?: number;
   windowHeight?: number;
@@ -244,6 +246,20 @@ function sanitizeBusyAgent(value: unknown): BusyAgent | null {
   };
 }
 
+function sanitizeAgentGroup(value: unknown): AgentGroup | null {
+  const obj = asObject(value);
+  if (!obj) return null;
+  const id = typeof obj.id === "string" ? obj.id : "";
+  const name = typeof obj.name === "string" ? obj.name.trim() : "";
+  const createdAt = typeof obj.createdAt === "number" ? obj.createdAt : 0;
+  if (!id || !name || !createdAt) return null;
+  const agentIds = Array.isArray(obj.agentIds)
+    ? obj.agentIds.filter((a): a is string => typeof a === "string" && a.length > 0)
+    : [];
+  const sharedContext = typeof obj.sharedContext === "string" ? obj.sharedContext : "";
+  return { id, name, agentIds, sharedContext, createdAt };
+}
+
 function sanitizeSession(value: unknown, projectId: string, index: number): Session {
   const obj = asObject(value);
   const createdAt = typeof obj?.createdAt === "number" ? obj.createdAt : Date.now();
@@ -267,6 +283,7 @@ function sanitizeSession(value: unknown, projectId: string, index: number): Sess
       ? obj.todoArchives.map(sanitizeTodoArchive).filter(Boolean) as TodoArchive[]
       : undefined,
     busyAgentId: typeof obj?.busyAgentId === "string" && obj.busyAgentId.trim() ? obj.busyAgentId.trim() : undefined,
+    agentGroupId: typeof obj?.agentGroupId === "string" && obj.agentGroupId.trim() ? obj.agentGroupId.trim() : undefined,
   };
 }
 
@@ -368,6 +385,9 @@ export function migrateStoredSettings(saved: unknown): StoredSettings | null {
     busyAgents: (Array.isArray(legacy.busyAgents) ? legacy.busyAgents : [])
       .map(sanitizeBusyAgent)
       .filter(Boolean) as BusyAgent[],
+    agentGroups: (Array.isArray(legacy.agentGroups) ? legacy.agentGroups : [])
+      .map(sanitizeAgentGroup)
+      .filter(Boolean) as AgentGroup[],
     providers: Array.isArray(legacy.providers) ? legacy.providers : [],
     windowWidth: typeof legacy.windowWidth === "number" ? legacy.windowWidth : undefined,
     windowHeight: typeof legacy.windowHeight === "number" ? legacy.windowHeight : undefined,
