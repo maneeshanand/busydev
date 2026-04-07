@@ -2543,6 +2543,7 @@ ${contents}`);
             generatedSteps={wizardSteps}
             generatedBranch={wizardBranch}
             generating={wizardGenerating}
+            streamRows={activeInFlightRun?.streamRows}
             onExecute={handleWizardExecute}
             onCancel={() => { setWizardOpen(false); setWizardSteps(null); setWizardBranch(null); }}
           />

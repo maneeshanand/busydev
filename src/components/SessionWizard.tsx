@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { BusyAgent, LlmProvider } from "../types";
+import type { BusyAgent, LlmProvider, StreamRow } from "../types";
 import { agentSlug } from "../lib/busyAgents";
 import { getEnabledProviders } from "../lib/providers";
 import "./SessionWizard.css";
@@ -33,6 +33,7 @@ interface SessionWizardProps {
   generatedSteps: { text: string; agentSlug: string }[] | null;
   generatedBranch: string | null;
   generating: boolean;
+  streamRows?: StreamRow[];
   onExecute: (result: WizardResult) => void;
   onCancel: () => void;
 }
@@ -57,6 +58,7 @@ export function SessionWizard(props: SessionWizardProps) {
     generatedSteps,
     generatedBranch,
     generating,
+    streamRows,
     onExecute,
     onCancel,
   } = props;
@@ -174,6 +176,22 @@ export function SessionWizard(props: SessionWizardProps) {
             </button>
           </div>
         </div>
+
+        {/* Live agent activity feed while generating */}
+        {generating && streamRows && streamRows.length > 0 && (
+          <div className="wizard-stream">
+            <div className="wizard-stream-label">Agent activity</div>
+            <div className="wizard-stream-rows">
+              {streamRows.filter((r) => !r.hidden && r.text).slice(-12).map((r) => (
+                <div key={r.id} className={`wizard-stream-row wizard-stream-${r.category}`}>
+                  {r.category === "command" && <span className="wizard-stream-prefix">$</span>}
+                  <span>{r.command ?? r.text}</span>
+                  {r.category === "command" && r.status === "done" && <span className="wizard-stream-done">done</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   }

@@ -423,6 +423,74 @@ details[open] .wizard-step-chevron {
 
 /* ── Actions row ───────────────────────────────────────────────────────────── */
 
+/* ── Agent activity stream ─────────────────────────────────────────────────── */
+
+.wizard-stream {
+  margin-top: 16px;
+  border: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg);
+  max-height: 200px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.wizard-stream-label {
+  padding: 6px 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--vp-c-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg-soft);
+}
+
+.wizard-stream-rows {
+  padding: 6px 10px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wizard-stream-row {
+  font-size: 0.76rem;
+  font-family: var(--vp-font-family-mono);
+  color: var(--vp-c-text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.6;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wizard-stream-command {
+  color: var(--vp-c-text-3);
+}
+
+.wizard-stream-prefix {
+  color: var(--vp-c-text-3);
+  opacity: 0.5;
+}
+
+.wizard-stream-done {
+  color: var(--ev-success, #22c55e);
+  font-size: 0.68rem;
+  margin-left: auto;
+}
+
+.wizard-stream-message {
+  color: var(--vp-c-text-2);
+}
+
+.wizard-stream-error {
+  color: var(--ev-error-accent, #ef4444);
+}
+
 .wizard-actions {
   display: flex;
   flex-direction: row;
