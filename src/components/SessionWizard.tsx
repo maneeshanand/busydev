@@ -178,15 +178,22 @@ export function SessionWizard(props: SessionWizardProps) {
         </div>
 
         {/* Live agent activity feed while generating */}
-        {generating && streamRows && streamRows.length > 0 && (
+        {generating && (
           <div className="wizard-stream">
-            <div className="wizard-stream-label">Agent activity</div>
+            <div className="wizard-stream-label">
+              <span className="wizard-stream-spinner" />
+              Agent activity
+            </div>
             <div className="wizard-stream-rows">
-              {streamRows.filter((r) => !r.hidden && r.text).slice(-12).map((r) => (
+              {(!streamRows || streamRows.filter((r) => !r.hidden).length === 0) && (
+                <div className="wizard-stream-row wizard-stream-message">Thinking...</div>
+              )}
+              {streamRows?.filter((r) => !r.hidden && (r.text || r.command)).slice(-15).map((r) => (
                 <div key={r.id} className={`wizard-stream-row wizard-stream-${r.category}`}>
                   {r.category === "command" && <span className="wizard-stream-prefix">$</span>}
-                  <span>{r.command ?? r.text}</span>
+                  <span className="wizard-stream-text">{r.command ?? r.text}</span>
                   {r.category === "command" && r.status === "done" && <span className="wizard-stream-done">done</span>}
+                  {r.category === "command" && r.status === "running" && <span className="wizard-stream-running">running</span>}
                 </div>
               ))}
             </div>

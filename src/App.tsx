@@ -2543,7 +2543,17 @@ ${contents}`);
             generatedSteps={wizardSteps}
             generatedBranch={wizardBranch}
             generating={wizardGenerating}
-            streamRows={activeInFlightRun?.streamRows}
+            streamRows={(() => {
+              // Find any in-flight run's stream rows — activeInFlightRun might be null
+              // if activeTabId wasn't set yet
+              if (activeInFlightRun?.streamRows?.length) return activeInFlightRun.streamRows;
+              // Fallback: find the most recent in-flight run for this session
+              const sessionInflight = Object.values(inFlightRuns).find((r) => {
+                const owner = runSessionMapRef.current[r.runId];
+                return owner?.projectId === activeProjectId && owner?.sessionId === activeProject?.activeSessionId;
+              });
+              return sessionInflight?.streamRows;
+            })()}
             onExecute={handleWizardExecute}
             onCancel={() => { setWizardOpen(false); setWizardSteps(null); setWizardBranch(null); }}
           />
