@@ -435,6 +435,13 @@ details[open] .wizard-step-chevron {
   margin-left: auto;
 }
 
+.wizard-generate-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
 /* ── Buttons ───────────────────────────────────────────────────────────────── */
 
 .wizard-btn {

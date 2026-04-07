@@ -1305,7 +1305,7 @@ function App() {
     setConfirmClearTodos(false);
   }
 
-  async function handleWizardGenerate(description: string) {
+  async function handleWizardGenerate(description: string, generationProvider?: string) {
     if (!activeProjectId || !activeProject) return;
     setWizardGenerating(true); wizardGeneratingRef.current = true;
     setWizardSteps(null);
@@ -1328,7 +1328,7 @@ ADD_TODO: [agent:slug] step description
 ADD_TODO: [agent:slug] step description
 
 Feature:
-${description}`);
+${description}`, generationProvider ? { agentOverride: generationProvider } : undefined);
   }
   async function handleSaveTodos() {
     const filePath = await save({

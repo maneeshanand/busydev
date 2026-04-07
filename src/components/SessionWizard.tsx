@@ -29,7 +29,7 @@ interface SessionWizardProps {
   providers: LlmProvider[];
   currentAgent: string;
   onQuickSession: () => void;
-  onGeneratePlan: (description: string) => void;
+  onGeneratePlan: (description: string, provider: string) => void;
   generatedSteps: { text: string; agentSlug: string }[] | null;
   generatedBranch: string | null;
   generating: boolean;
@@ -152,14 +152,27 @@ export function SessionWizard(props: SessionWizardProps) {
           >
             ← Back
           </button>
-          <button
-            className="wizard-btn wizard-btn-primary"
-            onClick={() => onGeneratePlan(description)}
-            disabled={!canGenerate}
-            type="button"
-          >
-            {generating ? "Generating…" : "Generate Plan →"}
-          </button>
+          <div className="wizard-generate-group">
+            <select
+              className="wizard-config-select"
+              value={provider}
+              onChange={(e) => setProvider(e.target.value)}
+              disabled={generating}
+              title="LLM for plan generation"
+            >
+              {enabledProviders.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+            <button
+              className="wizard-btn wizard-btn-primary"
+              onClick={() => onGeneratePlan(description, provider)}
+              disabled={!canGenerate}
+              type="button"
+            >
+              {generating ? "Generating…" : "Generate Plan →"}
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -217,7 +230,7 @@ export function SessionWizard(props: SessionWizardProps) {
     setPlanSteps([]);
     prevGeneratedStepsRef.current = null;
     setStep("describe");
-    onGeneratePlan(description);
+    onGeneratePlan(description, provider);
   }
 
   function renderReview() {
